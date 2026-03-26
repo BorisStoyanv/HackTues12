@@ -1,9 +1,9 @@
-import { HttpAgent, Actor, ActorSubclass, Identity } from '@dfinity/agent';
+import { HttpAgent, Actor, ActorSubclass, Identity } from '@icp-sdk/core/agent';
 import { idlFactory } from './idl';
 import { BackendService } from '../types/api';
 
-const CANISTER_ID = 'htkot-kiaaa-aaaaa-qgtsa-cai';
-const HOST = 'https://icp0.io'; // Mainnet boundary node
+const CANISTER_ID = process.env.NEXT_PUBLIC_BACKEND_CANISTER_ID || 'sk6yb-aqaaa-aaaad-qljxa-cai';
+const HOST = 'https://icp-api.io'; // Modern standard host
 
 /**
  * Creates an anonymous or authenticated agent to interact with the backend canister.
