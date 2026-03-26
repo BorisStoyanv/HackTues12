@@ -1,0 +1,155 @@
+type UserType = variant { User; InvestorUser };
+
+type UserProfile = record {
+  display_name : text;
+  user_type : UserType;
+  reputation : float64;
+  home_region : opt text;
+  created_at : nat64;
+  updated_at : nat64;
+  last_activity_ts : nat64;
+  activity_count : nat32;
+  vote_count : nat32;
+  is_local_verified : bool;
+  has_expert_standing : bool;
+  concluded_votes : nat32;
+  accurate_votes : nat32;
+  is_verified : opt bool;
+};
+
+type CreateProfileInput = record {
+  display_name : text;
+  user_type : UserType;
+  home_region : opt text;
+};
+
+type UpdateProfileInput = record {
+  display_name : text;
+  home_region : opt text;
+};
+
+type ProposalStatus = variant {
+  Active;
+  QuorumNotMet;
+  Rejected;
+  AwaitingFunding;
+  Backed;
+};
+
+type ProposalCategory = variant {
+  Infrastructure;
+  Marketing;
+  Events;
+  Conservation;
+  Education;
+  Technology;
+  Other;
+};
+
+type Proposal = record {
+  id : nat64;
+  submitter : principal;
+  region_tag : text;
+  title : text;
+  description : text;
+  category : opt ProposalCategory;
+  budget_amount : opt float64;
+  budget_currency : opt text;
+  budget_breakdown : opt text;
+  executor_name : opt text;
+  execution_plan : opt text;
+  timeline : opt text;
+  expected_impact : opt text;
+  fairness_score : opt float64;
+  risk_flags : vec text;
+  backed_by : opt principal;
+  backed_at : opt nat64;
+  status : ProposalStatus;
+  created_at : nat64;
+  voting_ends_at : nat64;
+  yes_weight : float64;
+  no_weight : float64;
+  voter_count : nat32;
+};
+
+type SubmitProposalInput = record {
+  title : text;
+  description : text;
+  region_tag : text;
+  category : ProposalCategory;
+  budget_amount : float64;
+  budget_currency : text;
+  budget_breakdown : text;
+  executor_name : text;
+  execution_plan : text;
+  timeline : text;
+  expected_impact : text;
+};
+
+type Vote = record {
+  voter : principal;
+  proposal_id : nat64;
+  in_favor : bool;
+  weight : float64;
+  timestamp : nat64;
+};
+
+type AuditEventType = variant {
+  UserRegistered;
+  InvestorVerified;
+  ProposalSubmitted;
+  VoteCast;
+  ProposalFinalized;
+  ProposalBacked;
+  ReputationAwarded;
+  ReputationPenalized;
+};
+
+type AuditEvent = record {
+  id : nat64;
+  timestamp : nat64;
+  actor : principal;
+  event_type : AuditEventType;
+  proposal_id : opt nat64;
+  payload : text;
+};
+
+type Config = record {
+  voting_period_ns : nat64;
+  quorum_percent : float64;
+  quorum_min_region_size : nat32;
+  majority_threshold : float64;
+  absolute_majority : float64;
+};
+
+type Result_1 = variant { Ok : UserProfile; Err : text };
+type Result_2 = variant { Ok : Proposal; Err : text };
+type Result_3 = variant { Ok : Vote; Err : text };
+type Result_4 = variant { Ok : float64; Err : text };
+type Result_5 = variant { Ok; Err : text };
+
+service : {
+  create_my_profile : (CreateProfileInput) -> (Result_1);
+  update_my_profile : (UpdateProfileInput) -> (Result_1);
+  get_user : (principal) -> (opt UserProfile) query;
+  get_my_profile : () -> (opt UserProfile) query;
+  whoami : () -> (principal) query;
+
+  request_verification : () -> (Result_5);
+  admin_verify_investor : (principal) -> (Result_5);
+
+  submit_proposal : (SubmitProposalInput) -> (Result_2);
+  get_proposal : (nat64) -> (opt Proposal) query;
+  list_proposals : (opt ProposalStatus) -> (vec Proposal) query;
+
+  cast_vote : (nat64, bool) -> (Result_3);
+  get_proposal_votes : (nat64) -> (vec Vote) query;
+
+  finalize_proposal : (nat64) -> (Result_2);
+  back_proposal : (nat64) -> (Result_2);
+
+  get_audit_log : (nat32, nat32) -> (vec AuditEvent) query;
+  get_my_vp : (text) -> (Result_4) query;
+  get_region_total_vp : (text) -> (float64) query;
+  get_config : () -> (Config) query;
+}
