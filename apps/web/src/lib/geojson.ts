@@ -25,15 +25,14 @@ export interface ProposalGeoJSONFeatureCollection {
 }
 
 /**
- * Converts backend Proposal objects to GeoJSON for Mapbox.
- * Assumes funding values have already been converted from BigInt to Number.
+ * Converts backend SerializedProposal objects to GeoJSON for Mapbox.
  */
 export function convertProposalsToGeoJSON(proposals: SerializedProposal[]): ProposalGeoJSONFeatureCollection {
   return {
     type: 'FeatureCollection',
     features: proposals.map((proposal) => {
-      const goal = proposal.funding_goal;
-      const current = proposal.current_funding;
+      const goal = proposal.funding_goal ?? 0;
+      const current = proposal.current_funding ?? 0;
       
       return {
         type: 'Feature',
@@ -45,7 +44,7 @@ export function convertProposalsToGeoJSON(proposals: SerializedProposal[]): Prop
           id: proposal.id,
           title: proposal.title,
           region: proposal.location.city,
-          status: proposal.status,
+          status: typeof proposal.status === 'string' ? proposal.status : Object.keys(proposal.status)[0],
           funding_progress: goal > 0 ? (current / goal) * 100 : 0,
           funding_goal: goal,
           current_funding: current,

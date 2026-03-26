@@ -4,18 +4,45 @@ import { createBackendActor } from "../api/icp";
 import { Proposal, Vote, ContractRecord, AuditLog, Config } from "../types/api";
 
 function serializeProposal(proposal: Proposal) {
+  // Convert Variant status to string
+  const statusKey = Object.keys(proposal.status)[0];
+  
   return {
     ...proposal,
-    creator: proposal.creator.toString(),
-    funding_goal: Number(proposal.funding_goal),
-    current_funding: Number(proposal.current_funding),
+    id: proposal.id.toString(),
+    creator: proposal.submitter.toString(),
+    budget_amount: proposal.budget_amount.length > 0 ? Number(proposal.budget_amount[0]) : 0,
+    budget_currency: proposal.budget_currency.length > 0 ? proposal.budget_currency[0] : 'USD',
+    funding_goal: proposal.budget_amount.length > 0 ? Number(proposal.budget_amount[0]) : 0,
+    current_funding: proposal.yes_weight, 
     created_at: Number(proposal.created_at),
-    updated_at: Number(proposal.updated_at),
-    // Ensure nested objects are handled or defaulted
-    tags: proposal.tags || [],
-    ai_integrity_report: proposal.ai_integrity_report || null,
-    voting_metrics: proposal.voting_metrics || {
-      total_votes: 0,
+    updated_at: Number(proposal.created_at),
+    status: statusKey || 'Active',
+    tags: proposal.risk_flags || [],
+    description: proposal.description,
+    short_description: proposal.description.substring(0, 160),
+    problem_statement: proposal.description,
+    // Provide fallback location if missing from record (canister doesn't have it yet)
+    location: {
+      lat: 50.0,
+      lng: 10.0,
+      city: proposal.region_tag,
+      country: "Unknown",
+      formatted_address: proposal.region_tag
+    },
+    execution_plan: proposal.execution_plan.length > 0 ? proposal.execution_plan[0] : "",
+    timeline: proposal.timeline.length > 0 ? proposal.timeline[0] : "",
+    expected_impact: proposal.expected_impact.length > 0 ? proposal.expected_impact[0] : "",
+    ai_integrity_report: proposal.fairness_score.length > 0 ? {
+      overall_score: proposal.fairness_score[0],
+      fairness_score: proposal.fairness_score[0],
+      efficiency_score: 0,
+      summary: "Backend analysis pending.",
+      risk_factors: proposal.risk_flags,
+      positive_externalities: []
+    } : null,
+    voting_metrics: {
+      total_votes: proposal.voter_count,
       quorum_reached: false,
       quorum_percentage: 0,
       approval_percentage: 0,
@@ -38,16 +65,17 @@ function serializeVote(vote: Vote) {
 function serializeContract(contract: ContractRecord) {
   return {
     ...contract,
-    investor: contract.investor.toString(),
-    company: contract.company.toString(),
+    investor_principal: contract.investor_principal.toString(),
+    created_by: contract.created_by.toString(),
     created_at: Number(contract.created_at),
+    updated_at: Number(contract.updated_at),
   };
 }
 
 function serializeAuditLog(log: AuditLog) {
   return {
     ...log,
-    caller: log.caller.toString(),
+    caller: log.actor.toString(),
     timestamp: Number(log.timestamp),
   };
 }
@@ -55,7 +83,7 @@ function serializeAuditLog(log: AuditLog) {
 export async function fetchAllProposals() {
   try {
     const actor = await createBackendActor();
-    const proposals = await actor.list_proposals();
+    const proposals = await actor.list_proposals([]); 
     
     return { 
       success: true, 
@@ -70,7 +98,7 @@ export async function fetchAllProposals() {
 export async function fetchProposalById(id: string) {
   try {
     const actor = await createBackendActor();
-    const result = await actor.get_proposal(id);
+    const result = await actor.get_proposal(BigInt(id));
     
     if (result.length > 0) {
       return { success: true, proposal: serializeProposal(result[0]!) };
@@ -86,7 +114,7 @@ export async function fetchProposalById(id: string) {
 export async function fetchProposalVotes(id: string) {
   try {
     const actor = await createBackendActor();
-    const votes = await actor.get_proposal_votes(id);
+    const votes = await actor.get_proposal_votes(BigInt(id));
     return { success: true, votes: votes.map(serializeVote) };
   } catch (error) {
     console.error("Failed to fetch votes:", error);
@@ -97,8 +125,11 @@ export async function fetchProposalVotes(id: string) {
 export async function fetchProposalPhase(id: string) {
   try {
     const actor = await createBackendActor();
-    const phase = await actor.get_proposal_phase(id);
-    return { success: true, phase };
+    const result = await actor.get_proposal_phase(BigInt(id));
+    if ('Ok' in result) {
+      return { success: true, phase: result.Ok };
+    }
+    return { success: false, error: result.Err };
   } catch (error) {
     console.error("Failed to fetch proposal phase:", error);
     return { success: false, error: "Failed to fetch proposal phase." };
@@ -108,7 +139,7 @@ export async function fetchProposalPhase(id: string) {
 export async function fetchContractRecord(id: string) {
   try {
     const actor = await createBackendActor();
-    const result = await actor.get_contract_record(id);
+    const result = await actor.get_contract_record(BigInt(id));
     if (result.length > 0) {
       return { success: true, contract: serializeContract(result[0]!) };
     }
@@ -122,7 +153,7 @@ export async function fetchContractRecord(id: string) {
 export async function fetchAllContracts() {
   try {
     const actor = await createBackendActor();
-    const contracts = await actor.list_contracts();
+    const contracts = await actor.list_contracts([]);
     return { success: true, contracts: contracts.map(serializeContract) };
   } catch (error) {
     console.error("Failed to fetch contracts:", error);
@@ -130,10 +161,10 @@ export async function fetchAllContracts() {
   }
 }
 
-export async function fetchAuditLogs() {
+export async function fetchAuditLogs(limit = 10, offset = 0) {
   try {
     const actor = await createBackendActor();
-    const logs = await actor.get_audit_log();
+    const logs = await actor.get_audit_log(limit, offset);
     return { success: true, logs: logs.map(serializeAuditLog) };
   } catch (error) {
     console.error("Failed to fetch audit logs:", error);
@@ -148,8 +179,11 @@ export async function fetchConfig() {
     return { 
       success: true, 
       config: {
-        min_quorum: Number(config.min_quorum),
-        governance_token: config.governance_token.length > 0 ? config.governance_token[0]!.toString() : null
+        voting_period_ns: config.voting_period_ns.toString(),
+        quorum_percent: config.quorum_percent,
+        quorum_min_region_size: config.quorum_min_region_size,
+        majority_threshold: config.majority_threshold,
+        absolute_majority: config.absolute_majority
       } 
     };
   } catch (error) {

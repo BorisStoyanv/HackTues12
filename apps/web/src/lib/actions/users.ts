@@ -2,25 +2,38 @@
 
 import { createBackendActor } from "../api/icp";
 import { UserProfile } from "../types/api";
-import { Principal } from "@dfinity/principal";
+import { Principal } from "@icp-sdk/core/principal";
 
-function serializeUserProfile(profile: UserProfile) {
+function serializeUserProfile(profile: UserProfile, principal?: Principal) {
+  const roleKey = Object.keys(profile.user_type)[0];
+  
   return {
     ...profile,
-    id: profile.id.toString(),
-    role: profile.role.length > 0 ? profile.role[0] : null,
-    region: profile.region.length > 0 ? profile.region[0] : null,
+    id: principal ? principal.toString() : "unknown",
+    role: roleKey || 'User',
+    region: profile.home_region.length > 0 ? profile.home_region[0] : null,
     reputation: Number(profile.reputation),
+    created_at: Number(profile.created_at),
+    updated_at: Number(profile.updated_at),
+    last_activity_ts: Number(profile.last_activity_ts),
+    is_verified: profile.is_verified.length > 0 ? profile.is_verified[0] : false,
+    // Add UI status derived from backend bools
+    kyc_status: profile.is_verified.length > 0 && profile.is_verified[0] ? 'verified' : 'unverified',
   };
 }
+
+export type SerializedUserProfile = ReturnType<typeof serializeUserProfile>;
 
 export async function fetchMyProfile() {
   try {
     const actor = await createBackendActor();
-    const result = await actor.get_my_profile();
+    const [profile, principal] = await Promise.all([
+      actor.get_my_profile(),
+      actor.whoami()
+    ]);
     
-    if (result.length > 0) {
-      return { success: true, profile: serializeUserProfile(result[0]!) };
+    if (profile.length > 0) {
+      return { success: true, profile: serializeUserProfile(profile[0]!, principal) };
     }
     
     return { success: false, error: "Profile not found." };
@@ -37,7 +50,7 @@ export async function fetchUserByPrincipal(principalString: string) {
     const result = await actor.get_user(principal);
     
     if (result.length > 0) {
-      return { success: true, user: serializeUserProfile(result[0]!) };
+      return { success: true, user: serializeUserProfile(result[0]!, principal) };
     }
     
     return { success: false, error: "User not found." };
@@ -58,11 +71,14 @@ export async function fetchWhoAmI() {
   }
 }
 
-export async function fetchMyVP() {
+export async function fetchMyVP(regionTag: string = "Global") {
   try {
     const actor = await createBackendActor();
-    const vp = await actor.get_my_vp();
-    return { success: true, vp: Number(vp) };
+    const result = await actor.get_my_vp(regionTag);
+    if ('Ok' in result) {
+      return { success: true, vp: Number(result.Ok) };
+    }
+    return { success: false, error: result.Err };
   } catch (error) {
     console.error("Failed to fetch VP:", error);
     return { success: false, error: "Failed to fetch voting power." };
