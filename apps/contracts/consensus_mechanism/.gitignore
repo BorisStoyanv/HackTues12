@@ -1,0 +1,8 @@
+.dfx/
+target/
+
+# Generated local ledger artifacts
+ledger/.replica-rev
+ledger/icp_ledger.did
+ledger/icp_ledger.wasm.gz
+ledger/init-args.did
