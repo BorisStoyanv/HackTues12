@@ -19,7 +19,7 @@ const ACTIVE_USER_WINDOW_NS: u64 = 90 * 24 * 60 * 60 * 1_000_000_000;
 const QUORUM_PERCENT: f64 = 0.05;
 const QUORUM_MIN_REGION_SIZE: u32 = 20;
 const MAJORITY_THRESHOLD: f64 = 0.51;
-const ABSOLUTE_MAJORITY: f64 = 0.50; // >50% of ALL possible VP = early resolution
+const ABSOLUTE_MAJORITY: f64 = 0.51; // >=51% of ALL possible VP = automatic early resolution
 
 // =========================================================================
 // User types
@@ -399,7 +399,9 @@ thread_local! {
 // =========================================================================
 
 #[init]
-fn init() {}
+fn init() {
+    schedule_next_resolution_check();
+}
 
 #[post_upgrade]
 fn post_upgrade() {
@@ -407,6 +409,8 @@ fn post_upgrade() {
     NEXT_PROPOSAL_ID.with(|c| *c.borrow_mut() = next_p);
     let next_e = AUDIT_LOG.with(|a| a.borrow().len() + 1);
     NEXT_EVENT_ID.with(|c| *c.borrow_mut() = next_e);
+    resolve_ready_proposals(ic_cdk::api::id(), ic_cdk::api::time(), "post-upgrade reconciliation");
+    schedule_next_resolution_check();
 }
 
 // =========================================================================
@@ -627,6 +631,118 @@ fn total_regional_vp(region: &str, now: u64) -> f64 {
     })
 }
 
+fn quorum_threshold(active_regional: u32) -> u32 {
+    if active_regional < QUORUM_MIN_REGION_SIZE {
+        1
+    } else {
+        (active_regional as f64 * QUORUM_PERCENT).ceil() as u32
+    }
+}
+
+fn compute_resolution_status(
+    proposal: &Proposal,
+    total_vp: f64,
+    active_regional: u32,
+    now: u64,
+) -> Option<ProposalStatus> {
+    if proposal.status != ProposalStatus::Active {
+        return None;
+    }
+
+    if total_vp > 0.0 {
+        let absolute_threshold = total_vp * ABSOLUTE_MAJORITY;
+        if proposal.yes_weight >= absolute_threshold {
+            return Some(ProposalStatus::AwaitingFunding);
+        }
+        if proposal.no_weight >= absolute_threshold {
+            return Some(ProposalStatus::Rejected);
+        }
+    }
+
+    if now < proposal.voting_ends_at {
+        return None;
+    }
+
+    if proposal.voter_count < quorum_threshold(active_regional) {
+        return Some(ProposalStatus::QuorumNotMet);
+    }
+
+    let total_cast = proposal.yes_weight + proposal.no_weight;
+    if total_cast > 0.0 && (proposal.yes_weight / total_cast) >= MAJORITY_THRESHOLD {
+        Some(ProposalStatus::AwaitingFunding)
+    } else {
+        Some(ProposalStatus::Rejected)
+    }
+}
+
+fn resolve_active_proposal(
+    proposal_id: u64,
+    actor: Principal,
+    now: u64,
+    reason: &str,
+) -> Result<Proposal, String> {
+    let proposal = PROPOSALS.with(|p| p.borrow().get(&proposal_id))
+        .ok_or("Proposal not found")?;
+    if proposal.status != ProposalStatus::Active {
+        return Err(format!("Proposal is {:?}, not Active", proposal.status));
+    }
+
+    let total_vp = total_regional_vp(&proposal.region_tag, now);
+    let active_regional = count_active_regional_users(&proposal.region_tag, now);
+    let next_status = compute_resolution_status(&proposal, total_vp, active_regional, now)
+        .ok_or("Voting still in progress — waiting for 51% of all VP or the deadline".to_string())?;
+
+    let mut updated = proposal.clone();
+    updated.status = next_status.clone();
+
+    match next_status {
+        ProposalStatus::AwaitingFunding => {
+            award_rep(proposal.submitter, 15.0);
+            append_audit(actor, AuditEventType::ReputationAwarded, Some(proposal_id),
+                format!("+15 rep to submitter {} ({reason})", proposal.submitter));
+        }
+        ProposalStatus::Rejected => {
+            penalize_rep(proposal.submitter, 10.0);
+            append_audit(actor, AuditEventType::ReputationPenalized, Some(proposal_id),
+                format!("-10 rep to submitter {} ({reason})", proposal.submitter));
+        }
+        ProposalStatus::QuorumNotMet => {}
+        _ => unreachable!("Only active proposals can be resolved"),
+    }
+
+    PROPOSALS.with(|p| p.borrow_mut().insert(proposal_id, updated.clone()));
+    append_audit(actor, AuditEventType::ProposalFinalized, Some(proposal_id),
+        format!("{:?} via {} — yes {:.2} / no {:.2} (total possible {:.2}), {} voters",
+            updated.status, reason, updated.yes_weight, updated.no_weight, total_vp, updated.voter_count));
+    Ok(updated)
+}
+
+fn resolve_ready_proposals(actor: Principal, now: u64, reason: &str) {
+    let active_ids: Vec<u64> = PROPOSALS.with(|p| {
+        p.borrow()
+            .iter()
+            .filter(|(_, proposal)| proposal.status == ProposalStatus::Active)
+            .map(|(proposal_id, _)| proposal_id)
+            .collect()
+    });
+
+    for proposal_id in active_ids {
+        let _ = resolve_active_proposal(proposal_id, actor, now, reason);
+    }
+}
+
+fn schedule_next_resolution_check() {
+    let next_deadline = PROPOSALS.with(|p| {
+        p.borrow()
+            .iter()
+            .filter(|(_, proposal)| proposal.status == ProposalStatus::Active)
+            .map(|(_, proposal)| proposal.voting_ends_at)
+            .min()
+    });
+
+    ic_cdk::api::set_global_timer(next_deadline.unwrap_or(0));
+}
+
 // =========================================================================
 // User endpoints
 // =========================================================================
@@ -776,6 +892,7 @@ fn submit_proposal(input: SubmitProposalInput) -> Result<Proposal, String> {
         yes_weight: 0.0, no_weight: 0.0, voter_count: 0,
     };
     PROPOSALS.with(|p| p.borrow_mut().insert(id, proposal.clone()));
+    schedule_next_resolution_check();
 
     touch_activity(caller);
     append_audit(caller, AuditEventType::ProposalSubmitted, Some(id),
@@ -822,7 +939,14 @@ fn cast_vote(proposal_id: u64, in_favor: bool) -> Result<Vote, String> {
         return Err("Proposal is not active".into());
     }
     if now >= proposal.voting_ends_at {
-        return Err("Voting period has ended — call finalize_proposal".into());
+        let _ = resolve_active_proposal(
+            proposal_id,
+            ic_cdk::api::id(),
+            now,
+            "expired vote attempt",
+        );
+        schedule_next_resolution_check();
+        return Err("Voting period has ended".into());
     }
 
     let key = VoteKey { proposal_id, voter: caller };
@@ -847,6 +971,8 @@ fn cast_vote(proposal_id: u64, in_favor: bool) -> Result<Vote, String> {
     modify_user(&StorablePrincipal(caller), |p| p.vote_count += 1);
     append_audit(caller, AuditEventType::VoteCast, Some(proposal_id),
         format!("{} with Vp {:.2}", if in_favor { "yes" } else { "no" }, vp));
+    let _ = resolve_active_proposal(proposal_id, caller, now, "automatic vote threshold");
+    schedule_next_resolution_check();
     Ok(vote)
 }
 
@@ -867,64 +993,8 @@ fn get_proposal_votes(proposal_id: u64) -> Vec<Vote> {
 fn finalize_proposal(proposal_id: u64) -> Result<Proposal, String> {
     let caller = require_auth()?;
     let now = ic_cdk::api::time();
-
-    let proposal = PROPOSALS.with(|p| p.borrow().get(&proposal_id))
-        .ok_or("Proposal not found")?;
-    if proposal.status != ProposalStatus::Active {
-        return Err(format!("Proposal is {:?}, not Active", proposal.status));
-    }
-
-    let total_vp = total_regional_vp(&proposal.region_tag, now);
-    let deadline_passed = now >= proposal.voting_ends_at;
-
-    // Path 1: Early resolution — >50% of ALL possible VP voted one way
-    let early_approve = total_vp > 0.0 && proposal.yes_weight > total_vp * ABSOLUTE_MAJORITY;
-    let early_reject = total_vp > 0.0 && proposal.no_weight > total_vp * ABSOLUTE_MAJORITY;
-
-    if !deadline_passed && !early_approve && !early_reject {
-        return Err("Voting still in progress — no absolute majority reached yet".into());
-    }
-
-    let mut updated = proposal.clone();
-
-    if early_approve {
-        updated.status = ProposalStatus::AwaitingFunding;
-        award_rep(proposal.submitter, 15.0);
-        append_audit(caller, AuditEventType::ReputationAwarded, Some(proposal_id),
-            format!("+15 rep to submitter {} (early approval)", proposal.submitter));
-    } else if early_reject {
-        updated.status = ProposalStatus::Rejected;
-        penalize_rep(proposal.submitter, 10.0);
-        append_audit(caller, AuditEventType::ReputationPenalized, Some(proposal_id),
-            format!("-10 rep to submitter {} (early rejection)", proposal.submitter));
-    } else {
-        // Path 2: Deadline passed — normal 5/51 rule
-        let active_regional = count_active_regional_users(&proposal.region_tag, now);
-        let threshold = if active_regional < QUORUM_MIN_REGION_SIZE { 1_u32 }
-            else { (active_regional as f64 * QUORUM_PERCENT).ceil() as u32 };
-
-        if updated.voter_count < threshold {
-            updated.status = ProposalStatus::QuorumNotMet;
-        } else {
-            let total = updated.yes_weight + updated.no_weight;
-            if total > 0.0 && (updated.yes_weight / total) > MAJORITY_THRESHOLD {
-                updated.status = ProposalStatus::AwaitingFunding;
-                award_rep(proposal.submitter, 15.0);
-                append_audit(caller, AuditEventType::ReputationAwarded, Some(proposal_id),
-                    format!("+15 rep to submitter {}", proposal.submitter));
-            } else {
-                updated.status = ProposalStatus::Rejected;
-                penalize_rep(proposal.submitter, 10.0);
-                append_audit(caller, AuditEventType::ReputationPenalized, Some(proposal_id),
-                    format!("-10 rep to submitter {}", proposal.submitter));
-            }
-        }
-    }
-
-    PROPOSALS.with(|p| p.borrow_mut().insert(proposal_id, updated.clone()));
-    append_audit(caller, AuditEventType::ProposalFinalized, Some(proposal_id),
-        format!("{:?} — yes {:.2} / no {:.2} (total possible {:.2}), {} voters",
-            updated.status, updated.yes_weight, updated.no_weight, total_vp, updated.voter_count));
+    let updated = resolve_active_proposal(proposal_id, caller, now, "manual close")?;
+    schedule_next_resolution_check();
     Ok(updated)
 }
 
@@ -1283,6 +1353,16 @@ fn get_config() -> Config {
     }
 }
 
+#[export_name = "canister_global_timer"]
+fn __canister_global_timer() {
+    ic_cdk::setup();
+    ic_cdk::spawn(async {
+        let now = ic_cdk::api::time();
+        resolve_ready_proposals(ic_cdk::api::id(), now, "automatic deadline");
+        schedule_next_resolution_check();
+    });
+}
+
 // =========================================================================
 // Candid export
 // =========================================================================
@@ -1411,6 +1491,73 @@ mod tests {
         assert_eq!(
             derive_proposal_phase_label(&proposal, None),
             "Backed — no community-approved company on proposal"
+        );
+    }
+
+    #[test]
+    fn resolution_approves_at_absolute_51_percent() {
+        let mut proposal = sample_proposal(ProposalStatus::Active);
+        proposal.voting_ends_at = 100;
+        proposal.yes_weight = 51.0;
+        proposal.no_weight = 10.0;
+        proposal.voter_count = 7;
+
+        assert_eq!(
+            compute_resolution_status(&proposal, 100.0, 50, 99),
+            Some(ProposalStatus::AwaitingFunding)
+        );
+    }
+
+    #[test]
+    fn resolution_rejects_at_absolute_51_percent() {
+        let mut proposal = sample_proposal(ProposalStatus::Active);
+        proposal.voting_ends_at = 100;
+        proposal.yes_weight = 10.0;
+        proposal.no_weight = 51.0;
+        proposal.voter_count = 7;
+
+        assert_eq!(
+            compute_resolution_status(&proposal, 100.0, 50, 99),
+            Some(ProposalStatus::Rejected)
+        );
+    }
+
+    #[test]
+    fn resolution_waits_before_deadline_without_absolute_threshold() {
+        let mut proposal = sample_proposal(ProposalStatus::Active);
+        proposal.voting_ends_at = 100;
+        proposal.yes_weight = 50.0;
+        proposal.no_weight = 0.0;
+        proposal.voter_count = 4;
+
+        assert_eq!(compute_resolution_status(&proposal, 100.0, 50, 99), None);
+    }
+
+    #[test]
+    fn resolution_marks_quorum_not_met_after_deadline() {
+        let mut proposal = sample_proposal(ProposalStatus::Active);
+        proposal.voting_ends_at = 100;
+        proposal.yes_weight = 4.0;
+        proposal.no_weight = 0.0;
+        proposal.voter_count = 4;
+
+        assert_eq!(
+            compute_resolution_status(&proposal, 200.0, 100, 100),
+            Some(ProposalStatus::QuorumNotMet)
+        );
+    }
+
+    #[test]
+    fn resolution_approves_on_deadline_at_cast_vote_majority() {
+        let mut proposal = sample_proposal(ProposalStatus::Active);
+        proposal.voting_ends_at = 100;
+        proposal.yes_weight = 51.0;
+        proposal.no_weight = 49.0;
+        proposal.voter_count = 10;
+
+        assert_eq!(
+            compute_resolution_status(&proposal, 500.0, 100, 100),
+            Some(ProposalStatus::AwaitingFunding)
         );
     }
 }
