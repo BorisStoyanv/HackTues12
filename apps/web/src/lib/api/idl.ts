@@ -176,15 +176,29 @@ export const idlFactory: IDL.InterfaceFactory = ({ IDL: idl }: Parameters<IDL.In
   const Result_Number = idl.Variant({ 'Ok': idl.Float64, 'Err': idl.Text });
   const Result_ProposalPhase = idl.Variant({ 'Ok': ProposalPhase, 'Err': idl.Text });
 
+  const AuditEventType = idl.Variant({
+    'InvestorContractAcked' : idl.Null,
+    'ReputationPenalized' : idl.Null,
+    'UserRegistered' : idl.Null,
+    'InvestorVerified' : idl.Null,
+    'ExternalSignatureRecorded' : idl.Null,
+    'ProposalFinalized' : idl.Null,
+    'ProposalBacked' : idl.Null,
+    'CompanyContractAcked' : idl.Null,
+    'ContractCreated' : idl.Null,
+    'ReputationAwarded' : idl.Null,
+    'ProposalSubmitted' : idl.Null,
+    'VoteCast' : idl.Null,
+  });
+
   const AuditLog = idl.Record({
     'id': idl.Nat64,
     'timestamp': idl.Nat64,
     'actor': idl.Principal,
-    'event_type': idl.Text, 
+    'event_type': AuditEventType,
     'proposal_id': idl.Opt(idl.Nat64),
     'payload': idl.Text,
   });
-
   return idl.Service({
     'admin_verify_investor': idl.Func([idl.Principal], [Result_Null], []),
     'back_proposal': idl.Func([idl.Nat64], [Result_Proposal], []),
