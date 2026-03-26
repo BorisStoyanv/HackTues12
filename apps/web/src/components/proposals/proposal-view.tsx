@@ -36,6 +36,7 @@ import {
 import Link from "next/link";
 
 import { SerializedProposal } from "@/lib/actions/proposals";
+import { AIDebateLive } from "./ai-debate-live";
 
 interface ProposalViewProps {
 	id: string;
@@ -78,6 +79,7 @@ export function ProposalView({ id, mode, initialData, votes = [] }: ProposalView
 		(proposal.yes_weight / fundingGoal) * 100,
 	);
 	const statusFormatted = proposal.status.replace(/([A-Z])/g, " $1").trim();
+  const creatorId = proposal.submitter;
 
 	return (
 		<div className="flex-1 flex flex-col h-full overflow-hidden bg-background">
@@ -103,7 +105,7 @@ export function ProposalView({ id, mode, initialData, votes = [] }: ProposalView
 							</div>
 						</div>
 
-						<h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground leading-snug max-w-3xl">
+						<h1 className="text-2xl md:text-5xl font-bold tracking-tight text-foreground leading-snug max-w-4xl">
 							{proposal.title}
 						</h1>
 
@@ -117,7 +119,7 @@ export function ProposalView({ id, mode, initialData, votes = [] }: ProposalView
 										Submitter
 									</span>
 									<span className="text-sm font-medium">
-										@{proposal.submitter.substring(0, 8)}...
+										@{creatorId.substring(0, 8)}...
 									</span>
 								</div>
 							</div>
@@ -173,7 +175,7 @@ export function ProposalView({ id, mode, initialData, votes = [] }: ProposalView
 									<h3 className="text-sm font-medium text-muted-foreground">
 										Executive Summary
 									</h3>
-									<p className="text-base font-normal leading-relaxed text-foreground/90 max-w-3xl whitespace-pre-wrap">
+									<p className="text-xl font-normal leading-relaxed text-foreground/90 max-w-4xl whitespace-pre-wrap">
 										{proposal.description}
 									</p>
 								</section>
@@ -201,61 +203,12 @@ export function ProposalView({ id, mode, initialData, votes = [] }: ProposalView
 
               <TabsContent
 								value="debate"
-								className="space-y-8 animate-in fade-in duration-500 m-0"
+								className="space-y-8 animate-in fade-in duration-500 m-0 focus-visible:outline-none"
 							>
-                <div className="space-y-6">
-                   <div className="flex items-center gap-3">
-                      <Cpu className="h-5 w-5 text-primary" />
-                      <h3 className="text-lg font-medium tracking-tight">AI Integrity Debate</h3>
-                   </div>
-                   <p className="text-sm text-muted-foreground leading-relaxed max-w-2xl">
-                      A 3-Agent AI architecture (Advocate, Skeptic, Analyst) has rigorously vetted this proposal.
-                   </p>
-                   
-                   {proposal.status === "AwaitingAudit" ? (
-                      <div className="p-8 text-center rounded-xl border border-dashed border-border bg-muted/30">
-                         <Loader2 className="h-8 w-8 text-muted-foreground animate-spin mx-auto mb-4" />
-                         <p className="text-sm font-medium text-foreground">AI Debate in Progress...</p>
-                         <p className="text-xs text-muted-foreground mt-1">The agents are currently analyzing the data pack.</p>
-                      </div>
-                   ) : (
-                      <div className="space-y-4">
-                        {/* Placeholder for actual debate transcript */}
-                        <Card className="border-border shadow-sm">
-                           <CardHeader className="py-4">
-                              <CardTitle className="text-sm font-medium flex items-center gap-2 text-green-600">
-                                <MessageSquare className="h-4 w-4" /> The Advocate (Pro)
-                              </CardTitle>
-                           </CardHeader>
-                           <CardContent className="text-sm text-muted-foreground leading-relaxed pt-0">
-                              Based on the submitted data pack, this proposal presents a strong ROI for the region. The timeline is realistic, and the budget allocation is within industry standards for similar infrastructure projects. The positive externalities include temporary job creation and long-term economic stimulus.
-                           </CardContent>
-                        </Card>
-                        
-                        <Card className="border-border shadow-sm">
-                           <CardHeader className="py-4">
-                              <CardTitle className="text-sm font-medium flex items-center gap-2 text-red-600">
-                                <MessageSquare className="h-4 w-4" /> The Skeptic (Con)
-                              </CardTitle>
-                           </CardHeader>
-                           <CardContent className="text-sm text-muted-foreground leading-relaxed pt-0">
-                              While the ROI is theoretically sound, I must flag the risk associated with the execution plan. The chosen executor lacks a verified track record on the ledger for projects of this scale. Furthermore, the timeline does not account for potential regional regulatory delays.
-                           </CardContent>
-                        </Card>
-                        
-                        <Card className="border-border shadow-sm bg-muted/30">
-                           <CardHeader className="py-4">
-                              <CardTitle className="text-sm font-medium flex items-center gap-2 text-blue-600">
-                                <BarChart3 className="h-4 w-4" /> The Analyst (Conclusion)
-                              </CardTitle>
-                           </CardHeader>
-                           <CardContent className="text-sm text-muted-foreground leading-relaxed pt-0">
-                              After reviewing historical project data in the {proposal.region_tag} region and weighing the arguments, the proposal is deemed viable but carries moderate execution risk. We recommend community voters require strict proof-of-work for the first milestone release. Overall Fairness Score: {proposal.fairness_score}%.
-                           </CardContent>
-                        </Card>
-                      </div>
-                   )}
-                </div>
+                <AIDebateLive 
+                  proposal={proposal} 
+                  onComplete={(res) => console.log("Debate synced", res)}
+                />
               </TabsContent>
 
 							<TabsContent
@@ -485,7 +438,7 @@ export function ProposalView({ id, mode, initialData, votes = [] }: ProposalView
 								<div className="space-y-3">
 									{proposal.status === "Active" && (
 										<Link
-											href={`/dashboard/proposals/${id}/vote`}
+											href={mode === "authenticated" ? `/dashboard/proposals/${id}/vote` : `/proposals/${id}/vote`}
 											className={cn(
 												buttonVariants({ size: "default" }),
 												"w-full font-medium"
@@ -496,7 +449,7 @@ export function ProposalView({ id, mode, initialData, votes = [] }: ProposalView
 									)}
 									{proposal.status === "AwaitingFunding" && (
 										<Link
-											href={`/dashboard/proposals/${id}/fund`}
+											href={mode === "authenticated" ? `/dashboard/proposals/${id}/fund` : `/proposals/${id}/fund`}
 											className={cn(
 												buttonVariants({ variant: "default", size: "default" }),
 												"w-full font-medium bg-green-600 hover:bg-green-700 text-white"
