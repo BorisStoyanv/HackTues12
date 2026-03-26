@@ -27,6 +27,7 @@ interface InteractiveMapProps {
   onProposalSelect?: (proposalId: string) => void;
   selectedProposalId?: string | null;
   className?: string;
+  linkPrefix?: string;
 }
 
 export function InteractiveMap({
@@ -36,6 +37,7 @@ export function InteractiveMap({
   onProposalSelect,
   selectedProposalId,
   className = "",
+  linkPrefix = "/proposals",
 }: InteractiveMapProps) {
   const mapRef = useRef<MapRef>(null);
   const { resolvedTheme } = useTheme();
@@ -127,7 +129,7 @@ export function InteractiveMap({
   }, [selectedProposal]);
 
   return (
-    <div className={`relative w-full h-full bg-muted ${className}`}>
+    <div className={`relative w-full h-full bg-muted overflow-hidden ${className}`}>
       <Map
         ref={mapRef}
         {...viewState}
@@ -159,11 +161,11 @@ export function InteractiveMap({
               'circle-radius': [
                 'step',
                 ['get', 'point_count'],
-                15,
+                20,
                 10,
-                25,
+                30,
                 50,
-                35
+                40
               ],
               'circle-stroke-width': 1,
               'circle-stroke-color': resolvedTheme === 'dark' ? '#333333' : '#cccccc'
@@ -177,7 +179,7 @@ export function InteractiveMap({
             layout={{
               'text-field': '{point_count_abbreviated}',
               'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
-              'text-size': 12
+              'text-size': 14
             }}
             paint={{
               'text-color': resolvedTheme === 'dark' ? '#000000' : '#ffffff'
@@ -190,10 +192,10 @@ export function InteractiveMap({
             filter={['!', ['has', 'point_count']]}
             paint={{
               'circle-color': resolvedTheme === 'dark' ? '#ffffff' : '#000000',
-              'circle-radius': 8,
+              'circle-radius': 10,
               'circle-stroke-width': 2,
               'circle-stroke-color': resolvedTheme === 'dark' ? '#333333' : '#cccccc',
-              'circle-opacity': 0.8,
+              'circle-opacity': 0.9,
             }}
           />
         </Source>
@@ -219,41 +221,45 @@ export function InteractiveMap({
             onClose={() => onProposalSelect?.("")}
             closeButton={false}
             className="z-50"
-            maxWidth="300px"
+            maxWidth="320px"
+            offset={15}
           >
-            <div className="flex flex-col p-1 font-sans text-foreground">
-              <div className="flex items-center justify-between mb-2">
-                <Badge variant="outline" className="text-[10px] uppercase h-5 leading-none px-1.5 rounded-sm">
+            <div className="flex flex-col p-3 font-sans text-foreground bg-background rounded-2xl shadow-2xl border border-neutral-200 dark:border-neutral-800">
+              <div className="flex items-center justify-between mb-3">
+                <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest h-5 leading-none px-2 rounded-full border-primary/20 bg-primary/5 text-primary">
                   {selectedProposal.status}
                 </Badge>
+                <span className="text-[10px] font-mono font-bold text-muted-foreground">ID: {selectedProposal.id.substring(0, 8)}</span>
               </div>
-              <h4 className="font-bold text-sm leading-tight mb-1 line-clamp-2">
+              <h4 className="font-black text-lg leading-tight mb-2 line-clamp-2 tracking-tight">
                 {selectedProposal.title}
               </h4>
-              <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
+              <p className="text-xs text-muted-foreground mb-4 line-clamp-2 leading-relaxed">
                 {selectedProposal.short_description || selectedProposal.description}
               </p>
-              <div className="flex flex-col gap-1.5 mb-3">
-                <div className="flex items-center justify-between text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                  <span>Funding</span>
-                  <span>
+              
+              <div className="space-y-3 mb-5">
+                <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                  <span>Protocol Funding</span>
+                  <span className="text-foreground">
                     {(selectedProposal.funding_goal ?? 0) > 0 ? Math.round((selectedProposal.current_funding / (selectedProposal.funding_goal ?? 1)) * 100) : 0}%
                   </span>
-                  </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-900 shadow-inner">
                   <div
-                    className="h-full bg-primary transition-all"
+                    className="h-full bg-primary shadow-[0_0_8px_rgba(var(--primary-rgb),0.5)] transition-all duration-1000"
                     style={{ 
                       width: `${(selectedProposal.funding_goal ?? 0) > 0 ? Math.min(100, (selectedProposal.current_funding / (selectedProposal.funding_goal ?? 1)) * 100) : 0}%` 
                     }}
                   />
                 </div>
               </div>
+
               <Link 
-                href={`/proposals/${selectedProposal.id}`}
-                className="flex items-center justify-center w-full h-8 text-xs font-semibold bg-primary text-primary-foreground rounded-lg transition-colors hover:bg-primary/80"
+                href={`${linkPrefix}/${selectedProposal.id}`}
+                className="flex items-center justify-center w-full h-11 text-xs font-black uppercase tracking-widest bg-foreground text-background rounded-xl transition-all hover:bg-foreground/90 active:scale-[0.98] shadow-lg shadow-black/5"
               >
-                View Details <ArrowRight className="ml-1.5 h-3 w-3" />
+                Inspect Data Pack <ArrowRight className="ml-2 h-3 w-3" />
               </Link>
             </div>
           </Popup>
