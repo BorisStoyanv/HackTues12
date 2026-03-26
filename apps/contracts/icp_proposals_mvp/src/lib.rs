@@ -62,6 +62,14 @@ pub struct UpdateProfileInput {
     pub home_region: Option<String>,
 }
 
+#[derive(Clone, Debug, CandidType, Deserialize)]
+pub struct ProposalCompany {
+    pub legal_name: String,
+    pub registration_id: String,
+    pub representative_name: String,
+    pub representative_principal: Option<Principal>,
+}
+
 // =========================================================================
 // Proposal types
 // =========================================================================
@@ -102,6 +110,7 @@ pub struct Proposal {
     pub execution_plan: Option<String>,
     pub timeline: Option<String>,
     pub expected_impact: Option<String>,
+    pub approved_company: Option<ProposalCompany>,
     pub fairness_score: Option<f64>,
     pub risk_flags: Vec<String>,
     pub backed_by: Option<Principal>,
@@ -127,6 +136,7 @@ pub struct SubmitProposalInput {
     pub execution_plan: String,
     pub timeline: String,
     pub expected_impact: String,
+    pub approved_company: Option<ProposalCompany>,
 }
 
 // =========================================================================
@@ -175,6 +185,13 @@ pub enum AuditEventType {
     ProposalBacked,
     ReputationAwarded,
     ReputationPenalized,
+    ContractCreated,
+    CompanyRepresentativeAssigned,
+    InvestorContractAcked,
+    CompanyContractAcked,
+    CompanySignedDocumentSubmitted,
+    InvestorSignedDocumentConfirmed,
+    ExternalSignatureRecorded,
 }
 
 #[derive(Clone, Debug, CandidType, Deserialize)]
@@ -198,6 +215,93 @@ pub struct Config {
     pub quorum_min_region_size: u32,
     pub majority_threshold: f64,
     pub absolute_majority: f64,
+}
+
+// =========================================================================
+// Contract types — separate layer, keyed by proposal_id (MemoryId 4)
+//
+// The blockchain anchors contract metadata and document hashes.
+// The actual legal document lives off-chain. On-chain "ack" is
+// application-level consent via Internet Identity, NOT a legally
+// qualified electronic signature. Legal-grade signing (eIDAS QES)
+// will come from an external provider; the chain records the result.
+// =========================================================================
+
+#[derive(Clone, Debug, CandidType, Deserialize, PartialEq, Eq)]
+pub enum ContractStatus {
+    Draft,
+    PendingSignatures,
+    Signed,
+    Rejected,
+    Expired,
+}
+
+#[derive(Clone, Debug, CandidType, Deserialize, PartialEq, Eq)]
+pub enum SignatureMode {
+    OnChainAck,
+    ExternalQualifiedSignature,
+}
+
+#[derive(Clone, Debug, CandidType, Deserialize)]
+pub struct ContractParty {
+    pub legal_name: String,
+    pub registration_id: String,
+    pub representative_name: String,
+    pub representative_principal: Option<Principal>,
+}
+
+#[derive(Clone, Debug, CandidType, Deserialize)]
+pub struct ContractRecord {
+    pub proposal_id: u64,
+    pub created_by: Principal,
+    pub investor_principal: Principal,
+    pub company: ContractParty,
+    pub document_hash: String,
+    pub document_uri: String,
+    pub milestone_hash: Option<String>,
+    pub signature_mode: SignatureMode,
+    pub external_provider: Option<String>,
+    pub external_envelope_id: Option<String>,
+    pub investor_ack_at: Option<u64>,
+    pub company_ack_at: Option<u64>,
+    pub company_signed_document_hash: Option<String>,
+    pub company_signed_document_uri: Option<String>,
+    pub company_signed_document_at: Option<u64>,
+    pub investor_confirmed_signed_document_at: Option<u64>,
+    pub external_signed_at: Option<u64>,
+    pub status: ContractStatus,
+    pub created_at: u64,
+    pub updated_at: u64,
+}
+
+#[derive(Clone, Debug, CandidType, Deserialize)]
+pub struct CreateContractInput {
+    pub document_hash: String,
+    pub document_uri: String,
+    pub milestone_hash: Option<String>,
+    pub signature_mode: SignatureMode,
+    pub external_provider: Option<String>,
+}
+
+#[derive(Clone, Debug, CandidType, Deserialize)]
+pub struct ExternalSignatureUpdateInput {
+    pub external_envelope_id: String,
+    pub signed: bool,
+}
+
+#[derive(Clone, Debug, CandidType, Deserialize)]
+pub struct CompanySignedDocumentInput {
+    pub signed_document_hash: String,
+    pub signed_document_uri: String,
+}
+
+/// Combined view of proposal + contract status for the frontend
+#[derive(Clone, Debug, CandidType, Deserialize)]
+pub struct ProposalPhase {
+    pub proposal_id: u64,
+    pub proposal_status: ProposalStatus,
+    pub contract_status: Option<ContractStatus>,
+    pub phase_label: String,
 }
 
 // =========================================================================
@@ -255,6 +359,12 @@ impl Storable for AuditEvent {
     fn from_bytes(bytes: Cow<'_, [u8]>) -> Self { Decode!(bytes.as_ref(), Self).unwrap() }
 }
 
+impl Storable for ContractRecord {
+    const BOUND: Bound = Bound::Bounded { max_size: 4096, is_fixed_size: false };
+    fn to_bytes(&self) -> Cow<'_, [u8]> { Cow::Owned(Encode!(self).unwrap()) }
+    fn from_bytes(bytes: Cow<'_, [u8]>) -> Self { Decode!(bytes.as_ref(), Self).unwrap() }
+}
+
 // =========================================================================
 // Stable memory
 // =========================================================================
@@ -263,6 +373,7 @@ const USERS_MEM_ID: MemoryId = MemoryId::new(0);
 const PROPOSALS_MEM_ID: MemoryId = MemoryId::new(1);
 const VOTES_MEM_ID: MemoryId = MemoryId::new(2);
 const AUDIT_MEM_ID: MemoryId = MemoryId::new(3);
+const CONTRACTS_MEM_ID: MemoryId = MemoryId::new(4);
 
 thread_local! {
     static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
@@ -276,6 +387,8 @@ thread_local! {
         RefCell::new(StableBTreeMap::init(MEMORY_MANAGER.with(|m| m.borrow().get(VOTES_MEM_ID))));
     static AUDIT_LOG: RefCell<StableBTreeMap<u64, AuditEvent, Memory>> =
         RefCell::new(StableBTreeMap::init(MEMORY_MANAGER.with(|m| m.borrow().get(AUDIT_MEM_ID))));
+    static CONTRACTS: RefCell<StableBTreeMap<u64, ContractRecord, Memory>> =
+        RefCell::new(StableBTreeMap::init(MEMORY_MANAGER.with(|m| m.borrow().get(CONTRACTS_MEM_ID))));
 
     static NEXT_PROPOSAL_ID: RefCell<u64> = RefCell::new(1);
     static NEXT_EVENT_ID: RefCell<u64> = RefCell::new(1);
@@ -317,6 +430,24 @@ fn norm_required(value: &str, name: &str) -> Result<String, String> {
 
 fn norm_opt(value: Option<String>) -> Option<String> {
     value.and_then(|r| { let s = r.trim().to_string(); if s.is_empty() { None } else { Some(s) } })
+}
+
+fn normalize_company(company: Option<ProposalCompany>) -> Result<Option<ProposalCompany>, String> {
+    match company {
+        None => Ok(None),
+        Some(company) => Ok(Some(ProposalCompany {
+            legal_name: norm_required(&company.legal_name, "approved_company.legal_name")?,
+            registration_id: norm_required(
+                &company.registration_id,
+                "approved_company.registration_id",
+            )?,
+            representative_name: norm_required(
+                &company.representative_name,
+                "approved_company.representative_name",
+            )?,
+            representative_principal: company.representative_principal,
+        })),
+    }
 }
 
 fn validate_profile(
@@ -400,6 +531,71 @@ fn append_audit(actor: Principal, event_type: AuditEventType, proposal_id: Optio
     AUDIT_LOG.with(|a| a.borrow_mut().insert(id, AuditEvent {
         id, timestamp: ic_cdk::api::time(), actor, event_type, proposal_id, payload,
     }));
+}
+
+fn ensure_contract_mutable(record: &ContractRecord) -> Result<(), String> {
+    match record.status {
+        ContractStatus::Signed | ContractStatus::Rejected | ContractStatus::Expired => {
+            Err(format!("Contract is {:?}, cannot be changed", record.status))
+        }
+        _ => Ok(()),
+    }
+}
+
+fn require_company_representative(caller: Principal, record: &ContractRecord) -> Result<(), String> {
+    match record.company.representative_principal {
+        Some(rep) if rep == caller => Ok(()),
+        Some(_) => Err("Only the designated company representative can perform this action".into()),
+        None => Err("The backing investor must assign a company representative principal first".into()),
+    }
+}
+
+fn derive_proposal_phase_label(proposal: &Proposal, contract: Option<&ContractRecord>) -> String {
+    match (&proposal.status, contract) {
+        (ProposalStatus::Active, _) => "Voting in progress".into(),
+        (ProposalStatus::QuorumNotMet, _) => "Quorum not met".into(),
+        (ProposalStatus::Rejected, _) => "Rejected by community".into(),
+        (ProposalStatus::AwaitingFunding, _) => "Awaiting investor backing".into(),
+        (ProposalStatus::Backed, None) => {
+            if proposal.approved_company.is_some() {
+                "Backed — investor drafting contract for the approved company".into()
+            } else {
+                "Backed — no community-approved company on proposal".into()
+            }
+        }
+        (ProposalStatus::Backed, Some(record)) => match record.status {
+            ContractStatus::Signed => "Contract signed and anchored".into(),
+            ContractStatus::Rejected => "Contract rejected".into(),
+            ContractStatus::Expired => "Contract expired".into(),
+            ContractStatus::Draft => {
+                if record.company.representative_principal.is_none() {
+                    "Draft ready — investor must assign the company principal".into()
+                } else if record.signature_mode == SignatureMode::ExternalQualifiedSignature {
+                    "Draft ready — awaiting company signed document".into()
+                } else {
+                    "Draft ready — awaiting acknowledgements".into()
+                }
+            }
+            ContractStatus::PendingSignatures => {
+                if record.signature_mode == SignatureMode::OnChainAck {
+                    match (record.investor_ack_at.is_some(), record.company_ack_at.is_some()) {
+                        (false, false) => "Awaiting investor and company acknowledgement".into(),
+                        (true, false) => "Awaiting company acknowledgement".into(),
+                        (false, true) => "Awaiting investor acknowledgement".into(),
+                        (true, true) => "Acknowledged — finalizing".into(),
+                    }
+                } else if record.company.representative_principal.is_none() {
+                    "Awaiting company principal assignment".into()
+                } else if record.company_signed_document_at.is_none() {
+                    "Awaiting company signed document".into()
+                } else if record.investor_confirmed_signed_document_at.is_none() {
+                    "Awaiting investor confirmation of signed document".into()
+                } else {
+                    "Signed document recorded".into()
+                }
+            }
+        },
+    }
 }
 
 // =========================================================================
@@ -557,6 +753,7 @@ fn submit_proposal(input: SubmitProposalInput) -> Result<Proposal, String> {
     let timeline = norm_required(&input.timeline, "timeline")?;
     let expected_impact = norm_required(&input.expected_impact, "expected_impact")?;
     let budget_currency = norm_required(&input.budget_currency, "budget_currency")?;
+    let approved_company = normalize_company(input.approved_company)?;
     if input.budget_amount <= 0.0 {
         return Err("budget_amount must be positive".into());
     }
@@ -572,6 +769,7 @@ fn submit_proposal(input: SubmitProposalInput) -> Result<Proposal, String> {
         execution_plan: Some(execution_plan),
         timeline: Some(timeline),
         expected_impact: Some(expected_impact),
+        approved_company,
         fairness_score: None, risk_flags: vec![],
         backed_by: None, backed_at: None,
         status: ProposalStatus::Active, created_at: now, voting_ends_at: now + VOTING_PERIOD_NS,
@@ -765,6 +963,290 @@ fn back_proposal(proposal_id: u64) -> Result<Proposal, String> {
 }
 
 // =========================================================================
+// Contract anchoring — post-backing legal contract workflow
+// =========================================================================
+
+#[update]
+fn create_contract_record(proposal_id: u64, input: CreateContractInput) -> Result<ContractRecord, String> {
+    let caller = require_auth()?;
+    let now = ic_cdk::api::time();
+
+    let proposal = PROPOSALS.with(|p| p.borrow().get(&proposal_id))
+        .ok_or("Proposal not found")?;
+    if proposal.status != ProposalStatus::Backed {
+        return Err(format!("Proposal is {:?}, not Backed", proposal.status));
+    }
+    let backer = proposal.backed_by.ok_or("Proposal has no backer recorded")?;
+    if caller != backer {
+        return Err("Only the backing investor can create the contract record".into());
+    }
+    if CONTRACTS.with(|c| c.borrow().contains_key(&proposal_id)) {
+        return Err("Contract record already exists for this proposal".into());
+    }
+
+    let approved_company = proposal.approved_company.clone().ok_or(
+        "This proposal does not include a community-approved company. Submit a company-specific proposal before creating a contract.",
+    )?;
+
+    let document_hash = norm_required(&input.document_hash, "document_hash")?;
+    let document_uri = norm_required(&input.document_uri, "document_uri")?;
+
+    let status = match input.signature_mode {
+        SignatureMode::OnChainAck => ContractStatus::PendingSignatures,
+        SignatureMode::ExternalQualifiedSignature => ContractStatus::Draft,
+    };
+
+    let record = ContractRecord {
+        proposal_id,
+        created_by: caller,
+        investor_principal: caller,
+        company: ContractParty {
+            legal_name: approved_company.legal_name,
+            registration_id: approved_company.registration_id,
+            representative_name: approved_company.representative_name,
+            representative_principal: approved_company.representative_principal,
+        },
+        document_hash, document_uri,
+        milestone_hash: input.milestone_hash,
+        signature_mode: input.signature_mode,
+        external_provider: input.external_provider,
+        external_envelope_id: None,
+        investor_ack_at: None,
+        company_ack_at: None,
+        company_signed_document_hash: None,
+        company_signed_document_uri: None,
+        company_signed_document_at: None,
+        investor_confirmed_signed_document_at: None,
+        external_signed_at: None,
+        status,
+        created_at: now,
+        updated_at: now,
+    };
+
+    CONTRACTS.with(|c| c.borrow_mut().insert(proposal_id, record.clone()));
+    append_audit(caller, AuditEventType::ContractCreated, Some(proposal_id),
+        format!("Contract anchored — draft hash {}, mode {:?}", record.document_hash, record.signature_mode));
+    Ok(record)
+}
+
+#[update]
+fn assign_company_representative(proposal_id: u64, representative_principal: Principal) -> Result<ContractRecord, String> {
+    let caller = require_auth()?;
+    let now = ic_cdk::api::time();
+
+    let mut record = CONTRACTS.with(|c| c.borrow().get(&proposal_id))
+        .ok_or("No contract record for this proposal")?;
+    if caller != record.investor_principal {
+        return Err("Only the backing investor can assign the company representative".into());
+    }
+    ensure_contract_mutable(&record)?;
+    if record.company_ack_at.is_some() || record.company_signed_document_at.is_some() {
+        return Err("Company has already acted on this contract".into());
+    }
+
+    record.company.representative_principal = Some(representative_principal);
+    record.updated_at = now;
+
+    CONTRACTS.with(|c| c.borrow_mut().insert(proposal_id, record.clone()));
+    append_audit(caller, AuditEventType::CompanyRepresentativeAssigned, Some(proposal_id),
+        format!("Company representative assigned to {}", representative_principal));
+    Ok(record)
+}
+
+#[update]
+fn investor_ack_contract(proposal_id: u64) -> Result<ContractRecord, String> {
+    let caller = require_auth()?;
+    let now = ic_cdk::api::time();
+
+    let mut record = CONTRACTS.with(|c| c.borrow().get(&proposal_id))
+        .ok_or("No contract record for this proposal")?;
+    if caller != record.investor_principal {
+        return Err("Only the backing investor can acknowledge".into());
+    }
+    ensure_contract_mutable(&record)?;
+    if record.signature_mode != SignatureMode::OnChainAck {
+        return Err("This contract uses external signature mode — ack not applicable".into());
+    }
+    if record.investor_ack_at.is_some() {
+        return Err("Investor already acknowledged".into());
+    }
+    if record.status == ContractStatus::Signed || record.status == ContractStatus::Rejected {
+        return Err(format!("Contract is {:?}, cannot ack", record.status));
+    }
+
+    record.investor_ack_at = Some(now);
+    record.updated_at = now;
+    if record.company_ack_at.is_some() {
+        record.status = ContractStatus::Signed;
+    }
+
+    CONTRACTS.with(|c| c.borrow_mut().insert(proposal_id, record.clone()));
+    append_audit(caller, AuditEventType::InvestorContractAcked, Some(proposal_id),
+        format!("Investor acknowledged contract — status {:?}", record.status));
+    Ok(record)
+}
+
+#[update]
+fn company_ack_contract(proposal_id: u64) -> Result<ContractRecord, String> {
+    let caller = require_auth()?;
+    let now = ic_cdk::api::time();
+
+    let mut record = CONTRACTS.with(|c| c.borrow().get(&proposal_id))
+        .ok_or("No contract record for this proposal")?;
+    ensure_contract_mutable(&record)?;
+    if record.signature_mode != SignatureMode::OnChainAck {
+        return Err("This contract uses external signature mode — ack not applicable".into());
+    }
+    require_company_representative(caller, &record)?;
+    if record.company_ack_at.is_some() {
+        return Err("Company already acknowledged".into());
+    }
+    if record.status == ContractStatus::Signed || record.status == ContractStatus::Rejected {
+        return Err(format!("Contract is {:?}, cannot ack", record.status));
+    }
+
+    record.company_ack_at = Some(now);
+    record.updated_at = now;
+    if record.investor_ack_at.is_some() {
+        record.status = ContractStatus::Signed;
+    }
+
+    CONTRACTS.with(|c| c.borrow_mut().insert(proposal_id, record.clone()));
+    append_audit(caller, AuditEventType::CompanyContractAcked, Some(proposal_id),
+        format!("Company representative acknowledged contract — status {:?}", record.status));
+    Ok(record)
+}
+
+#[update]
+fn submit_company_signed_document(
+    proposal_id: u64,
+    input: CompanySignedDocumentInput,
+) -> Result<ContractRecord, String> {
+    let caller = require_auth()?;
+    let now = ic_cdk::api::time();
+
+    let mut record = CONTRACTS.with(|c| c.borrow().get(&proposal_id))
+        .ok_or("No contract record for this proposal")?;
+    ensure_contract_mutable(&record)?;
+    if record.signature_mode != SignatureMode::ExternalQualifiedSignature {
+        return Err("Signed document submission is only used for external signature mode".into());
+    }
+    require_company_representative(caller, &record)?;
+    if record.company_signed_document_at.is_some() {
+        return Err("Company has already attached the signed document package".into());
+    }
+
+    let signed_document_hash = norm_required(&input.signed_document_hash, "signed_document_hash")?;
+    let signed_document_uri = norm_required(&input.signed_document_uri, "signed_document_uri")?;
+
+    record.company_signed_document_hash = Some(signed_document_hash.clone());
+    record.company_signed_document_uri = Some(signed_document_uri.clone());
+    record.company_signed_document_at = Some(now);
+    record.updated_at = now;
+    record.status = ContractStatus::PendingSignatures;
+
+    CONTRACTS.with(|c| c.borrow_mut().insert(proposal_id, record.clone()));
+    append_audit(caller, AuditEventType::CompanySignedDocumentSubmitted, Some(proposal_id),
+        format!("Company attached signed document package — hash {}", signed_document_hash));
+    Ok(record)
+}
+
+#[update]
+fn confirm_company_signed_document(proposal_id: u64) -> Result<ContractRecord, String> {
+    let caller = require_auth()?;
+    let now = ic_cdk::api::time();
+
+    let mut record = CONTRACTS.with(|c| c.borrow().get(&proposal_id))
+        .ok_or("No contract record for this proposal")?;
+    if caller != record.investor_principal {
+        return Err("Only the backing investor can confirm the signed document package".into());
+    }
+    ensure_contract_mutable(&record)?;
+    if record.signature_mode != SignatureMode::ExternalQualifiedSignature {
+        return Err("This contract does not use external signed documents".into());
+    }
+    if record.company_signed_document_at.is_none() {
+        return Err("The company has not attached the signed document package yet".into());
+    }
+    if record.investor_confirmed_signed_document_at.is_some() {
+        return Err("Investor already confirmed the signed document package".into());
+    }
+
+    record.investor_confirmed_signed_document_at = Some(now);
+    record.updated_at = now;
+    record.status = ContractStatus::Signed;
+
+    CONTRACTS.with(|c| c.borrow_mut().insert(proposal_id, record.clone()));
+    append_audit(caller, AuditEventType::InvestorSignedDocumentConfirmed, Some(proposal_id),
+        "Investor confirmed the company-signed document package".into());
+    Ok(record)
+}
+
+/// Controller-only placeholder for recording results from an external
+/// e-sign provider (e.g. DocuSign, Skribble, or eIDAS QES provider).
+/// In production this would be called by a webhook ingestion canister
+/// or an off-chain relay that receives callbacks from the e-sign API.
+#[update]
+fn record_external_signature_status(proposal_id: u64, input: ExternalSignatureUpdateInput) -> Result<ContractRecord, String> {
+    let caller = require_auth()?;
+    if !ic_cdk::api::is_controller(&caller) {
+        return Err("Only canister controllers can record external signature status".into());
+    }
+    let now = ic_cdk::api::time();
+
+    let mut record = CONTRACTS.with(|c| c.borrow().get(&proposal_id))
+        .ok_or("No contract record for this proposal")?;
+    if record.signature_mode != SignatureMode::ExternalQualifiedSignature {
+        return Err("Contract is in OnChainAck mode, not external".into());
+    }
+
+    record.external_envelope_id = Some(input.external_envelope_id);
+    record.updated_at = now;
+
+    if input.signed {
+        record.external_signed_at = Some(now);
+        record.status = ContractStatus::Signed;
+    } else {
+        record.status = ContractStatus::Rejected;
+    }
+
+    CONTRACTS.with(|c| c.borrow_mut().insert(proposal_id, record.clone()));
+    append_audit(caller, AuditEventType::ExternalSignatureRecorded, Some(proposal_id),
+        format!("External signature — signed={}, status {:?}", input.signed, record.status));
+    Ok(record)
+}
+
+#[query]
+fn get_contract_record(proposal_id: u64) -> Option<ContractRecord> {
+    CONTRACTS.with(|c| c.borrow().get(&proposal_id))
+}
+
+#[query]
+fn list_contracts(status_filter: Option<ContractStatus>) -> Vec<ContractRecord> {
+    CONTRACTS.with(|c| {
+        c.borrow().iter().map(|(_, v)| v)
+            .filter(|r| match &status_filter { Some(s) => r.status == *s, None => true })
+            .collect()
+    })
+}
+
+#[query]
+fn get_proposal_phase(proposal_id: u64) -> Result<ProposalPhase, String> {
+    let proposal = PROPOSALS.with(|p| p.borrow().get(&proposal_id))
+        .ok_or("Proposal not found")?;
+    let contract = CONTRACTS.with(|c| c.borrow().get(&proposal_id));
+    let contract_status = contract.as_ref().map(|c| c.status.clone());
+    let phase_label = derive_proposal_phase_label(&proposal, contract.as_ref());
+
+    Ok(ProposalPhase {
+        proposal_id,
+        proposal_status: proposal.status,
+        contract_status,
+        phase_label,
+    })
+}
+
+// =========================================================================
 // Query endpoints
 // =========================================================================
 
@@ -806,3 +1288,129 @@ fn get_config() -> Config {
 // =========================================================================
 
 ic_cdk::export_candid!();
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_proposal(status: ProposalStatus) -> Proposal {
+        Proposal {
+            id: 1,
+            submitter: Principal::anonymous(),
+            region_tag: "Sofia".into(),
+            title: "T".into(),
+            description: "D".into(),
+            category: Some(ProposalCategory::Infrastructure),
+            budget_amount: Some(100.0),
+            budget_currency: Some("EUR".into()),
+            budget_breakdown: Some("Breakdown".into()),
+            executor_name: Some("Executor".into()),
+            execution_plan: Some("Plan".into()),
+            timeline: Some("Timeline".into()),
+            expected_impact: Some("Impact".into()),
+            approved_company: Some(ProposalCompany {
+                legal_name: "Company".into(),
+                registration_id: "REG".into(),
+                representative_name: "Rep".into(),
+                representative_principal: Some(Principal::self_authenticating(&[1, 2, 3])),
+            }),
+            fairness_score: None,
+            risk_flags: vec![],
+            backed_by: Some(Principal::management_canister()),
+            backed_at: Some(1),
+            status,
+            created_at: 1,
+            voting_ends_at: 2,
+            yes_weight: 0.0,
+            no_weight: 0.0,
+            voter_count: 0,
+        }
+    }
+
+    fn sample_contract(signature_mode: SignatureMode, status: ContractStatus) -> ContractRecord {
+        ContractRecord {
+            proposal_id: 1,
+            created_by: Principal::management_canister(),
+            investor_principal: Principal::management_canister(),
+            company: ContractParty {
+                legal_name: "Company".into(),
+                registration_id: "REG".into(),
+                representative_name: "Rep".into(),
+                representative_principal: Some(Principal::self_authenticating(&[1, 2, 3])),
+            },
+            document_hash: "sha256:draft".into(),
+            document_uri: "https://draft".into(),
+            milestone_hash: None,
+            signature_mode,
+            external_provider: None,
+            external_envelope_id: None,
+            investor_ack_at: None,
+            company_ack_at: None,
+            company_signed_document_hash: None,
+            company_signed_document_uri: None,
+            company_signed_document_at: None,
+            investor_confirmed_signed_document_at: None,
+            external_signed_at: None,
+            status,
+            created_at: 1,
+            updated_at: 1,
+        }
+    }
+
+    #[test]
+    fn phase_label_reflects_company_assignment_gap() {
+        let proposal = sample_proposal(ProposalStatus::Backed);
+        let mut contract = sample_contract(
+            SignatureMode::ExternalQualifiedSignature,
+            ContractStatus::Draft,
+        );
+        contract.company.representative_principal = None;
+
+        assert_eq!(
+            derive_proposal_phase_label(&proposal, Some(&contract)),
+            "Draft ready — investor must assign the company principal"
+        );
+    }
+
+    #[test]
+    fn phase_label_reflects_waiting_for_company_signed_package() {
+        let proposal = sample_proposal(ProposalStatus::Backed);
+        let contract = sample_contract(
+            SignatureMode::ExternalQualifiedSignature,
+            ContractStatus::Draft,
+        );
+
+        assert_eq!(
+            derive_proposal_phase_label(&proposal, Some(&contract)),
+            "Draft ready — awaiting company signed document"
+        );
+    }
+
+    #[test]
+    fn phase_label_reflects_waiting_for_investor_confirmation() {
+        let proposal = sample_proposal(ProposalStatus::Backed);
+        let mut contract = sample_contract(
+            SignatureMode::ExternalQualifiedSignature,
+            ContractStatus::PendingSignatures,
+        );
+        contract.company_signed_document_at = Some(10);
+        contract.company_signed_document_hash = Some("sha256:signed".into());
+        contract.company_signed_document_uri = Some("https://signed".into());
+
+        assert_eq!(
+            derive_proposal_phase_label(&proposal, Some(&contract)),
+            "Awaiting investor confirmation of signed document"
+        );
+    }
+
+    #[test]
+    fn phase_label_reflects_missing_approved_company() {
+        let mut proposal = sample_proposal(ProposalStatus::Backed);
+        proposal.approved_company = None;
+
+        assert_eq!(
+            derive_proposal_phase_label(&proposal, None),
+            "Backed — no community-approved company on proposal"
+        );
+    }
+}

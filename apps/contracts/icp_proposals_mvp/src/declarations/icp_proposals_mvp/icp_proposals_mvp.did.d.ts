@@ -10,11 +10,15 @@ export interface AuditEvent {
   'event_type' : AuditEventType,
   'payload' : string,
 }
-export type AuditEventType = { 'ReputationPenalized' : null } |
+export type AuditEventType = { 'InvestorContractAcked' : null } |
+  { 'ReputationPenalized' : null } |
   { 'UserRegistered' : null } |
   { 'InvestorVerified' : null } |
+  { 'ExternalSignatureRecorded' : null } |
   { 'ProposalFinalized' : null } |
   { 'ProposalBacked' : null } |
+  { 'CompanyContractAcked' : null } |
+  { 'ContractCreated' : null } |
   { 'ReputationAwarded' : null } |
   { 'ProposalSubmitted' : null } |
   { 'VoteCast' : null };
@@ -25,10 +29,54 @@ export interface Config {
   'quorum_min_region_size' : number,
   'absolute_majority' : number,
 }
+export interface ContractParty {
+  'legal_name' : string,
+  'representative_name' : string,
+  'representative_principal' : [] | [Principal],
+  'registration_id' : string,
+}
+export interface ContractRecord {
+  'external_envelope_id' : [] | [string],
+  'status' : ContractStatus,
+  'external_provider' : [] | [string],
+  'updated_at' : bigint,
+  'milestone_hash' : [] | [string],
+  'document_hash' : string,
+  'document_uri' : string,
+  'investor_ack_at' : [] | [bigint],
+  'external_signed_at' : [] | [bigint],
+  'signature_mode' : SignatureMode,
+  'created_at' : bigint,
+  'created_by' : Principal,
+  'company' : ContractParty,
+  'proposal_id' : bigint,
+  'investor_principal' : Principal,
+  'company_ack_at' : [] | [bigint],
+}
+export type ContractStatus = { 'Draft' : null } |
+  { 'Rejected' : null } |
+  { 'PendingSignatures' : null } |
+  { 'Signed' : null } |
+  { 'Expired' : null };
+export interface CreateContractInput {
+  'external_provider' : [] | [string],
+  'milestone_hash' : [] | [string],
+  'document_hash' : string,
+  'document_uri' : string,
+  'company_representative_name' : string,
+  'signature_mode' : SignatureMode,
+  'company_registration_id' : string,
+  'company_legal_name' : string,
+  'company_representative_principal' : [] | [Principal],
+}
 export interface CreateProfileInput {
   'user_type' : UserType,
   'display_name' : string,
   'home_region' : [] | [string],
+}
+export interface ExternalSignatureUpdateInput {
+  'external_envelope_id' : string,
+  'signed' : boolean,
 }
 export interface Proposal {
   'id' : bigint,
@@ -62,6 +110,12 @@ export type ProposalCategory = { 'Infrastructure' : null } |
   { 'Marketing' : null } |
   { 'Conservation' : null } |
   { 'Education' : null };
+export interface ProposalPhase {
+  'proposal_id' : bigint,
+  'proposal_status' : ProposalStatus,
+  'phase_label' : string,
+  'contract_status' : [] | [ContractStatus],
+}
 export type ProposalStatus = { 'QuorumNotMet' : null } |
   { 'Active' : null } |
   { 'AwaitingFunding' : null } |
@@ -77,6 +131,12 @@ export type Result_4 = { 'Ok' : number } |
   { 'Err' : string };
 export type Result_5 = { 'Ok' : null } |
   { 'Err' : string };
+export type Result_6 = { 'Ok' : ContractRecord } |
+  { 'Err' : string };
+export type Result_7 = { 'Ok' : ProposalPhase } |
+  { 'Err' : string };
+export type SignatureMode = { 'OnChainAck' : null } |
+  { 'ExternalQualifiedSignature' : null };
 export interface SubmitProposalInput {
   'title' : string,
   'execution_plan' : string,
@@ -123,17 +183,33 @@ export interface _SERVICE {
   'admin_verify_investor' : ActorMethod<[Principal], Result_5>,
   'back_proposal' : ActorMethod<[bigint], Result_2>,
   'cast_vote' : ActorMethod<[bigint, boolean], Result_3>,
+  'company_ack_contract' : ActorMethod<[bigint], Result_6>,
+  'create_contract_record' : ActorMethod<
+    [bigint, CreateContractInput],
+    Result_6
+  >,
   'create_my_profile' : ActorMethod<[CreateProfileInput], Result_1>,
   'finalize_proposal' : ActorMethod<[bigint], Result_2>,
   'get_audit_log' : ActorMethod<[number, number], Array<AuditEvent>>,
   'get_config' : ActorMethod<[], Config>,
+  'get_contract_record' : ActorMethod<[bigint], [] | [ContractRecord]>,
   'get_my_profile' : ActorMethod<[], [] | [UserProfile]>,
   'get_my_vp' : ActorMethod<[string], Result_4>,
   'get_proposal' : ActorMethod<[bigint], [] | [Proposal]>,
+  'get_proposal_phase' : ActorMethod<[bigint], Result_7>,
   'get_proposal_votes' : ActorMethod<[bigint], Array<Vote>>,
   'get_region_total_vp' : ActorMethod<[string], number>,
   'get_user' : ActorMethod<[Principal], [] | [UserProfile]>,
+  'investor_ack_contract' : ActorMethod<[bigint], Result_6>,
+  'list_contracts' : ActorMethod<
+    [[] | [ContractStatus]],
+    Array<ContractRecord>
+  >,
   'list_proposals' : ActorMethod<[[] | [ProposalStatus]], Array<Proposal>>,
+  'record_external_signature_status' : ActorMethod<
+    [bigint, ExternalSignatureUpdateInput],
+    Result_6
+  >,
   'request_verification' : ActorMethod<[], Result_5>,
   'submit_proposal' : ActorMethod<[SubmitProposalInput], Result_2>,
   'update_my_profile' : ActorMethod<[UpdateProfileInput], Result_1>,
