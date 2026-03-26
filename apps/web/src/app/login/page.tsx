@@ -10,24 +10,26 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { useAuthStore } from "@/lib/auth-store";
+import { useInternetIdentity } from "ic-use-internet-identity";
 import { Landmark, Mail, Link as LinkIcon, Code } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function LoginPage() {
 	const router = useRouter();
-	const login = useAuthStore((state) => state.login);
-	const [isLoading, setIsLoading] = useState<string | null>(null);
+	const { login: iiLogin, isLoggingIn, status } = useInternetIdentity();
 
-	const handleLogin = async (provider: string) => {
-		setIsLoading(provider);
-		try {
-			await login(provider);
+	// Redirect when login is successful
+	useEffect(() => {
+		if (status === "success") {
+			console.log("[Login] Success detected, redirecting...");
 			router.push("/onboarding/role");
-		} finally {
-			setIsLoading(null);
 		}
+	}, [status, router]);
+
+	const handleSocialLogin = (provider: string) => {
+		alert(`${provider} login is coming soon. Please use Internet Identity.`);
 	};
 
 	return (
@@ -55,10 +57,10 @@ export default function LoginPage() {
 						<Button
 							variant="default"
 							className="h-12 text-base font-semibold"
-							onClick={() => handleLogin("internet-identity")}
-							disabled={!!isLoading}
+							onClick={() => iiLogin()}
+							disabled={isLoggingIn}
 						>
-							{isLoading === "internet-identity" ? (
+							{isLoggingIn ? (
 								<div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
 							) : (
 								<>
@@ -88,8 +90,8 @@ export default function LoginPage() {
 							<Button
 								variant="outline"
 								className="h-11"
-								onClick={() => handleLogin("google")}
-								disabled={!!isLoading}
+								onClick={() => handleSocialLogin("google")}
+								disabled={isLoggingIn}
 							>
 								<Mail className="mr-2 h-4 w-4" />
 								Google
@@ -97,8 +99,8 @@ export default function LoginPage() {
 							<Button
 								variant="outline"
 								className="h-11"
-								onClick={() => handleLogin("linkedin")}
-								disabled={!!isLoading}
+								onClick={() => handleSocialLogin("linkedin")}
+								disabled={isLoggingIn}
 							>
 								<LinkIcon className="mr-2 h-4 w-4" />
 								LinkedIn
@@ -107,29 +109,43 @@ export default function LoginPage() {
 						<Button
 							variant="outline"
 							className="h-11 w-full"
-							onClick={() => handleLogin("github")}
-							disabled={!!isLoading}
+							onClick={() => handleSocialLogin("github")}
+							disabled={isLoggingIn}
 						>
 							<Code className="mr-2 h-4 w-4" />
 							GitHub
 						</Button>
 					</CardContent>
-					<CardFooter className="flex flex-wrap items-center justify-center gap-1 text-sm text-muted-foreground">
-						By continuing, you agree to our{" "}
-						<Link
-							href="/terms"
-							className="underline hover:text-primary underline-offset-4"
-						>
-							Terms of Service
-						</Link>{" "}
-						and{" "}
-						<Link
-							href="/privacy"
-							className="underline hover:text-primary underline-offset-4"
-						>
-							Privacy Policy
-						</Link>
-						.
+					<CardFooter className="flex flex-col items-center justify-center gap-4">
+						<div className="flex flex-wrap items-center justify-center gap-1 text-sm text-muted-foreground">
+							By continuing, you agree to our{" "}
+							<Link
+								href="/terms"
+								className="underline hover:text-primary underline-offset-4"
+							>
+								Terms of Service
+							</Link>{" "}
+							and{" "}
+							<Link
+								href="/privacy"
+								className="underline hover:text-primary underline-offset-4"
+							>
+								Privacy Policy
+							</Link>
+							.
+						</div>
+						
+						<div className="pt-4 border-t w-full text-center">
+							<button 
+								onClick={() => {
+									useAuthStore.getState().loginMock();
+									router.push("/dashboard");
+								}}
+								className="text-xs text-muted-foreground hover:text-primary transition-colors italic"
+							>
+								[Dev Mode] Skip authentication and go to Dashboard
+							</button>
+						</div>
 					</CardFooter>
 				</Card>
 			</div>

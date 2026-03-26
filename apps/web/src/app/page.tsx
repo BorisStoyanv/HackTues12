@@ -43,15 +43,38 @@ export default function Home() {
 						>
 							How it Works
 						</Link>
-						<Link
-							href={is_logged_in ? "/dashboard" : "/login"}
-							className={buttonVariants({
-								variant: is_logged_in ? "outline" : "default",
-								size: "sm",
-							})}
-						>
-							{is_logged_in ? "Go to Dashboard" : "Sign In"}
-						</Link>
+						
+						{is_logged_in ? (
+							<div className="flex items-center gap-3">
+								<div className="hidden sm:flex flex-col items-end">
+									<span className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground">
+										Authenticated
+									</span>
+									<span className="text-xs font-medium">
+										@{user.id.substring(0, 8)}...
+									</span>
+								</div>
+								<Link
+									href="/dashboard"
+									className={buttonVariants({
+										variant: "default",
+										size: "sm",
+									})}
+								>
+									Dashboard
+								</Link>
+							</div>
+						) : (
+							<Link
+								href="/login"
+								className={buttonVariants({
+									variant: "default",
+									size: "sm",
+								})}
+							>
+								Sign In
+							</Link>
+						)}
 					</nav>
 				</div>
 			</header>
