@@ -29,7 +29,38 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuthStore } from "@/lib/auth-store";
 import { cn } from "@/lib/utils";
 
-type Step = 'geo' | 'expertise' | 'complete';
+import { loadStripe } from "@stripe/stripe-js";
+
+// Initialize Stripe outside of component to avoid recreating it
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+
+const geoSchema = z.object({
+  address: z.string().min(5, "Address must be at least 5 characters"),
+});
+
+type GeoFormValues = z.infer<typeof geoSchema>;
+
+const expertiseSchema = z.object({
+  area: z.string().min(1, "Please select an area of expertise"),
+  linkedin: z.string().url("Please enter a valid URL").optional().or(z.literal("")),
+});
+
+type ExpertiseFormValues = z.infer<typeof expertiseSchema>;
+
+type Step = 'geo' | 'location-confirmed' | 'expertise' | 'complete';
 
 export default function VerificationPage() {
   const router = useRouter();
@@ -37,7 +68,23 @@ export default function VerificationPage() {
   const user = useAuthStore((state) => state.user);
   const [step, setStep] = useState<Step>('geo');
   const [isVerifying, setIsVerifying] = useState(false);
+  const [detectedLocation, setDetectedLocation] = useState<{ city: string; country: string } | null>(null);
   
+  const geoForm = useForm<GeoFormValues>({
+    resolver: zodResolver(geoSchema),
+    defaultValues: {
+      address: "",
+    },
+  });
+
+  const expertiseForm = useForm<ExpertiseFormValues>({
+    resolver: zodResolver(expertiseSchema),
+    defaultValues: {
+      area: "",
+      linkedin: "",
+    },
+  });
+
   // Guard: if no role or wrong role, redirect back
   useEffect(() => {
     if (!user || user.role !== 'regional') {
@@ -45,19 +92,76 @@ export default function VerificationPage() {
     }
   }, [user, router]);
 
-  const handleGeoSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleGeoSubmit = async (values: GeoFormValues) => {
     setIsVerifying(true);
-    // Simulate geo verification
-    setTimeout(() => {
+    try {
+      const res = await fetch('/api/geocode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: values.address }),
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        geoForm.setError("address", { message: data.error || "Geocoding failed" });
+        setIsVerifying(false);
+        return;
+      }
+
+      const location = { city: data.city, country: data.country };
+      setDetectedLocation(location);
+      setGeoVerified(true, location);
       setIsVerifying(false);
-      setGeoVerified(true);
-      setStep('expertise');
-    }, 2000);
+      setStep('location-confirmed');
+    } catch (err) {
+      console.error(err);
+      geoForm.setError("address", { message: "An unexpected error occurred." });
+      setIsVerifying(false);
+    }
   };
 
-  const handleExpertiseSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleStripeVerification = async () => {
+    setIsVerifying(true);
+    try {
+      const res = await fetch('/api/stripe/identity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'regional' }),
+      });
+      
+      const { client_secret, error: serverError } = await res.json();
+      
+      if (serverError || !client_secret) {
+        console.error("Failed to create verification session:", serverError);
+        setIsVerifying(false);
+        return;
+      }
+
+      const stripe = await stripePromise;
+      if (!stripe) throw new Error("Stripe failed to initialize");
+
+      const { error } = await stripe.verifyIdentity(client_secret);
+
+      if (error) {
+        console.error("Verification failed or was canceled:", error);
+        setIsVerifying(false);
+      } else {
+        // Mock successful detection from ID
+        setIsVerifying(false);
+        const location = { city: "Berlin", country: "Germany" };
+        setDetectedLocation(location);
+        setGeoVerified(true, location);
+        setStep('location-confirmed');
+      }
+    } catch (err) {
+      console.error(err);
+      setIsVerifying(false);
+    }
+  };
+
+  const handleExpertiseSubmit = (values: ExpertiseFormValues) => {
+    console.log("Expertise submitted:", values);
     setStep('complete');
   };
 
@@ -73,64 +177,127 @@ export default function VerificationPage() {
               We need to verify your location to ensure you can participate in local governance.
             </CardDescription>
           </CardHeader>
-          <form onSubmit={handleGeoSubmit}>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="address">Residential Address</Label>
-                <Input id="address" placeholder="123 Main St, Berlin, Germany" required />
-              </div>
-              
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
+          <Form {...geoForm}>
+            <form onSubmit={geoForm.handleSubmit(handleGeoSubmit)}>
+              <CardContent className="space-y-6">
+                <FormField
+                  control={geoForm.control}
+                  name="address"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Residential Address</FormLabel>
+                      <FormControl>
+                        <Input placeholder="123 Main St, Berlin, Germany" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">
+                      Or use automated verification
+                    </span>
+                  </div>
                 </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">
-                    Or use automated verification
-                  </span>
+
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="w-full h-12 gap-2"
+                  onClick={handleStripeVerification}
+                  disabled={isVerifying}
+                >
+                  {isVerifying ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ShieldCheck className="h-4 w-4" />
+                  )}
+                  Verify via Government ID (Stripe Identity)
+                </Button>
+
+                <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 p-4 flex gap-3">
+                  <ShieldCheck className="h-5 w-5 text-blue-500 shrink-0" />
+                  <p className="text-xs text-blue-700 dark:text-blue-300">
+                    Your location data is processed locally and never stored on-chain. Only a zero-knowledge proof of residency is generated.
+                  </p>
+                </div>
+              </CardContent>
+              <CardFooter className="flex justify-between border-t pt-6">
+                <Button variant="ghost" type="button" onClick={() => router.push('/onboarding/role')}>
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back
+                </Button>
+                <Button type="submit" disabled={isVerifying}>
+                  {isVerifying ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Verifying...
+                    </>
+                  ) : (
+                    <>
+                      Next
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </CardFooter>
+            </form>
+          </Form>
+        </Card>
+      )}
+
+      {step === 'location-confirmed' && (
+        <Card className="border-neutral-200 dark:border-neutral-800 overflow-hidden">
+          <div className="h-2 bg-green-500" />
+          <CardHeader className="pb-2">
+            <div className="h-12 w-12 rounded-full bg-green-50 dark:bg-green-950/30 flex items-center justify-center mb-4">
+              <MapIcon className="h-6 w-6 text-green-500" />
+            </div>
+            <CardTitle className="text-2xl font-bold">Location Verified</CardTitle>
+            <CardDescription>
+              We've successfully confirmed your geographic eligibility.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="p-6 bg-neutral-50 dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 flex items-center gap-6">
+              <div className="h-16 w-16 rounded-lg bg-white dark:bg-neutral-800 shadow-sm flex items-center justify-center border">
+                <Globe className="h-8 w-8 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Current Region</p>
+                <p className="text-2xl font-bold">{detectedLocation?.city}, {detectedLocation?.country}</p>
+                <div className="flex items-center gap-2 mt-1 text-xs text-green-600 dark:text-green-400 font-medium">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Eligible for Local Voting & Proposals
                 </div>
               </div>
+            </div>
 
-              <Button 
-                type="button" 
-                variant="outline" 
-                className="w-full h-12 gap-2"
-                onClick={() => {
-                  setIsVerifying(true);
-                  setTimeout(() => {
-                    setIsVerifying(false);
-                    setGeoVerified(true);
-                    setStep('expertise');
-                  }, 2000);
-                }}
-                disabled={isVerifying}
-              >
-                {isVerifying ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <MapPin className="h-4 w-4" />
-                )}
-                Verify via IP / Browser GPS
-              </Button>
-
-              <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 p-4 flex gap-3">
-                <ShieldCheck className="h-5 w-5 text-blue-500 shrink-0" />
-                <p className="text-xs text-blue-700 dark:text-blue-300">
-                  Your location data is processed locally and never stored on-chain. Only a zero-knowledge proof of residency is generated.
-                </p>
-              </div>
-            </CardContent>
-            <CardFooter className="flex justify-between border-t pt-6">
-              <Button variant="ghost" type="button" onClick={() => router.push('/onboarding/role')}>
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
-              </Button>
-              <Button type="submit" disabled={isVerifying}>
-                {isVerifying ? 'Verifying...' : 'Next'}
-                {!isVerifying && <ArrowRight className="ml-2 h-4 w-4" />}
-              </Button>
-            </CardFooter>
-          </form>
+            <div className="rounded-lg border border-primary/20 bg-primary/[0.02] p-4">
+              <p className="text-sm font-medium mb-1 flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-primary" />
+                Governance Rights
+              </p>
+              <p className="text-xs text-muted-foreground">
+                As a verified resident of <strong>{detectedLocation?.city}</strong>, you have been granted voting power in regional infrastructure, education, and environmental projects.
+              </p>
+            </div>
+          </CardContent>
+          <CardFooter className="flex justify-between border-t pt-6 bg-neutral-50/50 dark:bg-neutral-950/50">
+            <Button variant="ghost" onClick={() => setStep('geo')}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Change Address
+            </Button>
+            <Button onClick={() => setStep('expertise')}>
+              Continue to Expertise
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </CardFooter>
         </Card>
       )}
 
@@ -142,62 +309,82 @@ export default function VerificationPage() {
               Linking your professional background increases your Reputation Attribute ($V_p$) in relevant categories.
             </CardDescription>
           </CardHeader>
-          <form onSubmit={handleExpertiseSubmit}>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label>Primary Area of Expertise</Label>
-                <Select required>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="infra">Infrastructure & Urban Planning</SelectItem>
-                    <SelectItem value="edu">Education & Research</SelectItem>
-                    <SelectItem value="env">Environmental Science</SelectItem>
-                    <SelectItem value="tech">Technology & Software</SelectItem>
-                    <SelectItem value="health">Healthcare & Wellness</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+          <Form {...expertiseForm}>
+            <form onSubmit={expertiseForm.handleSubmit(handleExpertiseSubmit)}>
+              <CardContent className="space-y-6">
+                <FormField
+                  control={expertiseForm.control}
+                  name="area"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Primary Area of Expertise</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a category" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="infra">Infrastructure & Urban Planning</SelectItem>
+                          <SelectItem value="edu">Education & Research</SelectItem>
+                          <SelectItem value="env">Environmental Science</SelectItem>
+                          <SelectItem value="tech">Technology & Software</SelectItem>
+                          <SelectItem value="health">Healthcare & Wellness</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <div className="space-y-2">
-                <Label htmlFor="linkedin">LinkedIn Profile (Optional)</Label>
-                <Input id="linkedin" placeholder="https://linkedin.com/in/username" />
-              </div>
+                <FormField
+                  control={expertiseForm.control}
+                  name="linkedin"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>LinkedIn Profile (Optional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="https://linkedin.com/in/username" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <div className="border-2 border-dashed border-neutral-200 dark:border-neutral-800 rounded-lg p-6 flex flex-col items-center justify-center text-center space-y-2 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors">
-                <Briefcase className="h-6 w-6 text-muted-foreground" />
-                <p className="text-sm font-medium">Upload CV or Professional Certifications</p>
-                <p className="text-xs text-muted-foreground">PDF (max 5MB)</p>
-              </div>
-
-              <div className="p-4 rounded-lg border bg-neutral-50 dark:bg-neutral-900 space-y-2">
-                <div className="flex items-center gap-2">
-                  <Award className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-bold">Projected Voting Weight</span>
+                <div className="border-2 border-dashed border-neutral-200 dark:border-neutral-800 rounded-lg p-6 flex flex-col items-center justify-center text-center space-y-2 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors">
+                  <Briefcase className="h-6 w-6 text-muted-foreground" />
+                  <p className="text-sm font-medium">Upload CV or Professional Certifications</p>
+                  <p className="text-xs text-muted-foreground">PDF (max 5MB)</p>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className="flex-1 h-2 bg-neutral-200 dark:bg-neutral-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-primary w-[65%]" />
+
+                <div className="p-4 rounded-lg border bg-neutral-50 dark:bg-neutral-900 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Award className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-bold">Projected Voting Weight</span>
                   </div>
-                  <span className="text-sm font-bold text-primary">1.65x</span>
+                  <div className="flex items-center gap-4">
+                    <div className="flex-1 h-2 bg-neutral-200 dark:border-neutral-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-primary w-[65%]" />
+                    </div>
+                    <span className="text-sm font-bold text-primary">1.65x</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground italic">
+                    *This is an estimate based on your provided location and expertise.
+                  </p>
                 </div>
-                <p className="text-[10px] text-muted-foreground italic">
-                  *This is an estimate based on your provided location and expertise.
-                </p>
-              </div>
-            </CardContent>
-            <CardFooter className="flex justify-between border-t pt-6">
-              <Button variant="ghost" type="button" onClick={() => setStep('geo')}>
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
-              </Button>
-              <Button type="submit">
-                Complete Onboarding
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </CardFooter>
-          </form>
+              </CardContent>
+              <CardFooter className="flex justify-between border-t pt-6">
+                <Button variant="ghost" type="button" onClick={() => setStep('geo')}>
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back
+                </Button>
+                <Button type="submit">
+                  Complete Onboarding
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </CardFooter>
+            </form>
+          </Form>
         </Card>
       )}
 
