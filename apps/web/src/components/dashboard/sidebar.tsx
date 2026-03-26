@@ -10,12 +10,7 @@ import {
   History,
   Settings,
   ShieldCheck,
-  ChevronLeft,
-  ChevronRight,
   Landmark,
-  ExternalLink,
-  LifeBuoy,
-  Send,
   LogOut,
   Briefcase,
   FileText,
@@ -106,86 +101,87 @@ export function DashboardSidebar() {
   const logout = useAuthStore((state) => state.logout);
 
   const NavGroup = ({ title, items }: { title: string; items: typeof mainNavItems }) => (
-    <div className="py-4">
+    <div className="py-2">
       <div className="px-4 mb-2 group-data-[collapsible=icon]:hidden">
-        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/50">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
           {title}
         </p>
       </div>
-      <SidebarMenu className="px-2">
-        {items.map((item) => (
-          <SidebarMenuItem key={item.href}>
-            <SidebarMenuButton
-              isActive={pathname === item.href}
-              tooltip={item.title}
-              className={cn(
-                "h-10 transition-all duration-200 rounded-lg",
-                pathname === item.href 
-                  ? "bg-primary text-primary-foreground font-bold shadow-lg shadow-primary/20" 
-                  : "hover:bg-neutral-100 dark:hover:bg-neutral-900 text-muted-foreground hover:text-foreground"
-              )}
-              render={(props) => (
-                <Link href={item.href} {...props}>
-                  <item.icon className="h-4 w-4" />
-                  <span className="font-medium tracking-tight">{item.title}</span>
-                </Link>
-              )}
-            />
-          </SidebarMenuItem>
-        ))}
+      <SidebarMenu className="px-2 space-y-0.5">
+        {items.map((item) => {
+          const isActive = pathname === item.href;
+          return (
+            <SidebarMenuItem key={item.href}>
+              <SidebarMenuButton
+                isActive={isActive}
+                tooltip={item.title}
+                className={cn(
+                  "h-9 transition-colors rounded-md px-3",
+                  isActive 
+                    ? "bg-neutral-100 dark:bg-neutral-900 text-foreground" 
+                    : "text-muted-foreground hover:text-foreground hover:bg-neutral-50 dark:hover:bg-neutral-950"
+                )}
+                render={(props) => (
+                  <Link href={item.href} {...props}>
+                    <item.icon className={cn("h-4 w-4 shrink-0 transition-colors", isActive ? "text-primary" : "text-muted-foreground/60")} />
+                    <span className={cn("text-sm transition-colors", isActive ? "font-semibold" : "font-medium")}>
+                      {item.title}
+                    </span>
+                  </Link>
+                )}
+              />
+            </SidebarMenuItem>
+          );
+        })}
       </SidebarMenu>
     </div>
   );
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-neutral-100 dark:border-neutral-900 bg-background transition-all duration-500">
-      <SidebarHeader className="h-16 flex items-center px-4 border-b border-neutral-100 dark:border-neutral-900">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-xl bg-primary flex items-center justify-center shadow-xl shadow-primary/20 shrink-0">
-             <Landmark className="h-4 w-4 text-primary-foreground" />
+    <Sidebar collapsible="icon" className="border-r border-neutral-200 dark:border-neutral-800 bg-background">
+      <SidebarHeader className="h-14 flex items-center px-4">
+        <Link href="/" className="flex items-center gap-2.5">
+          <div className="h-6 w-6 rounded-lg bg-foreground dark:bg-white flex items-center justify-center shrink-0">
+             <Landmark className="h-3.5 w-3.5 text-background dark:text-black" />
           </div>
-          <span className="font-black text-lg tracking-tighter truncate group-data-[collapsible=icon]:hidden">
+          <span className="font-bold text-base tracking-tight truncate group-data-[collapsible=icon]:hidden">
             OpenFairTrip
           </span>
         </Link>
       </SidebarHeader>
       
-      <SidebarContent className="scrollbar-hide overflow-y-auto overflow-x-hidden">
+      <SidebarContent className="scrollbar-hide py-2">
         <NavGroup title="Main" items={mainNavItems} />
         <NavGroup title="Governance" items={proposalItems} />
-        <NavGroup title="Transparency" items={platformItems} />
-        <NavGroup title="Personal" items={accountItems} />
+        <NavGroup title="Platform" items={platformItems} />
+        <NavGroup title="Account" items={accountItems} />
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-neutral-100 dark:border-neutral-900 p-2 bg-neutral-50/50 dark:bg-neutral-950/50">
+      <SidebarFooter className="border-t border-neutral-200 dark:border-neutral-800 p-2">
         <SidebarMenu>
           <SidebarMenuItem>
              <div className="flex items-center justify-between group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-4 p-2">
-                <div className="flex items-center gap-3 overflow-hidden">
-                  <div className="h-10 w-10 rounded-xl bg-background border-2 border-neutral-200 dark:border-neutral-800 flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
-                    <span className="text-xs font-black">{user?.id?.[0].toUpperCase() || "U"}</span>
+                <div className="flex items-center gap-3 overflow-hidden min-w-0">
+                  <div className="h-8 w-8 rounded-md bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 flex items-center justify-center shrink-0 shadow-sm">
+                    <span className="text-[10px] font-bold">{user?.id?.[0].toUpperCase() || "U"}</span>
                   </div>
                   <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
-                    <span className="text-sm font-black truncate leading-tight tracking-tight">
-                      {user?.id ? `@${user.id.substring(0, 8)}...` : "Identity Initializing"}
+                    <span className="text-xs font-bold truncate leading-tight tracking-tight text-foreground">
+                      {user?.id ? `@${user.id.substring(0, 8)}...` : "Initializing"}
                     </span>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                       <div className="h-1.5 w-1.5 rounded-full bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]" />
-                       <span className="text-[10px] text-muted-foreground truncate uppercase font-black tracking-widest">
-                         {user?.role || "Resident"}
-                       </span>
-                    </div>
+                    <span className="text-[9px] text-muted-foreground truncate uppercase font-bold tracking-widest mt-0.5">
+                      {user?.role || "Resident"}
+                    </span>
                   </div>
                 </div>
                 
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="h-10 w-10 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10 group-data-[collapsible=icon]:mt-2 transition-all duration-300"
+                  className="h-8 w-8 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-all"
                   onClick={() => logout()}
-                  title="Logout from ICP"
                 >
-                  <LogOut className="h-5 w-5" />
+                  <LogOut className="h-3.5 w-3.5" />
                 </Button>
              </div>
           </SidebarMenuItem>

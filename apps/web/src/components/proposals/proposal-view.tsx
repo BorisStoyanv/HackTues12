@@ -26,18 +26,26 @@ import {
 	ShieldCheck,
 	TrendingUp,
 	User,
+  History,
+  CheckCircle2,
+  XCircle,
+  MessageSquare,
+  Cpu,
+  Loader2
 } from "lucide-react";
 import Link from "next/link";
 
 import { SerializedProposal } from "@/lib/actions/proposals";
+import { AIDebateLive } from "./ai-debate-live";
 
 interface ProposalViewProps {
 	id: string;
 	mode: "public" | "authenticated";
 	initialData?: SerializedProposal;
+  votes?: any[]; // Simplified for the audit tab
 }
 
-export function ProposalView({ id, mode, initialData }: ProposalViewProps) {
+export function ProposalView({ id, mode, initialData, votes = [] }: ProposalViewProps) {
 	const user = useAuthStore((state) => state.user);
 
 	if (!initialData) {
@@ -46,7 +54,7 @@ export function ProposalView({ id, mode, initialData }: ProposalViewProps) {
 				<div className="h-12 w-12 rounded-full bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center animate-pulse">
 					<BarChart3 className="h-6 w-6 text-neutral-400" />
 				</div>
-				<h1 className="text-xl font-medium tracking-tight">
+				<h1 className="text-xl font-semibold tracking-tight">
 					Proposal Not Found
 				</h1>
 				<p className="text-muted-foreground text-sm max-w-sm">
@@ -71,13 +79,14 @@ export function ProposalView({ id, mode, initialData }: ProposalViewProps) {
 		(proposal.yes_weight / fundingGoal) * 100,
 	);
 	const statusFormatted = proposal.status.replace(/([A-Z])/g, " $1").trim();
+  const creatorId = proposal.submitter;
 
 	return (
 		<div className="flex-1 flex flex-col h-full overflow-hidden bg-background">
 			{/* Clean, Vercel-like Header Section */}
-			<div className="border-b bg-background px-6 py-10 md:px-12 shrink-0 relative overflow-hidden">
-				<div className="max-w-7xl mx-auto relative z-10 space-y-6">
-					<div className="flex flex-col gap-4">
+			<div className="border-b bg-background px-6 py-8 md:px-12 shrink-0 relative overflow-hidden">
+				<div className="max-w-7xl mx-auto relative z-10 space-y-4">
+					<div className="flex flex-col gap-3">
 						<div className="flex flex-wrap items-center gap-3">
 							<Badge className="bg-primary text-primary-foreground px-2.5 py-0.5 rounded-md text-[11px] font-medium border-transparent shadow-sm">
 								{statusFormatted}
@@ -96,7 +105,7 @@ export function ProposalView({ id, mode, initialData }: ProposalViewProps) {
 							</div>
 						</div>
 
-						<h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground leading-snug max-w-3xl">
+						<h1 className="text-2xl md:text-5xl font-bold tracking-tight text-foreground leading-snug max-w-4xl">
 							{proposal.title}
 						</h1>
 
@@ -110,7 +119,7 @@ export function ProposalView({ id, mode, initialData }: ProposalViewProps) {
 										Submitter
 									</span>
 									<span className="text-sm font-medium">
-										@{proposal.submitter.substring(0, 8)}...
+										@{creatorId.substring(0, 8)}...
 									</span>
 								</div>
 							</div>
@@ -136,34 +145,37 @@ export function ProposalView({ id, mode, initialData }: ProposalViewProps) {
 			<div className="flex-1 overflow-y-auto bg-neutral-50/30 dark:bg-neutral-950/30 px-6 py-10 md:px-12">
 				<div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10">
 					{/* LEFT COLUMN: Depth Details */}
-					<div className="lg:col-span-8 space-y-10">
-						<Tabs defaultValue="overview" className="w-full flex-col">
-							<TabsList className="w-full flex justify-start border-b border-border rounded-none h-auto bg-transparent p-0 mb-8 space-x-6 overflow-x-auto scrollbar-hide">
+					<div className="lg:col-span-8">
+						<Tabs defaultValue="overview" className="w-full flex flex-col gap-6">
+							<TabsList className="w-full flex justify-start border-b border-border rounded-none h-auto bg-transparent p-0 overflow-x-auto scrollbar-hide">
 								{[
 									"overview",
+									"debate",
 									"impact",
 									"execution",
 									"financials",
+                  "votes"
 								].map((tab) => (
 									<TabsTrigger
 										key={tab}
 										value={tab}
-										className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-foreground rounded-none px-0 py-3 bg-transparent shadow-none font-medium text-sm capitalize transition-none text-muted-foreground"
+										className="relative h-10 rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-3 pt-2 font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none capitalize"
 									>
 										{tab}
 									</TabsTrigger>
 								))}
 							</TabsList>
 
+              <div className="w-full mt-4">
 							<TabsContent
 								value="overview"
-								className="space-y-10 animate-in fade-in duration-500 m-0"
+								className="space-y-8 animate-in fade-in duration-500 m-0"
 							>
 								<section className="space-y-3">
 									<h3 className="text-sm font-medium text-muted-foreground">
 										Executive Summary
 									</h3>
-									<p className="text-lg font-normal leading-relaxed text-foreground/90 max-w-3xl whitespace-pre-wrap">
+									<p className="text-xl font-normal leading-relaxed text-foreground/90 max-w-4xl whitespace-pre-wrap">
 										{proposal.description}
 									</p>
 								</section>
@@ -188,6 +200,16 @@ export function ProposalView({ id, mode, initialData }: ProposalViewProps) {
 									</div>
 								</section>
 							</TabsContent>
+
+              <TabsContent
+								value="debate"
+								className="space-y-8 animate-in fade-in duration-500 m-0 focus-visible:outline-none"
+							>
+                <AIDebateLive 
+                  proposal={proposal} 
+                  onComplete={(res) => console.log("Debate synced", res)}
+                />
+              </TabsContent>
 
 							<TabsContent
 								value="impact"
@@ -298,6 +320,65 @@ export function ProposalView({ id, mode, initialData }: ProposalViewProps) {
 									</div>
 								</div>
 							</TabsContent>
+
+              <TabsContent
+								value="votes"
+								className="space-y-8 animate-in fade-in duration-500 m-0"
+							>
+                <div className="space-y-6">
+                   <h3 className="text-lg font-medium tracking-tight flex items-center gap-2">
+                      <History className="h-4 w-4 text-muted-foreground" />
+                      Voting Audit Trail
+                   </h3>
+                   <div className="border border-border rounded-xl overflow-hidden bg-background">
+                      <table className="w-full text-sm">
+                         <thead className="bg-muted border-b border-border">
+                            <tr>
+                               <th className="text-left px-4 py-3 font-medium text-xs text-muted-foreground">Voter Principal</th>
+                               <th className="text-center px-4 py-3 font-medium text-xs text-muted-foreground">Stance</th>
+                               <th className="text-right px-4 py-3 font-medium text-xs text-muted-foreground">Weight ($V_p$)</th>
+                               <th className="text-right px-4 py-3 font-medium text-xs text-muted-foreground">Timestamp</th>
+                            </tr>
+                         </thead>
+                         <tbody className="divide-y divide-border">
+                            {votes.length > 0 ? (
+                               votes.map((vote, i) => (
+                                  <tr key={i} className="hover:bg-muted/50 transition-colors">
+                                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                                        @{vote.voter.substring(0, 16)}...
+                                     </td>
+                                     <td className="px-4 py-3 text-center">
+                                        {vote.in_favor ? (
+                                           <div className="inline-flex items-center gap-1.5 text-green-600 bg-green-500/10 px-2 py-0.5 rounded-md font-medium text-[10px] uppercase">
+                                              <CheckCircle2 className="h-3 w-3" /> Approve
+                                           </div>
+                                        ) : (
+                                           <div className="inline-flex items-center gap-1.5 text-red-600 bg-red-500/10 px-2 py-0.5 rounded-md font-medium text-[10px] uppercase">
+                                              <XCircle className="h-3 w-3" /> Reject
+                                           </div>
+                                        )}
+                                     </td>
+                                     <td className="px-4 py-3 text-right font-medium text-primary font-mono">
+                                        {vote.weight.toFixed(1)}
+                                     </td>
+                                     <td className="px-4 py-3 text-right text-muted-foreground text-xs">
+                                        {new Date(Number(vote.timestamp) / 1000000).toLocaleString()}
+                                     </td>
+                                  </tr>
+                               ))
+                            ) : (
+                               <tr>
+                                  <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground text-sm">
+                                     No consensus data committed to the ledger for this project yet.
+                                  </td>
+                               </tr>
+                            )}
+                         </tbody>
+                      </table>
+                   </div>
+                </div>
+              </TabsContent>
+              </div>
 						</Tabs>
 					</div>
 
@@ -357,7 +438,7 @@ export function ProposalView({ id, mode, initialData }: ProposalViewProps) {
 								<div className="space-y-3">
 									{proposal.status === "Active" && (
 										<Link
-											href={`/dashboard/proposals/${id}/vote`}
+											href={mode === "authenticated" ? `/dashboard/proposals/${id}/vote` : `/proposals/${id}/vote`}
 											className={cn(
 												buttonVariants({ size: "default" }),
 												"w-full font-medium"
@@ -368,7 +449,7 @@ export function ProposalView({ id, mode, initialData }: ProposalViewProps) {
 									)}
 									{proposal.status === "AwaitingFunding" && (
 										<Link
-											href={`/dashboard/proposals/${id}/fund`}
+											href={mode === "authenticated" ? `/dashboard/proposals/${id}/fund` : `/proposals/${id}/fund`}
 											className={cn(
 												buttonVariants({ variant: "default", size: "default" }),
 												"w-full font-medium bg-green-600 hover:bg-green-700 text-white"
