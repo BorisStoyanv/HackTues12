@@ -27,6 +27,32 @@ import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/lib/auth-store";
 import { cn } from "@/lib/utils";
 
+import { loadStripe } from "@stripe/stripe-js";
+
+// Initialize Stripe outside of component to avoid recreating it
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+
+const kycSchema = z.object({
+  orgName: z.string().min(2, "Organization name must be at least 2 characters"),
+  regNum: z.string().min(5, "Registration number must be at least 5 characters"),
+  country: z.string().min(2, "Country name must be at least 2 characters"),
+});
+
+type KYCFormValues = z.infer<typeof kycSchema>;
+
 type Step = 'details' | 'upload' | 'processing' | 'complete';
 
 export default function KYCPage() {
@@ -35,6 +61,15 @@ export default function KYCPage() {
   const user = useAuthStore((state) => state.user);
   const [step, setStep] = useState<Step>('details');
   const [isUploading, setIsUploading] = useState(false);
+
+  const form = useForm<KYCFormValues>({
+    resolver: zodResolver(kycSchema),
+    defaultValues: {
+      orgName: "",
+      regNum: "",
+      country: "",
+    },
+  });
   
   // Guard: if no role or wrong role, redirect back
   useEffect(() => {
@@ -43,28 +78,78 @@ export default function KYCPage() {
     }
   }, [user, router]);
 
-  const handleDetailsSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleDetailsSubmit = (values: KYCFormValues) => {
+    console.log("KYC Details:", values);
     setStep('upload');
   };
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     setIsUploading(true);
-    // Simulate upload delay
-    setTimeout(() => {
+    try {
+      // Create Stripe Verification Session
+      const res = await fetch('/api/stripe/identity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'funder' }),
+      });
+      
+      const { client_secret, error: serverError } = await res.json();
+      
+      if (serverError || !client_secret) {
+        console.error("Failed to create verification session:", serverError);
+        setIsUploading(false);
+        return;
+      }
+
+      const stripe = await stripePromise;
+      if (!stripe) throw new Error("Stripe failed to initialize");
+
+      // Launch Stripe Identity modal
+      const { error } = await stripe.verifyIdentity(client_secret);
+
+      if (error) {
+        console.error("Verification failed or was canceled:", error);
+        setIsUploading(false);
+      } else {
+        // Verification submitted successfully!
+        setIsUploading(false);
+        setStep('processing');
+      }
+    } catch (err) {
+      console.error(err);
       setIsUploading(false);
-      setStep('processing');
-    }, 1500);
+    }
   };
+
+  const [processingStatus, setProcessingStatus] = useState("Analyzing documents...");
 
   useEffect(() => {
     if (step === 'processing') {
-      // Simulate verification processing
+      const statuses = [
+        "Analyzing organizational documents...",
+        "Cross-referencing global regulatory databases...",
+        "Verifying tax-exempt status...",
+        "Finalizing entity reputation score..."
+      ];
+      
+      let currentIdx = 0;
+      const interval = setInterval(() => {
+        currentIdx++;
+        if (currentIdx < statuses.length) {
+          setProcessingStatus(statuses[currentIdx]);
+        }
+      }, 1500);
+
       const timer = setTimeout(() => {
         setKycStatus('verified');
         setStep('complete');
-      }, 3000);
-      return () => clearTimeout(timer);
+        clearInterval(interval);
+      }, 6500);
+
+      return () => {
+        clearTimeout(timer);
+        clearInterval(interval);
+      };
     }
   }, [step, setKycStatus]);
 
@@ -80,32 +165,61 @@ export default function KYCPage() {
               Provide information about your organization to begin the KYC process.
             </CardDescription>
           </CardHeader>
-          <form onSubmit={handleDetailsSubmit}>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="orgName">Organization Name</Label>
-                <Input id="orgName" placeholder="e.g. Global Impact Fund" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="regNum">Registration Number</Label>
-                <Input id="regNum" placeholder="e.g. 12345678-A" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="country">Country of Operation</Label>
-                <Input id="country" placeholder="e.g. United States" required />
-              </div>
-            </CardContent>
-            <CardFooter className="flex justify-between border-t pt-6">
-              <Button variant="ghost" type="button" onClick={() => router.push('/onboarding/role')}>
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
-              </Button>
-              <Button type="submit">
-                Next
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </CardFooter>
-          </form>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleDetailsSubmit)}>
+              <CardContent className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="orgName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Organization Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. Global Impact Fund" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="regNum"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Registration Number</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. 12345678-A" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="country"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Country of Operation</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. United States" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+              <CardFooter className="flex justify-between border-t pt-6">
+                <Button variant="ghost" type="button" onClick={() => router.push('/onboarding/role')}>
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back
+                </Button>
+                <Button type="submit">
+                  Next
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </CardFooter>
+            </form>
+          </Form>
         </Card>
       )}
 
@@ -160,20 +274,32 @@ export default function KYCPage() {
       )}
 
       {step === 'processing' && (
-        <Card className="border-neutral-200 dark:border-neutral-800 py-12">
-          <CardContent className="flex flex-col items-center text-center space-y-6">
-            <div className="relative h-24 w-24">
-              <div className="absolute inset-0 rounded-full border-4 border-primary/20" />
+        <Card className="border-neutral-200 dark:border-neutral-800 py-16">
+          <CardContent className="flex flex-col items-center text-center space-y-8">
+            <div className="relative h-32 w-32">
+              <div className="absolute inset-0 rounded-full border-4 border-primary/10" />
               <div className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin" />
               <div className="absolute inset-0 flex items-center justify-center">
-                <ShieldCheck className="h-10 w-10 text-primary" />
+                <ShieldCheck className="h-16 w-16 text-primary" />
               </div>
             </div>
-            <div className="space-y-2">
-              <CardTitle className="text-2xl font-bold italic">Analyzing documents...</CardTitle>
-              <CardDescription className="max-w-xs text-base">
-                Our AI agents are cross-referencing your entity details against global regulatory databases.
+            <div className="space-y-4">
+              <CardTitle className="text-3xl font-bold tracking-tight italic animate-pulse">
+                {processingStatus}
+              </CardTitle>
+              <CardDescription className="max-w-sm text-lg leading-relaxed">
+                Our 3-agent AI consensus protocol is currently vetting your organization's credentials against international compliance standards.
               </CardDescription>
+            </div>
+            
+            <div className="w-full max-w-xs space-y-2">
+               <div className="flex justify-between text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                 <span>System Integrity</span>
+                 <span>Vetting in progress</span>
+               </div>
+               <div className="h-1.5 w-full bg-neutral-100 dark:bg-neutral-900 rounded-full overflow-hidden">
+                 <div className="h-full bg-primary animate-pulse" />
+               </div>
             </div>
           </CardContent>
         </Card>

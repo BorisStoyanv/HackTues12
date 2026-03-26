@@ -10,12 +10,13 @@ interface AuthState {
     is_authenticated: boolean;
     kyc_status: 'pending' | 'verified' | 'unverified';
     geo_verified: boolean;
+    detected_location?: { city: string; country: string };
   } | null;
   login: (provider: string) => Promise<void>;
   logout: () => void;
   setRole: (role: UserRole) => void;
   setKycStatus: (status: 'pending' | 'verified' | 'unverified') => void;
-  setGeoVerified: (verified: boolean) => void;
+  setGeoVerified: (verified: boolean, location?: { city: string; country: string }) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -43,8 +44,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     set((state) => ({
       user: state.user ? { ...state.user, kyc_status } : null,
     })),
-  setGeoVerified: (geo_verified) =>
+  setGeoVerified: (geo_verified, detected_location) =>
     set((state) => ({
-      user: state.user ? { ...state.user, geo_verified } : null,
+      user: state.user ? { ...state.user, geo_verified, detected_location } : null,
     })),
 }));

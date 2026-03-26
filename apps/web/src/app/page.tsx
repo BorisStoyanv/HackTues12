@@ -2,6 +2,7 @@
 import { buttonVariants } from "@/components/ui/button";
 import { MOCK_FEATURED_PROPOSALS, MOCK_STATS } from "@/lib/mock-data";
 import { ProposalMock } from "@/lib/types/models";
+import { useAuthStore } from "@/lib/auth-store";
 import { cn } from "@/lib/utils";
 import {
 	ArrowRight,
@@ -15,7 +16,8 @@ import {
 import Link from "next/link";
 
 export default function Home() {
-	const is_logged_in = false; // Mocked auth state
+	const user = useAuthStore((state) => state.user);
+	const is_logged_in = !!user;
 
 	return (
 		<div className="flex min-h-screen flex-col bg-background text-foreground selection:bg-primary/10">
