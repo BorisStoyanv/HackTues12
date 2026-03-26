@@ -1,0 +1,15 @@
+{
+  "name": "@repo/db",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.ts",
+  "dependencies": {
+    "@dfinity/agent": "latest",
+    "@dfinity/candid": "latest",
+    "@dfinity/principal": "latest"
+  },
+  "devDependencies": {
+    "typescript": "latest",
+    "@types/node": "latest"
+  }
+}

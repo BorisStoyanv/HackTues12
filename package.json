@@ -7,5 +7,12 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "@dfinity/identity-secp256k1": "^3.4.3",
+    "@noble/hashes": "1.8.0",
+    "@sinonjs/text-encoding": "^0.7.3",
+    "pako": "^2.1.0",
+    "uuid": "^13.0.0"
   }
 }
