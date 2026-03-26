@@ -2,11 +2,12 @@ import { create } from 'zustand';
 import { AuthClient } from '@icp-sdk/auth/client';
 import { Identity, AnonymousIdentity } from '@icp-sdk/core/agent';
 
-export type UserRole = 'funder' | 'regional' | null;
+export type UserRole = 'User' | 'InvestorUser' | 'funder' | 'regional' | null;
 
 interface AuthUser {
   id: string;
   role: UserRole;
+  reputation: number;
   kyc_status: 'pending' | 'verified' | 'unverified';
   geo_verified: boolean;
   detected_location?: { city: string; country: string };
@@ -67,6 +68,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       user: {
         id: mockPrincipal,
         role: 'regional',
+        reputation: 150,
         kyc_status: 'verified',
         geo_verified: true,
         detected_location: { city: 'Sofia', country: 'Bulgaria' }
@@ -110,6 +112,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       user: isActuallyAuthenticated && principal ? (state.user?.id === principal ? state.user : {
         id: principal,
         role: null,
+        reputation: 0,
         kyc_status: 'unverified',
         geo_verified: false,
       }) : null,
