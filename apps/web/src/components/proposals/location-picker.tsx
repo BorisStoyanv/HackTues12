@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 interface LocationData {
-  address: string;
+  formatted_address: string;
   city: string;
   country: string;
   lat: number;
@@ -38,7 +38,7 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
   const { resolvedTheme } = useTheme();
   const mapRef = useRef<MapRef>(null);
   
-  const [searchQuery, setSearchQuery] = useState(value.address || "");
+  const [searchQuery, setSearchQuery] = useState(value.formatted_address || "");
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<MapboxFeature[]>([]);
   const [showResults, setShowResults] = useState(false);
@@ -118,9 +118,9 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
   const handleSelectResult = (feature: MapboxFeature) => {
     const [lng, lat] = feature.center;
     const { city, country } = parseContext(feature);
-    const address = feature.place_name;
+    const formatted_address = feature.place_name;
 
-    setSearchQuery(address);
+    setSearchQuery(formatted_address);
     setShowResults(false);
     
     // Update map view
@@ -135,7 +135,7 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
     }
 
     onChange({
-      address,
+      formatted_address,
       city,
       country,
       lat,
@@ -162,10 +162,10 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
       if (data.features && data.features.length > 0) {
         const feature = data.features[0];
         const { city, country } = parseContext(feature);
-        const address = feature.place_name;
+        const formatted_address = feature.place_name;
         
-        setSearchQuery(address);
-        onChange({ address, city, country, lat, lng });
+        setSearchQuery(formatted_address);
+        onChange({ formatted_address, city, country, lat, lng });
       } else {
         onChange({ ...value, lat, lng });
       }
@@ -177,10 +177,10 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
 
   // Sync prop value to internal view state (e.g. initial load or programmatic changes)
   useEffect(() => {
-    if (value.lat && value.lng && value.lat !== viewState.latitude && value.lng !== viewState.longitude) {
+    if (value.lat && value.lng && (value.lat !== viewState.latitude || value.lng !== viewState.longitude)) {
        setViewState((prev) => ({ ...prev, longitude: value.lng, latitude: value.lat, zoom: 14 }));
-       if (value.address && value.address !== searchQuery) {
-         setSearchQuery(value.address);
+       if (value.formatted_address && value.formatted_address !== searchQuery) {
+         setSearchQuery(value.formatted_address);
        }
     }
   }, [value]);

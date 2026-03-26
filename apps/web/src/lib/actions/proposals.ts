@@ -1,39 +1,53 @@
 "use server";
 
 import { createBackendActor } from "../api/icp";
-import { Proposal } from "../types/api";
+import { Proposal, Vote, ContractRecord, AuditLog, Config } from "../types/api";
 
-// Helper to serialize BigInts and Principals for Next.js Server Actions
 function serializeProposal(proposal: Proposal) {
   return {
     ...proposal,
     creator: proposal.creator.toString(),
-    createdAt: Number(proposal.createdAt), // Convert bigint to number for safe client-side JSON serialization
+    funding_goal: Number(proposal.funding_goal),
+    current_funding: Number(proposal.current_funding),
+    created_at: Number(proposal.created_at),
+    updated_at: Number(proposal.updated_at),
   };
 }
 
-export async function fetchHealthStatus() {
-  try {
-    const actor = await createBackendActor();
-    const status = await actor.health();
-    return { success: true, status };
-  } catch (error) {
-    console.error("Failed to fetch health:", error);
-    return { success: false, error: "Failed to connect to backend canister." };
-  }
+function serializeVote(vote: Vote) {
+  return {
+    ...vote,
+    voter: vote.voter.toString(),
+    weight: Number(vote.weight),
+    timestamp: Number(vote.timestamp),
+  };
+}
+
+function serializeContract(contract: ContractRecord) {
+  return {
+    ...contract,
+    investor: contract.investor.toString(),
+    company: contract.company.toString(),
+    created_at: Number(contract.created_at),
+  };
+}
+
+function serializeAuditLog(log: AuditLog) {
+  return {
+    ...log,
+    caller: log.caller.toString(),
+    timestamp: Number(log.timestamp),
+  };
 }
 
 export async function fetchAllProposals() {
   try {
     const actor = await createBackendActor();
-    const proposals = await actor.getAllProposals();
-    
-    // Sort by newest first
-    const sorted = proposals.sort((a: Proposal, b: Proposal) => Number(b.createdAt) - Number(a.createdAt));
+    const proposals = await actor.list_proposals();
     
     return { 
       success: true, 
-      proposals: sorted.map(serializeProposal)
+      proposals: proposals.map(serializeProposal)
     };
   } catch (error) {
     console.error("Failed to fetch proposals:", error);
@@ -44,7 +58,7 @@ export async function fetchAllProposals() {
 export async function fetchProposalById(id: string) {
   try {
     const actor = await createBackendActor();
-    const result = await actor.getProposalById(id);
+    const result = await actor.get_proposal(id);
     
     if (result.length > 0) {
       return { success: true, proposal: serializeProposal(result[0]!) };
@@ -57,28 +71,77 @@ export async function fetchProposalById(id: string) {
   }
 }
 
-export async function fetchReportByProposalId(proposalId: string) {
+export async function fetchProposalVotes(id: string) {
   try {
     const actor = await createBackendActor();
-    const result = await actor.getReportByProposalId(proposalId);
-    
-    if (result.length > 0) {
-      const report = result[0]!;
-      return { 
-        success: true, 
-        report: {
-          proposalId: report.proposalId,
-          summary: report.summary,
-          score: Number(report.score),
-          verdict: report.verdict,
-          timestamp: Number(report.timestamp)
-        }
-      };
-    }
-    
-    return { success: false, error: "Report not found." };
+    const votes = await actor.get_proposal_votes(id);
+    return { success: true, votes: votes.map(serializeVote) };
   } catch (error) {
-    console.error("Failed to fetch report:", error);
-    return { success: false, error: "Failed to fetch report details." };
+    console.error("Failed to fetch votes:", error);
+    return { success: false, error: "Failed to fetch proposal votes." };
+  }
+}
+
+export async function fetchProposalPhase(id: string) {
+  try {
+    const actor = await createBackendActor();
+    const phase = await actor.get_proposal_phase(id);
+    return { success: true, phase };
+  } catch (error) {
+    console.error("Failed to fetch proposal phase:", error);
+    return { success: false, error: "Failed to fetch proposal phase." };
+  }
+}
+
+export async function fetchContractRecord(id: string) {
+  try {
+    const actor = await createBackendActor();
+    const result = await actor.get_contract_record(id);
+    if (result.length > 0) {
+      return { success: true, contract: serializeContract(result[0]!) };
+    }
+    return { success: false, error: "Contract not found." };
+  } catch (error) {
+    console.error("Failed to fetch contract:", error);
+    return { success: false, error: "Failed to fetch contract record." };
+  }
+}
+
+export async function fetchAllContracts() {
+  try {
+    const actor = await createBackendActor();
+    const contracts = await actor.list_contracts();
+    return { success: true, contracts: contracts.map(serializeContract) };
+  } catch (error) {
+    console.error("Failed to fetch contracts:", error);
+    return { success: false, error: "Failed to fetch contract list." };
+  }
+}
+
+export async function fetchAuditLogs() {
+  try {
+    const actor = await createBackendActor();
+    const logs = await actor.get_audit_log();
+    return { success: true, logs: logs.map(serializeAuditLog) };
+  } catch (error) {
+    console.error("Failed to fetch audit logs:", error);
+    return { success: false, error: "Failed to fetch audit log." };
+  }
+}
+
+export async function fetchConfig() {
+  try {
+    const actor = await createBackendActor();
+    const config = await actor.get_config();
+    return { 
+      success: true, 
+      config: {
+        min_quorum: Number(config.min_quorum),
+        governance_token: config.governance_token.length > 0 ? config.governance_token[0]!.toString() : null
+      } 
+    };
+  } catch (error) {
+    console.error("Failed to fetch config:", error);
+    return { success: false, error: "Failed to fetch platform configuration." };
   }
 }

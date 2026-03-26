@@ -1,24 +1,81 @@
 "use server";
 
 import { createBackendActor } from "../api/icp";
-import { User } from "../types/api";
+import { UserProfile } from "../types/api";
+import { Principal } from "@dfinity/principal";
 
-// Helper to serialize User
-function serializeUser(user: User) {
+function serializeUserProfile(profile: UserProfile) {
   return {
-    principal: user.principal.toString(),
-    reputation: Number(user.reputation),
-    joinedAt: Number(user.joinedAt),
+    ...profile,
+    id: profile.id.toString(),
+    role: profile.role.length > 0 ? profile.role[0] : null,
+    region: profile.region.length > 0 ? profile.region[0] : null,
+    reputation: Number(profile.reputation),
   };
 }
 
-export async function fetchUser(principalString: string) {
-  // Normally the canister getSelf() relies on msgCaller().
-  // Since server actions run anonymously (no Identity provided by default),
-  // a real production app would need either an anonymous query that takes a Principal,
-  // OR the client handles this fetch directly. 
-  // Given the canister ONLY has getSelf(), it MUST be called from the client 
-  // with the user's authenticated Identity. 
-  // This server action is structurally limited by the canister's design.
-  return { success: false, error: "getSelf must be called from the client with an authenticated Identity." };
+export async function fetchMyProfile() {
+  try {
+    const actor = await createBackendActor();
+    const result = await actor.get_my_profile();
+    
+    if (result.length > 0) {
+      return { success: true, profile: serializeUserProfile(result[0]!) };
+    }
+    
+    return { success: false, error: "Profile not found." };
+  } catch (error) {
+    console.error("Failed to fetch profile:", error);
+    return { success: false, error: "Failed to connect to ledger." };
+  }
+}
+
+export async function fetchUserByPrincipal(principalString: string) {
+  try {
+    const actor = await createBackendActor();
+    const principal = Principal.fromText(principalString);
+    const result = await actor.get_user(principal);
+    
+    if (result.length > 0) {
+      return { success: true, user: serializeUserProfile(result[0]!) };
+    }
+    
+    return { success: false, error: "User not found." };
+  } catch (error) {
+    console.error("Failed to fetch user:", error);
+    return { success: false, error: "Failed to fetch user details." };
+  }
+}
+
+export async function fetchWhoAmI() {
+  try {
+    const actor = await createBackendActor();
+    const principal = await actor.whoami();
+    return { success: true, principal: principal.toString() };
+  } catch (error) {
+    console.error("Failed whoami call:", error);
+    return { success: false, error: "Failed to fetch current identity." };
+  }
+}
+
+export async function fetchMyVP() {
+  try {
+    const actor = await createBackendActor();
+    const vp = await actor.get_my_vp();
+    return { success: true, vp: Number(vp) };
+  } catch (error) {
+    console.error("Failed to fetch VP:", error);
+    return { success: false, error: "Failed to fetch voting power." };
+  }
+}
+
+export async function fetchRegionVP(region: string) {
+  try {
+    const actor = await createBackendActor();
+    const vp = await actor.get_region_total_vp(region);
+    return { success: true, vp: Number(vp) };
+  } catch (error) {
+    console.error("Failed to fetch region VP:", error);
+    return { success: false, error: "Failed to fetch regional voting power." };
+  }
 }

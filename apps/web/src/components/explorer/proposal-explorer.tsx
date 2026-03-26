@@ -2,9 +2,8 @@
 
 import { InteractiveMap } from "@/components/map/interactive-map";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MOCK_FEATURED_PROPOSALS } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 import {
   ArrowRight,
@@ -15,17 +14,18 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 interface ProposalExplorerProps {
+  proposals: any[];
   mode: "public" | "authenticated";
   searchQuery?: string;
 }
 
-export function ProposalExplorer({ mode, searchQuery = "" }: ProposalExplorerProps) {
+export function ProposalExplorer({ proposals, mode, searchQuery = "" }: ProposalExplorerProps) {
   const [selectedProposalId, setSelectedProposalId] = useState<string | null>(null);
   const [boundingBox, setBoundingBox] = useState<[number, number, number, number] | null>(null);
 
   // Filter proposals based on bounding box and search query
   const visibleProposals = useMemo(() => {
-    let filtered = MOCK_FEATURED_PROPOSALS;
+    let filtered = proposals;
 
     if (searchQuery) {
       filtered = filtered.filter(
@@ -44,11 +44,11 @@ export function ProposalExplorer({ mode, searchQuery = "" }: ProposalExplorerPro
     }
 
     return filtered;
-  }, [boundingBox, searchQuery]);
+  }, [proposals, boundingBox, searchQuery]);
 
   const selectedProposal = useMemo(
-    () => MOCK_FEATURED_PROPOSALS.find((p) => p.id === selectedProposalId),
-    [selectedProposalId]
+    () => proposals.find((p) => p.id === selectedProposalId),
+    [proposals, selectedProposalId]
   );
 
   return (
@@ -96,11 +96,13 @@ export function ProposalExplorer({ mode, searchQuery = "" }: ProposalExplorerPro
                     <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium uppercase tracking-tight">
                       <span className="flex items-center gap-0.5">
                         <Users className="h-2.5 w-2.5" />
-                        {proposal.voting_metrics.total_votes}
+                        {/* Mocking voting count for now as it's a separate query */}
+                        -
                       </span>
                       <span className="flex items-center gap-0.5">
                         <ShieldCheck className="h-2.5 w-2.5" />
-                        {proposal.ai_integrity_report?.overall_score}%
+                        {/* Mocking integrity score */}
+                        -
                       </span>
                     </div>
                     <div className="flex items-center gap-1">
@@ -111,7 +113,7 @@ export function ProposalExplorer({ mode, searchQuery = "" }: ProposalExplorerPro
                         <div
                           className="h-full bg-primary"
                           style={{
-                            width: `${(proposal.current_funding / proposal.funding_goal) * 100}%`,
+                            width: `${proposal.funding_goal > 0 ? (proposal.current_funding / proposal.funding_goal) * 100 : 0}%`,
                           }}
                         />
                       </div>
@@ -141,32 +143,36 @@ export function ProposalExplorer({ mode, searchQuery = "" }: ProposalExplorerPro
               <span className="text-xs font-bold uppercase text-muted-foreground tracking-widest">
                 Selected
               </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
+              <button
+                className="h-6 w-6 flex items-center justify-center hover:bg-muted rounded-full"
                 onClick={() => setSelectedProposalId(null)}
               >
                 ×
-              </Button>
+              </button>
             </div>
             <h4 className="font-bold text-base mb-1">
               {selectedProposal.title}
             </h4>
             <div className="flex items-center gap-2 mb-4">
               <Badge className="bg-primary text-primary-foreground text-[10px]">
-                {selectedProposal.ai_integrity_report?.overall_score}% Integrity
+                Active
               </Badge>
               <span className="text-xs text-muted-foreground truncate">
                 {selectedProposal.location.city}, {selectedProposal.location.country}
               </span>
             </div>
             <div className="grid grid-cols-2 gap-2">
-               <Link href={`/proposals/${selectedProposal.id}`} className={buttonVariants({ className: "w-full h-9 text-xs" })}>
+               <Link 
+                 href={mode === "authenticated" ? `/dashboard/proposals/${selectedProposal.id}` : `/proposals/${selectedProposal.id}`} 
+                 className={buttonVariants({ className: "w-full h-9 text-xs" })}
+               >
                  View Details <ArrowRight className="ml-2 h-3.5 w-3.5" />
                </Link>
                {mode === "authenticated" && (
-                 <Link href={`/proposals/${selectedProposal.id}/vote`} className={buttonVariants({ variant: "outline", className: "w-full h-9 text-xs" })}>
+                 <Link 
+                   href={`/dashboard/proposals/${selectedProposal.id}/vote`} 
+                   className={buttonVariants({ variant: "outline", className: "w-full h-9 text-xs" })}
+                 >
                    Cast Vote
                  </Link>
                )}
@@ -178,7 +184,7 @@ export function ProposalExplorer({ mode, searchQuery = "" }: ProposalExplorerPro
       {/* Map Canvas */}
       <div className="flex-1">
         <InteractiveMap
-          proposals={MOCK_FEATURED_PROPOSALS}
+          proposals={proposals}
           selectedProposalId={selectedProposalId}
           onProposalSelect={setSelectedProposalId}
           onBoundingBoxChange={setBoundingBox}
