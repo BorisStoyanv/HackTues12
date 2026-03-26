@@ -4,6 +4,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { useAuthStore } from "@/lib/auth-store";
 import { Landmark } from "lucide-react";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 export function LandingNav() {
   const user = useAuthStore((state) => state.user);
@@ -42,19 +43,18 @@ export function LandingNav() {
             <div className="flex items-center gap-4">
               <div className="hidden sm:flex flex-col items-end leading-none">
                 <span className="text-[9px] font-black uppercase tracking-widest text-primary mb-1">
-                  Verified
+                  Network Active
                 </span>
                 <span className="text-xs font-mono font-bold">
-                  {user.id.substring(0, 8)}
+                  {user.id.substring(0, 8)}...
                 </span>
               </div>
               <Link
                 href="/dashboard"
-                className={buttonVariants({
+                className={cn(buttonVariants({
                   variant: "default",
                   size: "sm",
-                  className: "rounded-full px-5 font-bold shadow-lg shadow-primary/20"
-                })}
+                }), "rounded-full px-5 font-bold shadow-lg shadow-primary/20")}
               >
                 Dashboard
               </Link>
@@ -62,11 +62,10 @@ export function LandingNav() {
           ) : (
             <Link
               href="/login"
-              className={buttonVariants({
+              className={cn(buttonVariants({
                 variant: "default",
                 size: "sm",
-                className: "rounded-full px-5 font-bold"
-              })}
+              }), "rounded-full px-5 font-bold")}
             >
               Sign In
             </Link>
