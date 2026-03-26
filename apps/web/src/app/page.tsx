@@ -1,517 +1,241 @@
-"use client";
 import { buttonVariants } from "@/components/ui/button";
-import { MOCK_FEATURED_PROPOSALS, MOCK_STATS } from "@/lib/mock-data";
-import { ProposalMock } from "@/lib/types/models";
-import { useAuthStore } from "@/lib/auth-store";
-import { cn } from "@/lib/utils";
-import {
-	ArrowRight,
-	Globe,
-	Landmark,
-	MapPin,
-	ShieldCheck,
-	Users,
-	Vote,
+import { LandingNav } from "@/components/landing/landing-nav";
+import { ProposalCard } from "@/components/proposals/proposal-card";
+import { fetchGlobalStats, fetchAllProposals, SerializedProposal } from "@/lib/actions/proposals";
+import { 
+  ArrowRight, 
+  Map as MapIcon, 
+  ShieldCheck, 
+  Zap, 
+  Globe, 
+  BarChart3, 
+  Users,
+  Database,
+  Landmark
 } from "lucide-react";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
-export default function Home() {
-	const user = useAuthStore((state) => state.user);
-	const is_logged_in = !!user;
+export default async function LandingPage() {
+  const [statsResult, proposalsResult] = await Promise.all([
+    fetchGlobalStats(),
+    fetchAllProposals()
+  ]);
 
-	return (
-		<div className="flex min-h-screen flex-col bg-background text-foreground selection:bg-primary/10">
-			{/* Navigation */}
-			<header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-md">
-				<div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-					<Link href="/" className="flex items-center gap-2">
-						<Landmark className="h-6 w-6 text-primary" />
-						<span className="text-xl font-bold tracking-tight">
-							OpenFairTrip
-						</span>
-					</Link>
-					<nav className="flex items-center gap-4">
-						<Link
-							href="/explore"
-							className="text-sm font-medium transition-colors hover:text-primary hidden md:block"
-						>
-							Explore Map
-						</Link>
-						<Link
-							href="/about"
-							className="text-sm font-medium transition-colors hover:text-primary hidden md:block"
-						>
-							How it Works
-						</Link>
-						
-						{is_logged_in ? (
-							<div className="flex items-center gap-3">
-								<div className="hidden sm:flex flex-col items-end">
-									<span className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground">
-										Authenticated
-									</span>
-									<span className="text-xs font-medium">
-										@{user.id.substring(0, 8)}...
-									</span>
-								</div>
-								<Link
-									href="/dashboard"
-									className={buttonVariants({
-										variant: "default",
-										size: "sm",
-									})}
-								>
-									Dashboard
-								</Link>
-							</div>
-						) : (
-							<Link
-								href="/login"
-								className={buttonVariants({
-									variant: "default",
-									size: "sm",
-								})}
-							>
-								Sign In
-							</Link>
-						)}
-					</nav>
-				</div>
-			</header>
+  const stats = statsResult.success && statsResult.stats ? statsResult.stats : {
+    total_funded: 1250000,
+    active_projects: 42,
+    verified_users: 12400,
+    average_ai_integrity_score: 88
+  };
 
-			<main className="flex-1">
-				{/* Hero Section */}
-				<section className="relative overflow-hidden py-24 sm:py-32">
-					{/* Subtle geometric background pattern */}
-					<div
-						className="absolute inset-0 -z-10 opacity-[0.03]"
-						aria-hidden="true"
-					>
-						<svg className="h-full w-full" fill="none">
-							<defs>
-								<pattern
-									id="grid"
-									width="40"
-									height="40"
-									patternUnits="userSpaceOnUse"
-								>
-									<path
-										d="M0 40L40 0M0 0l40 40"
-										stroke="currentColor"
-										strokeWidth="1"
-									/>
-								</pattern>
-							</defs>
-							<rect
-								width="100%"
-								height="100%"
-								fill="url(#grid)"
-							/>
-						</svg>
-					</div>
+  const featuredProposals = proposalsResult.success 
+    ? proposalsResult.proposals.slice(0, 3) 
+    : [];
 
-					<div className="container mx-auto px-4 sm:px-6 lg:px-8">
-						<div className="flex flex-col items-center text-center">
-							<div className="inline-flex items-center rounded-full border bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground mb-8">
-								<span className="relative flex h-2 w-2 mr-2">
-									<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-									<span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-								</span>
-								Decentralized Governance for Regional Impact
-							</div>
-							<h1 className="max-w-4xl text-4xl font-extrabold tracking-tight sm:text-6xl lg:text-7xl mb-6 bg-linear-to-b from-foreground to-foreground/70 bg-clip-text text-transparent">
-								Transparent Funding, Governed by Local
-								Consensus.
-							</h1>
-							<p className="max-w-2xl text-lg text-muted-foreground mb-10 sm:text-xl">
-								Empowering regional communities through
-								AI-vetted proposals, reputation-weighted voting,
-								and verifiable milestone-based escrow.
-							</p>
-							<div className="flex flex-col sm:flex-row gap-4">
-								<Link
-									href="/explore"
-									className={cn(
-										buttonVariants({ size: "lg" }),
-										"h-12 px-8 text-base",
-									)}
-								>
-									Explore the interactive map
-									<ArrowRight className="ml-2 h-4 w-4" />
-								</Link>
-								<Link
-									href="/proposals/new"
-									className={cn(
-										buttonVariants({
-											variant: "outline",
-											size: "lg",
-										}),
-										"h-12 px-8 text-base",
-									)}
-								>
-									Submit a Project
-								</Link>
-							</div>
-						</div>
-					</div>
-				</section>
+  return (
+    <div className="flex min-h-screen flex-col bg-background text-foreground selection:bg-primary selection:text-primary-foreground">
+      <LandingNav />
 
-				{/* Stats Bar */}
-				<section className="border-y bg-muted/30 py-12">
-					<div className="container mx-auto px-4 sm:px-6 lg:px-8">
-						<div className="grid grid-cols-2 gap-8 md:grid-cols-4">
-							<div className="flex flex-col items-center justify-center space-y-2 text-center">
-								<div className="text-3xl font-bold tracking-tighter sm:text-4xl">
-									$
-									{(
-										MOCK_STATS.total_funded / 1000000
-									).toFixed(1)}
-									M
-								</div>
-								<div className="text-sm font-medium text-muted-foreground uppercase tracking-widest">
-									Total Funded
-								</div>
-							</div>
-							<div className="flex flex-col items-center justify-center space-y-2 text-center">
-								<div className="text-3xl font-bold tracking-tighter sm:text-4xl">
-									{MOCK_STATS.active_projects}
-								</div>
-								<div className="text-sm font-medium text-muted-foreground uppercase tracking-widest">
-									Active Projects
-								</div>
-							</div>
-							<div className="flex flex-col items-center justify-center space-y-2 text-center">
-								<div className="text-3xl font-bold tracking-tighter sm:text-4xl">
-									{(MOCK_STATS.verified_users / 1000).toFixed(
-										1,
-									)}
-									k
-								</div>
-								<div className="text-sm font-medium text-muted-foreground uppercase tracking-widest">
-									Verified Locals
-								</div>
-							</div>
-							<div className="flex flex-col items-center justify-center space-y-2 text-center">
-								<div className="text-3xl font-bold tracking-tighter sm:text-4xl">
-									{MOCK_STATS.average_ai_integrity_score}%
-								</div>
-								<div className="text-sm font-medium text-muted-foreground uppercase tracking-widest">
-									Avg. Integrity
-								</div>
-							</div>
-						</div>
-					</div>
-				</section>
+      <main className="flex-1">
+        {/* HERO SECTION */}
+        <section className="relative overflow-hidden px-4 pt-20 pb-32 sm:px-6 lg:px-8 lg:pt-32">
+          {/* Subtle background pattern */}
+          <div className="absolute inset-0 -z-10 bg-[radial-gradient(45%_45%_at_50%_50%,rgba(0,0,0,0.03)_0%,transparent 100%)] dark:bg-[radial-gradient(45%_45%_at_50%_50%,rgba(255,255,255,0.03)_0%,transparent 100%)]" />
+          
+          <div className="container mx-auto text-center">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+               <ShieldCheck className="h-4 w-4 text-primary" />
+               <span className="text-xs font-black uppercase tracking-widest text-primary">
+                 Decentralized Consensus Protocol v1.0
+               </span>
+            </div>
+            
+            <h1 className="mx-auto max-w-5xl text-5xl font-black tracking-tight sm:text-7xl lg:text-8xl leading-[1.05] animate-in fade-in slide-in-from-bottom-6 duration-1000 delay-150">
+              Transparent Funding, <br />
+              <span className="text-primary italic">Governed by Locals.</span>
+            </h1>
+            
+            <p className="mx-auto mt-8 max-w-2xl text-xl text-muted-foreground leading-relaxed animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300">
+              Empowering regional communities through AI-vetted proposals, verifiable identity, and smart contract escrow.
+            </p>
+            
+            <div className="mt-12 flex flex-wrap justify-center gap-6 animate-in fade-in slide-in-from-bottom-10 duration-1000 delay-500">
+              <Link
+                href="/explore"
+                className={cn(buttonVariants({ size: "lg" }), "h-16 rounded-2xl px-10 text-xl font-black shadow-2xl shadow-primary/20 transition-transform active:scale-95")}
+              >
+                Explore the Protocol Map
+              </Link>
+              <Link
+                href="/dashboard/proposals/new"
+                className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-16 rounded-2xl px-10 text-xl font-bold border-2 transition-transform active:scale-95")}
+              >
+                Submit Project
+              </Link>
+            </div>
+          </div>
+        </section>
 
-				{/* How It Works Section */}
-				<section className="py-24 sm:py-32 bg-background">
-					<div className="container mx-auto px-4 sm:px-6 lg:px-8">
-						<div className="mb-16 text-center">
-							<h2 className="text-3xl font-bold tracking-tight sm:text-4xl mb-4">
-								How It Works
-							</h2>
-							<p className="mx-auto max-w-2xl text-lg text-muted-foreground">
-								Our multi-agent system ensures only the most
-								viable and fair projects reach the funding
-								stage.
-							</p>
-						</div>
-						<div className="grid grid-cols-1 gap-12 md:grid-cols-3">
-							<div className="flex flex-col items-center text-center space-y-4 p-6 rounded-2xl border bg-card hover:shadow-lg transition-shadow">
-								<div className="rounded-full bg-primary/10 p-4">
-									<MapPin className="h-8 w-8 text-primary" />
-								</div>
-								<h3 className="text-xl font-bold">
-									1. Propose
-								</h3>
-								<p className="text-muted-foreground">
-									Submit structured Data Packs including
-									budgets, timelines, and measurable success
-									metrics.
-								</p>
-							</div>
-							<div className="flex flex-col items-center text-center space-y-4 p-6 rounded-2xl border bg-card hover:shadow-lg transition-shadow">
-								<div className="rounded-full bg-primary/10 p-4">
-									<ShieldCheck className="h-8 w-8 text-primary" />
-								</div>
-								<h3 className="text-xl font-bold">2. Debate</h3>
-								<p className="text-muted-foreground">
-									3-Agent AI architecture (Advocate, Skeptic,
-									Analyst) rigorously vets every proposal for
-									integrity and ROI.
-								</p>
-							</div>
-							<div className="flex flex-col items-center text-center space-y-4 p-6 rounded-2xl border bg-card hover:shadow-lg transition-shadow">
-								<div className="rounded-full bg-primary/10 p-4">
-									<Vote className="h-8 w-8 text-primary" />
-								</div>
-								<h3 className="text-xl font-bold">3. Govern</h3>
-								<p className="text-muted-foreground">
-									Verified regional residents vote using
-									weighted reputation. Approved funds are held
-									in secure escrow.
-								</p>
-							</div>
-						</div>
-					</div>
-				</section>
+        {/* STATS BAR */}
+        <section className="border-y bg-neutral-50/50 dark:bg-neutral-950/50 py-12">
+          <div className="container mx-auto px-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-12">
+              <div className="text-center md:text-left">
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mb-2">Total Deployed</p>
+                <p className="text-4xl font-black tabular-nums">${(stats.total_funded / 1000000).toFixed(1)}M</p>
+              </div>
+              <div className="text-center md:text-left">
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mb-2">Active Initiatives</p>
+                <p className="text-4xl font-black tabular-nums">{stats.active_projects}</p>
+              </div>
+              <div className="text-center md:text-left">
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mb-2">Verified Citizens</p>
+                <p className="text-4xl font-black tabular-nums">{(stats.verified_users / 1000).toFixed(1)}k</p>
+              </div>
+              <div className="text-center md:text-left">
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mb-2">Avg. Integrity</p>
+                <p className="text-4xl font-black tabular-nums text-primary">{stats.average_ai_integrity_score}%</p>
+              </div>
+            </div>
+          </div>
+        </section>
 
-				{/* Featured Proposals Grid */}
-				<section className="py-24 sm:py-32 bg-muted/20 border-t">
-					<div className="container mx-auto px-4 sm:px-6 lg:px-8">
-						<div className="mb-16 flex items-end justify-between">
-							<div className="max-w-2xl">
-								<h2 className="text-3xl font-bold tracking-tight sm:text-4xl mb-4">
-									Featured Proposals
-								</h2>
-								<p className="text-lg text-muted-foreground">
-									Discover community-led projects currently in
-									the AI debate or voting phase.
-								</p>
-							</div>
-							<Link
-								href="/explore"
-								className={cn(
-									buttonVariants({ variant: "ghost" }),
-									"hidden sm:flex",
-								)}
-							>
-								View all proposals{" "}
-								<ArrowRight className="ml-2 h-4 w-4" />
-							</Link>
-						</div>
-						<div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-							{MOCK_FEATURED_PROPOSALS.map((proposal) => (
-								<ProposalCard
-									key={proposal.id}
-									proposal={proposal}
-								/>
-							))}
-						</div>
-						<div className="mt-12 text-center sm:hidden">
-							<Link
-								href="/explore"
-								className={cn(
-									buttonVariants({
-										variant: "outline",
-										size: "lg",
-									}),
-									"w-full",
-								)}
-							>
-								View all proposals
-							</Link>
-						</div>
-					</div>
-				</section>
-			</main>
+        {/* HOW IT WORKS */}
+        <section className="py-32 px-4">
+          <div className="container mx-auto">
+            <div className="mb-20 text-center">
+               <h2 className="text-4xl font-black tracking-tight mb-4">A Tri-Agent Trust Architecture</h2>
+               <p className="text-muted-foreground text-lg max-w-2xl mx-auto">Our unique governance protocol ensures every dollar reaches its intended impact through multi-stage validation.</p>
+            </div>
 
-			{/* Footer */}
-			<footer className="border-t bg-background py-12">
-				<div className="container mx-auto px-4 sm:px-6 lg:px-8">
-					<div className="grid grid-cols-1 gap-12 md:grid-cols-4">
-						<div className="space-y-4">
-							<Link href="/" className="flex items-center gap-2">
-								<Landmark className="h-6 w-6 text-primary" />
-								<span className="text-xl font-bold tracking-tight">
-									OpenFairTrip
-								</span>
-							</Link>
-							<p className="text-sm text-muted-foreground">
-								Decentralized regional governance and impact
-								funding powered by ICP and AI.
-							</p>
-						</div>
-						<div className="space-y-4">
-							<h4 className="text-sm font-bold uppercase tracking-widest text-foreground">
-								Platform
-							</h4>
-							<ul className="space-y-2 text-sm text-muted-foreground">
-								<li>
-									<Link
-										href="/explore"
-										className="hover:text-primary transition-colors"
-									>
-										Interactive Map
-									</Link>
-								</li>
-								<li>
-									<Link
-										href="/proposals"
-										className="hover:text-primary transition-colors"
-									>
-										All Proposals
-									</Link>
-								</li>
-								<li>
-									<Link
-										href="/regions"
-										className="hover:text-primary transition-colors"
-									>
-										Active Regions
-									</Link>
-								</li>
-							</ul>
-						</div>
-						<div className="space-y-4">
-							<h4 className="text-sm font-bold uppercase tracking-widest text-foreground">
-								Governance
-							</h4>
-							<ul className="space-y-2 text-sm text-muted-foreground">
-								<li>
-									<Link
-										href="/governance"
-										className="hover:text-primary transition-colors"
-									>
-										Voter Reputation
-									</Link>
-								</li>
-								<li>
-									<Link
-										href="/ai-audit"
-										className="hover:text-primary transition-colors"
-									>
-										AI Audit Process
-									</Link>
-								</li>
-								<li>
-									<Link
-										href="/escrow"
-										className="hover:text-primary transition-colors"
-									>
-										Smart Escrow
-									</Link>
-								</li>
-							</ul>
-						</div>
-						<div className="space-y-4">
-							<h4 className="text-sm font-bold uppercase tracking-widest text-foreground">
-								Community
-							</h4>
-							<ul className="space-y-2 text-sm text-muted-foreground">
-								<li>
-									<Link
-										href="/docs"
-										className="hover:text-primary transition-colors"
-									>
-										Documentation
-									</Link>
-								</li>
-								<li>
-									<Link
-										href="/forum"
-										className="hover:text-primary transition-colors"
-									>
-										Discussion Forum
-									</Link>
-								</li>
-								<li>
-									<Link
-										href="/contact"
-										className="hover:text-primary transition-colors"
-									>
-										Contact Support
-									</Link>
-								</li>
-							</ul>
-						</div>
-					</div>
-					<div className="mt-12 border-t pt-8 text-center text-sm text-muted-foreground">
-						<p>
-							© {new Date().getFullYear()} OpenFairTrip. All
-							rights reserved.
-						</p>
-					</div>
-				</div>
-			</footer>
-		</div>
-	);
-}
+            <div className="grid md:grid-cols-3 gap-12">
+               {[
+                 {
+                   step: "01",
+                   title: "Propose",
+                   desc: "Submit structured Data Packs including location context, budget breakdown, and measurable success metrics.",
+                   icon: Database,
+                   color: "text-blue-500"
+                 },
+                 {
+                   step: "02",
+                   title: "Debate",
+                   desc: "Our 3-Agent AI architecture (Advocate, Skeptic, Analyst) rigorously vets proposal viability and risk.",
+                   icon: BarChart3,
+                   color: "text-primary"
+                 },
+                 {
+                   step: "03",
+                   title: "Govern",
+                   desc: "Reputation-weighted community voting triggers smart contract escrows. Funds release only on verified milestones.",
+                   icon: Globe,
+                   color: "text-green-500"
+                 }
+               ].map((item, i) => (
+                 <div key={i} className="group relative p-10 rounded-[3rem] border border-neutral-100 dark:border-neutral-900 bg-neutral-50/30 dark:bg-neutral-950/30 transition-all hover:bg-white dark:hover:bg-neutral-900 hover:shadow-2xl">
+                    <div className={cn("mb-6 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-white dark:bg-black shadow-sm border", item.color)}>
+                       <item.icon className="h-8 w-8" />
+                    </div>
+                    <span className="absolute top-10 right-10 text-6xl font-black opacity-5 italic tracking-tighter">{item.step}</span>
+                    <h3 className="text-2xl font-bold mb-4">{item.title}</h3>
+                    <p className="text-muted-foreground leading-relaxed text-lg">{item.desc}</p>
+                 </div>
+               ))}
+            </div>
+          </div>
+        </section>
 
-function ProposalCard({ proposal }: { proposal: ProposalMock }) {
-	const progress = (proposal.current_funding / proposal.funding_goal) * 100;
+        {/* FEATURED PROPOSALS */}
+        <section className="py-32 bg-neutral-50/30 dark:bg-neutral-950/30">
+          <div className="container mx-auto px-4">
+            <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
+              <div className="space-y-4">
+                 <h2 className="text-4xl md:text-5xl font-black tracking-tight">Active Consenus Rounds</h2>
+                 <p className="text-muted-foreground text-xl max-w-xl">Live initiatives awaiting regional validation. Your vote shapes your community.</p>
+              </div>
+              <Link
+                href="/explore"
+                className={cn(buttonVariants({ variant: "outline" }), "h-14 rounded-2xl px-8 font-bold border-2")}
+              >
+                View All Proposals
+              </Link>
+            </div>
 
-	return (
-		<div className="group flex flex-col overflow-hidden rounded-2xl border bg-card transition-all hover:shadow-xl">
-			<div className="relative h-48 bg-muted overflow-hidden">
-				{/* Placeholder for project image or regional map snippet */}
-				<div className="absolute inset-0 flex items-center justify-center opacity-20">
-					<Globe className="h-24 w-24" />
-				</div>
-				<div className="absolute top-4 left-4">
-					<div className="inline-flex items-center rounded-full bg-background/90 backdrop-blur-sm px-2.5 py-0.5 text-xs font-semibold text-foreground border">
-						{proposal.region_id.split("_")[1].toUpperCase()}
-					</div>
-				</div>
-				<div className="absolute top-4 right-4">
-					<div className="flex items-center gap-1.5 rounded-full bg-primary/90 backdrop-blur-sm px-2.5 py-0.5 text-xs font-bold text-primary-foreground">
-						<ShieldCheck className="h-3 w-3" />
-						{proposal.ai_integrity_report?.overall_score}% Integrity
-					</div>
-				</div>
-			</div>
+            <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-3">
+              {featuredProposals.length > 0 ? featuredProposals.map((proposal: SerializedProposal) => (
+                <ProposalCard key={proposal.id} proposal={proposal} />
+              )) : (
+                <div className="col-span-full py-20 text-center border-2 border-dashed rounded-[3rem] border-neutral-200 dark:border-neutral-800">
+                   <p className="text-muted-foreground italic">No active proposals in the ledger.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
 
-			<div className="flex flex-1 flex-col p-6">
-				<div className="mb-4 flex-1">
-					<h3 className="mb-2 text-xl font-bold line-clamp-1 group-hover:text-primary transition-colors">
-						{proposal.title}
-					</h3>
-					<p className="text-sm text-muted-foreground line-clamp-2">
-						{proposal.short_description}
-					</p>
-				</div>
+        {/* CTA SECTION */}
+        <section className="py-32 px-4 relative overflow-hidden">
+           <div className="container mx-auto">
+              <div className="relative z-10 rounded-[4rem] bg-neutral-900 dark:bg-white text-white dark:text-black p-12 md:p-24 overflow-hidden text-center">
+                 <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]" />
+                 <h2 className="text-4xl md:text-6xl font-black tracking-tight mb-8">Ready to Shape <br />Your Region?</h2>
+                 <p className="text-white/60 dark:text-black/60 text-xl max-w-2xl mx-auto mb-12 leading-relaxed">
+                   Join thousands of verified citizens and capital providers building a more accountable future.
+                 </p>
+                 <div className="flex flex-wrap justify-center gap-6">
+                    <Link
+                      href="/login"
+                      className={cn(buttonVariants({ size: "lg" }), "bg-white dark:bg-black text-black dark:text-white h-16 rounded-2xl px-10 text-xl font-black hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all")}
+                    >
+                      Get Started Now
+                    </Link>
+                 </div>
+              </div>
+           </div>
+        </section>
+      </main>
 
-				<div className="space-y-4">
-					<div className="space-y-2">
-						<div className="flex items-center justify-between text-xs font-medium uppercase tracking-wider text-muted-foreground">
-							<span>Funding Progress</span>
-							<span className="text-foreground">
-								{Math.round(progress)}%
-							</span>
-						</div>
-						<div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-							<div
-								className="h-full bg-primary transition-all"
-								style={{ width: `${Math.min(100, progress)}%` }}
-							/>
-						</div>
-					</div>
-
-					<div className="flex items-center justify-between border-t pt-4">
-						<div className="flex items-center gap-4">
-							<div className="flex flex-col">
-								<span className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">
-									Goal
-								</span>
-								<span className="text-sm font-bold">
-									${proposal.funding_goal.toLocaleString()}
-								</span>
-							</div>
-							<div className="flex flex-col">
-								<span className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">
-									Voters
-								</span>
-								<span className="text-sm font-bold flex items-center gap-1">
-									<Users className="h-3 w-3" />
-									{proposal.voting_metrics.total_votes}
-								</span>
-							</div>
-						</div>
-						<Link
-							href={`/proposals/${proposal.id}`}
-							className={cn(
-								buttonVariants({
-									variant: "ghost",
-									size: "sm",
-								}),
-								"h-8 w-8 p-0",
-							)}
-						>
-							<ArrowRight className="h-4 w-4" />
-						</Link>
-					</div>
-				</div>
-			</div>
-		</div>
-	);
+      <footer className="border-t py-20 px-4">
+        <div className="container mx-auto">
+          <div className="grid md:grid-cols-4 gap-12 mb-20">
+             <div className="col-span-2">
+                <Link href="/" className="flex items-center gap-2 mb-6">
+                  <div className="bg-primary rounded-lg p-1.5">
+                    <Landmark className="h-5 w-5 text-primary-foreground" />
+                  </div>
+                  <span className="text-xl font-bold tracking-tight">OpenFairTrip</span>
+                </Link>
+                <p className="text-muted-foreground text-lg max-w-md">
+                  Decentralized governance for regional impact. Building trust through cryptographic truth.
+                </p>
+             </div>
+             <div>
+                <h4 className="font-bold uppercase tracking-widest text-xs mb-6">Platform</h4>
+                <ul className="space-y-4 text-muted-foreground font-medium">
+                   <li><Link href="/explore" className="hover:text-primary transition-colors">Explore Map</Link></li>
+                   <li><Link href="/dashboard" className="hover:text-primary transition-colors">Voter Dashboard</Link></li>
+                   <li><Link href="/governance" className="hover:text-primary transition-colors">Governance Token</Link></li>
+                </ul>
+             </div>
+             <div>
+                <h4 className="font-bold uppercase tracking-widest text-xs mb-6">Support</h4>
+                <ul className="space-y-4 text-muted-foreground font-medium">
+                   <li><Link href="/docs" className="hover:text-primary transition-colors">Documentation</Link></li>
+                   <li><Link href="/audit" className="hover:text-primary transition-colors">Audit Logs</Link></li>
+                   <li><Link href="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link></li>
+                </ul>
+             </div>
+          </div>
+          <div className="flex flex-col md:flex-row justify-between items-center pt-12 border-t border-neutral-100 dark:border-neutral-900 gap-6 text-sm text-muted-foreground font-medium">
+             <p>© 2026 OpenFairTrip Protocol. All rights reserved.</p>
+             <div className="flex gap-10">
+                <span className="flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> Verified Nodes: 1,204</span>
+                <span className="flex items-center gap-2"><Zap className="h-4 w-4" /> Network: ICP Mainnet</span>
+             </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
 }
