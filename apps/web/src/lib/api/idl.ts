@@ -1,179 +1,215 @@
-import { IDL } from '@icp-sdk/core/candid';
+import { IDL } from "@icp-sdk/core/candid";
 
-export const idlFactory: IDL.InterfaceFactory = ({ IDL }: { IDL: any }) => {
-  const UserType = IDL.Variant({ 'User': IDL.Null, 'InvestorUser': IDL.Null });
-  const UserProfile = IDL.Record({
-    'display_name': IDL.Text,
+/**
+ * IDL Factory for the OpenFairTrip backend canister.
+ * Strictly aligned with @apps/contracts/icp_proposals_mvp/icp_proposals_mvp.did
+ */
+export const idlFactory: IDL.InterfaceFactory = ({ IDL: idl }: Parameters<IDL.InterfaceFactory>[0]) => {
+  const UserType = idl.Variant({ 'User': idl.Null, 'InvestorUser': idl.Null });
+  
+  const UserProfile = idl.Record({
+    'updated_at': idl.Nat64,
     'user_type': UserType,
-    'reputation': IDL.Float64,
-    'home_region': IDL.Opt(IDL.Text),
-    'created_at': IDL.Int64,
-    'updated_at': IDL.Int64,
-    'last_activity_ts': IDL.Int64,
-    'activity_count': IDL.Nat32,
-    'vote_count': IDL.Nat32,
-    'is_local_verified': IDL.Bool,
-    'has_expert_standing': IDL.Bool,
-    'concluded_votes': IDL.Nat32,
-    'accurate_votes': IDL.Nat32,
-    'is_verified': IDL.Opt(IDL.Bool),
+    'concluded_votes': idl.Nat32,
+    'accurate_votes': idl.Nat32,
+    'activity_count': idl.Nat32,
+    'reputation': idl.Float64,
+    'created_at': idl.Nat64,
+    'last_activity_ts': idl.Nat64,
+    'display_name': idl.Text,
+    'home_region': idl.Opt(idl.Text),
+    'is_local_verified': idl.Bool,
+    'is_verified': idl.Opt(idl.Bool),
+    'vote_count': idl.Nat32,
+    'has_expert_standing': idl.Bool,
   });
 
-  const ProposalStatus = IDL.Variant({
-    'Active': IDL.Null,
-    'QuorumNotMet': IDL.Null,
-    'Rejected': IDL.Null,
-    'AwaitingFunding': IDL.Null,
-    'Backed': IDL.Null,
+  const CreateProfileInput = idl.Record({
+    'display_name': idl.Text,
+    'user_type': UserType,
+    'home_region': idl.Opt(idl.Text),
   });
 
-  const ProposalCategory = IDL.Variant({
-    'Infrastructure': IDL.Null,
-    'Marketing': IDL.Null,
-    'Events': IDL.Null,
-    'Conservation': IDL.Null,
-    'Education': IDL.Null,
-    'Technology': IDL.Null,
-    'Other': IDL.Null,
+  const UpdateProfileInput = idl.Record({
+    'display_name': idl.Text,
+    'home_region': idl.Opt(idl.Text),
   });
 
-  const Proposal = IDL.Record({
-    'id': IDL.Nat64,
-    'submitter': IDL.Principal,
-    'region_tag': IDL.Text,
-    'title': IDL.Text,
-    'description': IDL.Text,
-    'category': IDL.Opt(ProposalCategory),
-    'budget_amount': IDL.Opt(IDL.Float64),
-    'budget_currency': IDL.Opt(IDL.Text),
-    'budget_breakdown': IDL.Opt(IDL.Text),
-    'executor_name': IDL.Opt(IDL.Text),
-    'execution_plan': IDL.Opt(IDL.Text),
-    'timeline': IDL.Opt(IDL.Text),
-    'expected_impact': IDL.Opt(IDL.Text),
-    'fairness_score': IDL.Opt(IDL.Float64),
-    'risk_flags': IDL.Vec(IDL.Text),
-    'backed_by': IDL.Opt(IDL.Principal),
-    'backed_at': IDL.Opt(IDL.Int64),
+  const ProposalStatus = idl.Variant({
+    'QuorumNotMet': idl.Null,
+    'Active': idl.Null,
+    'AwaitingFunding': idl.Null,
+    'Backed': idl.Null,
+    'Rejected': idl.Null,
+  });
+
+  const ProposalCategory = idl.Variant({
+    'Infrastructure': idl.Null,
+    'Marketing': idl.Null,
+    'Events': idl.Null,
+    'Conservation': idl.Null,
+    'Education': idl.Null,
+    'Technology': idl.Null,
+    'Other': idl.Null,
+  });
+
+  const Proposal = idl.Record({
+    'id': idl.Nat64,
     'status': ProposalStatus,
-    'created_at': IDL.Int64,
-    'voting_ends_at': IDL.Int64,
-    'yes_weight': IDL.Float64,
-    'no_weight': IDL.Float64,
-    'voter_count': IDL.Nat32,
+    'fairness_score': idl.Opt(idl.Float64),
+    'title': idl.Text,
+    'submitter': idl.Principal,
+    'execution_plan': idl.Opt(idl.Text),
+    'risk_flags': idl.Vec(idl.Text),
+    'yes_weight': idl.Float64,
+    'description': idl.Text,
+    'created_at': idl.Nat64,
+    'budget_breakdown': idl.Opt(idl.Text),
+    'executor_name': idl.Opt(idl.Text),
+    'expected_impact': idl.Opt(idl.Text),
+    'budget_currency': idl.Opt(idl.Text),
+    'voting_ends_at': idl.Nat64,
+    'category': idl.Opt(ProposalCategory),
+    'backed_at': idl.Opt(idl.Nat64),
+    'backed_by': idl.Opt(idl.Principal),
+    'voter_count': idl.Nat32,
+    'budget_amount': idl.Opt(idl.Float64),
+    'no_weight': idl.Float64,
+    'region_tag': idl.Text,
+    'timeline': idl.Opt(idl.Text),
   });
 
-  const Vote = IDL.Record({
-    'voter': IDL.Principal,
-    'proposal_id': IDL.Nat64,
-    'in_favor': IDL.Bool,
-    'weight': IDL.Float64,
-    'timestamp': IDL.Int64,
+  const SubmitProposalInput = idl.Record({
+    'title': idl.Text,
+    'execution_plan': idl.Text,
+    'description': idl.Text,
+    'budget_breakdown': idl.Text,
+    'executor_name': idl.Text,
+    'expected_impact': idl.Text,
+    'budget_currency': idl.Text,
+    'category': ProposalCategory,
+    'budget_amount': idl.Float64,
+    'region_tag': idl.Text,
+    'timeline': idl.Text,
   });
 
-  const ContractStatus = IDL.Variant({
-    'Draft': IDL.Null,
-    'Rejected': IDL.Null,
-    'PendingSignatures': IDL.Null,
-    'Signed': IDL.Null,
-    'Expired': IDL.Null,
+  const Vote = idl.Record({
+    'weight': idl.Float64,
+    'voter': idl.Principal,
+    'in_favor': idl.Bool,
+    'proposal_id': idl.Nat64,
+    'timestamp': idl.Nat64,
   });
 
-  const SignatureMode = IDL.Variant({
-    'OnChainAck': IDL.Null,
-    'ExternalQualifiedSignature': IDL.Null,
+  const Config = idl.Record({
+    'majority_threshold': idl.Float64,
+    'quorum_percent': idl.Float64,
+    'voting_period_ns': idl.Nat64,
+    'quorum_min_region_size': idl.Nat32,
+    'absolute_majority': idl.Float64,
   });
 
-  const ContractParty = IDL.Record({
-    'legal_name': IDL.Text,
-    'registration_id': IDL.Text,
-    'representative_name': IDL.Text,
-    'representative_principal': IDL.Opt(IDL.Principal),
+  const ContractStatus = idl.Variant({
+    'Draft': idl.Null,
+    'Rejected': idl.Null,
+    'PendingSignatures': idl.Null,
+    'Signed': idl.Null,
+    'Expired': idl.Null,
   });
 
-  const ContractRecord = IDL.Record({
-    'proposal_id': IDL.Nat64,
-    'created_by': IDL.Principal,
-    'investor_principal': IDL.Principal,
-    'company': ContractParty,
-    'document_hash': IDL.Text,
-    'document_uri': IDL.Text,
-    'milestone_hash': IDL.Opt(IDL.Text),
-    'signature_mode': SignatureMode,
-    'external_provider': IDL.Opt(IDL.Text),
-    'external_envelope_id': IDL.Opt(IDL.Text),
-    'investor_ack_at': IDL.Opt(IDL.Int64),
-    'company_ack_at': IDL.Opt(IDL.Int64),
-    'external_signed_at': IDL.Opt(IDL.Int64),
+  const SignatureMode = idl.Variant({
+    'OnChainAck': idl.Null,
+    'ExternalQualifiedSignature': idl.Null,
+  });
+
+  const ContractParty = idl.Record({
+    'legal_name': idl.Text,
+    'registration_id': idl.Text,
+    'representative_name': idl.Text,
+    'representative_principal': idl.Opt(idl.Principal),
+  });
+
+  const ContractRecord = idl.Record({
+    'external_envelope_id': idl.Opt(idl.Text),
     'status': ContractStatus,
-    'created_at': IDL.Int64,
-    'updated_at': IDL.Int64,
+    'external_provider': idl.Opt(idl.Text),
+    'updated_at': idl.Nat64,
+    'milestone_hash': idl.Opt(idl.Text),
+    'document_hash': idl.Text,
+    'document_uri': idl.Text,
+    'investor_ack_at': idl.Opt(idl.Nat64),
+    'external_signed_at': idl.Opt(idl.Nat64),
+    'signature_mode': SignatureMode,
+    'created_at': idl.Nat64,
+    'created_by': idl.Principal,
+    'company': ContractParty,
+    'proposal_id': idl.Nat64,
+    'investor_principal': idl.Principal,
+    'company_ack_at': idl.Opt(idl.Nat64),
   });
 
-  const Result_UserProfile = IDL.Variant({ 'Ok': UserProfile, 'Err': IDL.Text });
-  const Result_Proposal = IDL.Variant({ 'Ok': Proposal, 'Err': IDL.Text });
-  const Result_Vote = IDL.Variant({ 'Ok': Vote, 'Err': IDL.Text });
-  const Result_ContractRecord = IDL.Variant({ 'Ok': ContractRecord, 'Err': IDL.Text });
-  const Result_Null = IDL.Variant({ 'Ok': IDL.Null, 'Err': IDL.Text });
-  const Result_Any = IDL.Variant({ 'Ok': IDL.Reserved, 'Err': IDL.Text });
-  const Result_Number = IDL.Variant({ 'Ok': IDL.Float64, 'Err': IDL.Text });
-
-  const AuditLog = IDL.Record({
-    'id': IDL.Nat64,
-    'timestamp': IDL.Int64,
-    'actor': IDL.Principal,
-    'event_type': IDL.Text,
-    'proposal_id': IDL.Opt(IDL.Nat64),
-    'payload': IDL.Text,
+  const CreateContractInput = idl.Record({
+    'document_hash': idl.Text,
+    'document_uri': idl.Text,
+    'milestone_hash': idl.Opt(idl.Text),
+    'signature_mode': SignatureMode,
+    'external_provider': idl.Opt(idl.Text),
   });
 
-  const Config = IDL.Record({
-    'voting_period_ns': IDL.Int64,
-    'quorum_percent': IDL.Float64,
-    'quorum_min_region_size': IDL.Nat32,
-    'majority_threshold': IDL.Float64,
-    'absolute_majority': IDL.Float64,
+  const ExternalSignatureUpdateInput = idl.Record({
+    'external_envelope_id': idl.Text,
+    'signed': idl.Bool,
   });
 
-  return IDL.Service({
-    'create_my_profile': IDL.Func([IDL.Record({ 'display_name': IDL.Text, 'user_type': UserType, 'home_region': IDL.Opt(IDL.Text) })], [Result_UserProfile], []),
-    'update_my_profile': IDL.Func([IDL.Record({ 'display_name': IDL.Text, 'home_region': IDL.Opt(IDL.Text) })], [Result_UserProfile], []),
-    'get_user': IDL.Func([IDL.Principal], [IDL.Opt(UserProfile)], ['query']),
-    'get_my_profile': IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
-    'whoami': IDL.Func([], [IDL.Principal], ['query']),
-    'request_verification': IDL.Func([], [Result_Null], []),
-    'admin_verify_investor': IDL.Func([IDL.Principal], [Result_Null], []),
-    'submit_proposal': IDL.Func([
-      IDL.Record({
-        'title': IDL.Text,
-        'description': IDL.Text,
-        'region_tag': IDL.Text,
-        'category': ProposalCategory,
-        'budget_amount': IDL.Float64,
-        'budget_currency': IDL.Text,
-        'budget_breakdown': IDL.Text,
-        'executor_name': IDL.Text,
-        'execution_plan': IDL.Text,
-        'timeline': IDL.Text,
-        'expected_impact': IDL.Text,
-      })
-    ], [Result_Proposal], []),
-    'get_proposal': IDL.Func([IDL.Nat64], [IDL.Opt(Proposal)], ['query']),
-    'list_proposals': IDL.Func([IDL.Opt(ProposalStatus)], [IDL.Vec(Proposal)], ['query']),
-    'cast_vote': IDL.Func([IDL.Nat64, IDL.Bool], [Result_Vote], []),
-    'get_proposal_votes': IDL.Func([IDL.Nat64], [IDL.Vec(Vote)], ['query']),
-    'finalize_proposal': IDL.Func([IDL.Nat64], [Result_Proposal], []),
-    'back_proposal': IDL.Func([IDL.Nat64], [Result_Proposal], []),
-    'create_contract_record': IDL.Func([IDL.Nat64, IDL.Text], [Result_ContractRecord], []),
-    'investor_ack_contract': IDL.Func([IDL.Nat64], [Result_ContractRecord], []),
-    'company_ack_contract': IDL.Func([IDL.Nat64], [Result_ContractRecord], []),
-    'record_external_signature_status': IDL.Func([IDL.Nat64, IDL.Text], [Result_ContractRecord], []),
-    'get_contract_record': IDL.Func([IDL.Nat64], [IDL.Opt(ContractRecord)], ['query']),
-    'list_contracts': IDL.Func([IDL.Opt(ContractStatus)], [IDL.Vec(ContractRecord)], ['query']),
-    'get_proposal_phase': IDL.Func([IDL.Nat64], [Result_Any], ['query']),
-    'get_audit_log': IDL.Func([IDL.Nat32, IDL.Nat32], [IDL.Vec(AuditLog)], ['query']),
-    'get_my_vp': IDL.Func([IDL.Text], [Result_Number], ['query']),
-    'get_region_total_vp': IDL.Func([IDL.Text], [IDL.Float64], ['query']),
-    'get_config': IDL.Func([], [Config], ['query']),
+  const ProposalPhase = idl.Record({
+    'proposal_id': idl.Nat64,
+    'proposal_status': ProposalStatus,
+    'phase_label': idl.Text,
+    'contract_status': idl.Opt(ContractStatus),
+  });
+
+  const Result_UserProfile = idl.Variant({ 'Ok': UserProfile, 'Err': idl.Text });
+  const Result_Proposal = idl.Variant({ 'Ok': Proposal, 'Err': idl.Text });
+  const Result_Vote = idl.Variant({ 'Ok': Vote, 'Err': idl.Text });
+  const Result_ContractRecord = idl.Variant({ 'Ok': ContractRecord, 'Err': idl.Text });
+  const Result_Null = idl.Variant({ 'Ok': idl.Null, 'Err': idl.Text });
+  const Result_Number = idl.Variant({ 'Ok': idl.Float64, 'Err': idl.Text });
+  const Result_ProposalPhase = idl.Variant({ 'Ok': ProposalPhase, 'Err': idl.Text });
+
+  const AuditLog = idl.Record({
+    'id': idl.Nat64,
+    'timestamp': idl.Nat64,
+    'actor': idl.Principal,
+    'event_type': idl.Text, 
+    'proposal_id': idl.Opt(idl.Nat64),
+    'payload': idl.Text,
+  });
+
+  return idl.Service({
+    'admin_verify_investor': idl.Func([idl.Principal], [Result_Null], []),
+    'back_proposal': idl.Func([idl.Nat64], [Result_Proposal], []),
+    'cast_vote': idl.Func([idl.Nat64, idl.Bool], [Result_Vote], []),
+    'company_ack_contract': idl.Func([idl.Nat64], [Result_ContractRecord], []),
+    'create_contract_record': idl.Func([idl.Nat64, CreateContractInput], [Result_ContractRecord], []),
+    'create_my_profile': idl.Func([CreateProfileInput], [Result_UserProfile], []),
+    'finalize_proposal': idl.Func([idl.Nat64], [Result_Proposal], []),
+    'get_audit_log': idl.Func([idl.Nat32, idl.Nat32], [idl.Vec(AuditLog)], ['query']),
+    'get_config': idl.Func([], [Config], ['query']),
+    'get_contract_record': idl.Func([idl.Nat64], [idl.Opt(ContractRecord)], ['query']),
+    'get_my_profile': idl.Func([], [idl.Opt(UserProfile)], ['query']),
+    'get_my_vp': idl.Func([idl.Text], [Result_Number], ['query']),
+    'get_proposal': idl.Func([idl.Nat64], [idl.Opt(Proposal)], ['query']),
+    'get_proposal_phase': idl.Func([idl.Nat64], [Result_ProposalPhase], ['query']),
+    'get_proposal_votes': idl.Func([idl.Nat64], [idl.Vec(Vote)], ['query']),
+    'get_region_total_vp': idl.Func([idl.Text], [idl.Float64], ['query']),
+    'get_user': idl.Func([idl.Principal], [idl.Opt(UserProfile)], ['query']),
+    'investor_ack_contract': idl.Func([idl.Nat64], [Result_ContractRecord], []),
+    'list_contracts': idl.Func([idl.Opt(ContractStatus)], [idl.Vec(ContractRecord)], ['query']),
+    'list_proposals': idl.Func([idl.Opt(ProposalStatus)], [idl.Vec(Proposal)], ['query']),
+    'record_external_signature_status': idl.Func([idl.Nat64, ExternalSignatureUpdateInput], [Result_ContractRecord], []),
+    'request_verification': idl.Func([], [Result_Null], []),
+    'submit_proposal': idl.Func([SubmitProposalInput], [Result_Proposal], []),
+    'update_my_profile': idl.Func([UpdateProfileInput], [Result_UserProfile], []),
+    'whoami': idl.Func([], [idl.Principal], ['query']),
   });
 };

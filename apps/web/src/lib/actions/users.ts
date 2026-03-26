@@ -8,16 +8,23 @@ function serializeUserProfile(profile: UserProfile, principal?: Principal) {
   const roleKey = Object.keys(profile.user_type)[0];
   
   return {
-    ...profile,
     id: principal ? principal.toString() : "unknown",
+    display_name: profile.display_name,
+    user_type: roleKey || 'User',
     role: roleKey || 'User',
-    region: profile.home_region.length > 0 ? profile.home_region[0] : null,
     reputation: Number(profile.reputation),
+    home_region: profile.home_region.length > 0 ? profile.home_region[0] : null,
+    region: profile.home_region.length > 0 ? profile.home_region[0] : null,
     created_at: Number(profile.created_at),
     updated_at: Number(profile.updated_at),
     last_activity_ts: Number(profile.last_activity_ts),
+    activity_count: profile.activity_count,
+    vote_count: profile.vote_count,
+    is_local_verified: profile.is_local_verified,
+    has_expert_standing: profile.has_expert_standing,
+    concluded_votes: profile.concluded_votes,
+    accurate_votes: profile.accurate_votes,
     is_verified: profile.is_verified.length > 0 ? profile.is_verified[0] : false,
-    // Add UI status derived from backend bools
     kyc_status: profile.is_verified.length > 0 && profile.is_verified[0] ? 'verified' : 'unverified',
   };
 }
