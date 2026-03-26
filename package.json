@@ -1,0 +1,11 @@
+{
+  "name": "hacktues12-monorepo",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm -r dev",
+    "build": "pnpm -r build"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
