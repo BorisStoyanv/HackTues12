@@ -1,30 +1,38 @@
 import { create } from 'zustand';
-import { AuthClient } from '@dfinity/auth-client';
-import { Identity } from '@dfinity/agent';
+import { AuthClient } from '@icp-sdk/auth/client';
+import { Identity, AnonymousIdentity } from '@icp-sdk/core/agent';
 
 export type UserRole = 'funder' | 'regional' | null;
 
+interface AuthUser {
+  id: string;
+  role: UserRole;
+  kyc_status: 'pending' | 'verified' | 'unverified';
+  geo_verified: boolean;
+  detected_location?: { city: string; country: string };
+}
+
 interface AuthState {
+  authClient: AuthClient | null;
   identity: Identity | null;
   principal: string | null;
   isAuthenticated: boolean;
   isInitializing: boolean;
-  user: {
-    id: string;
-    role: UserRole;
-    kyc_status: 'pending' | 'verified' | 'unverified';
-    geo_verified: boolean;
-    detected_location?: { city: string; country: string };
-  } | null;
+  user: AuthUser | null;
   initialize: () => Promise<void>;
   login: () => Promise<void>;
+  loginMock: () => void;
   logout: () => Promise<void>;
   setRole: (role: UserRole) => void;
   setKycStatus: (status: 'pending' | 'verified' | 'unverified') => void;
   setGeoVerified: (verified: boolean, location?: { city: string; country: string }) => void;
+  syncIdentity: (identity: Identity | null, isAuthenticated: boolean) => void;
 }
 
+let globalAuthClient: AuthClient | null = null;
+
 export const useAuthStore = create<AuthState>((set, get) => ({
+  authClient: null,
   identity: null,
   principal: null,
   isAuthenticated: false,
@@ -33,72 +41,41 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   initialize: async () => {
     try {
-      const authClient = await AuthClient.create();
-      const isAuthenticated = await authClient.isAuthenticated();
-      
-      if (isAuthenticated) {
-        const identity = authClient.getIdentity();
-        const principal = identity.getPrincipal().toString();
-        
-        set({
-          identity,
-          principal,
-          isAuthenticated: true,
-          user: {
-            id: principal,
-            role: null,
-            kyc_status: 'unverified',
-            geo_verified: false,
-          },
-        });
-      }
+      console.log('[Auth] Initializing...');
+      // The auth initialization is now primarily handled by the ic-use-internet-identity provider
+      // but we keep this empty promise to satisfy existing components calling initialize()
+      set({ isInitializing: false });
     } catch (error) {
-      console.error('Failed to initialize auth:', error);
-    } finally {
+      console.error('[Auth] Initialization failed:', error);
       set({ isInitializing: false });
     }
   },
 
   login: async () => {
-    // We create the client first to ensure the .login() call is "fast" after the user click
-    const authClient = await AuthClient.create();
-    const identityProvider = process.env.NEXT_PUBLIC_II_URL || 'https://identity.ic0.app';
+    // This function is kept for backwards compatibility 
+    // but the actual login is triggered via useInternetIdentity() hook directly
+    console.warn('[Auth] Store login called directly, please use useInternetIdentity hook instead');
+    return Promise.resolve();
+  },
 
-    return new Promise<void>((resolve, reject) => {
-      authClient.login({
-        identityProvider,
-        // Using a standard session time
-        maxTimeToLive: BigInt(7 * 24 * 60 * 60 * 1000 * 1000 * 1000), 
-        onSuccess: () => {
-          const identity = authClient.getIdentity();
-          const principal = identity.getPrincipal().toString();
-          
-          set({
-            identity,
-            principal,
-            isAuthenticated: true,
-            user: {
-              id: principal,
-              role: null,
-              kyc_status: 'unverified',
-              geo_verified: false,
-            },
-          });
-          resolve();
-        },
-        onError: (err) => {
-          console.error('AuthClient login error:', err);
-          reject(err);
-        },
-        // Helpful for debugging connection issues
-        windowOpenerFeatures: `left=${window.screen.width / 2 - 200},top=${window.screen.height / 2 - 300},width=400,height=600`,
-      });
+  loginMock: () => {
+    const mockPrincipal = "aaaaa-aa-mock-user";
+    set({
+      identity: new AnonymousIdentity(),
+      principal: mockPrincipal,
+      isAuthenticated: true,
+      user: {
+        id: mockPrincipal,
+        role: 'regional',
+        kyc_status: 'verified',
+        geo_verified: true,
+        detected_location: { city: 'Sofia', country: 'Bulgaria' }
+      },
     });
   },
 
   logout: async () => {
-    const authClient = await AuthClient.create();
-    await authClient.logout();
+    // Similarly, actual logout should happen via useInternetIdentity
     set({
       identity: null,
       principal: null,
@@ -121,4 +98,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set((state) => ({
       user: state.user ? { ...state.user, geo_verified, detected_location } : null,
     })),
+
+  syncIdentity: (identity, isAuthenticated) => {
+    const principal = identity?.getPrincipal().toString() || null;
+    const isActuallyAuthenticated = isAuthenticated && principal !== null && principal !== '2vxsx-fae';
+    
+    set((state) => ({
+      identity,
+      principal: isActuallyAuthenticated ? principal : null,
+      isAuthenticated: isActuallyAuthenticated,
+      user: isActuallyAuthenticated && principal ? (state.user?.id === principal ? state.user : {
+        id: principal,
+        role: null,
+        kyc_status: 'unverified',
+        geo_verified: false,
+      }) : null,
+      isInitializing: false,
+    }));
+  },
 }));
