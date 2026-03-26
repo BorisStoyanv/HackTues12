@@ -16,6 +16,7 @@ import {
   ExternalLink,
   LifeBuoy,
   Send,
+  LogOut,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -74,6 +75,7 @@ const secondaryItems = [
 export function DashboardSidebar() {
   const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
 
   return (
     <Sidebar collapsible="icon" className="border-r border-neutral-200 dark:border-neutral-800">
@@ -143,19 +145,31 @@ export function DashboardSidebar() {
       <SidebarFooter className="border-t p-2">
         <SidebarMenu>
           <SidebarMenuItem>
-            <div className="flex items-center gap-3 px-2 py-2 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center">
-              <div className="h-8 w-8 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center border shrink-0">
-                <span className="text-xs font-bold">{user?.email?.[0].toUpperCase() || "U"}</span>
-              </div>
-              <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
-                <span className="text-xs font-semibold truncate leading-tight">
-                  {user?.email || "User Account"}
-                </span>
-                <span className="text-[10px] text-muted-foreground truncate uppercase tracking-tighter">
-                  {user?.role || "Citizen"}
-                </span>
-              </div>
-            </div>
+             <div className="flex items-center justify-between group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-4">
+                <div className="flex items-center gap-3 px-2 py-2 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center overflow-hidden">
+                  <div className="h-8 w-8 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center border shrink-0">
+                    <span className="text-xs font-bold">{user?.id?.[0].toUpperCase() || "U"}</span>
+                  </div>
+                  <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
+                    <span className="text-xs font-semibold truncate leading-tight">
+                      {user?.id ? `@${user.id.substring(0, 8)}...` : "User Account"}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground truncate uppercase tracking-tighter">
+                      {user?.role || "Citizen"}
+                    </span>
+                  </div>
+                </div>
+                
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-8 w-8 text-muted-foreground hover:text-destructive group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10"
+                  onClick={() => logout()}
+                  title="Logout"
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
+             </div>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

@@ -2,7 +2,7 @@ import { HttpAgent, Actor, ActorSubclass, Identity } from '@dfinity/agent';
 import { idlFactory } from './idl';
 import { BackendService } from '../types/api';
 
-const CANISTER_ID = 'htkot-kiaaa-aaaaa-qgtsa-cai';
+const CANISTER_ID = 'sk6yb-aqaaa-aaaad-qljxa-cai';
 const HOST = 'https://icp0.io'; // Mainnet boundary node
 
 /**

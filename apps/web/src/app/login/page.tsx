@@ -21,10 +21,25 @@ export default function LoginPage() {
 	const [isLoading, setIsLoading] = useState<string | null>(null);
 
 	const handleLogin = async (provider: string) => {
+		console.log(`Initiating login for ${provider}...`);
 		setIsLoading(provider);
 		try {
-			await login(provider);
-			router.push("/onboarding/role");
+			if (provider === "internet-identity") {
+				await login();
+				console.log("Login successful, redirecting...");
+				router.push("/onboarding/role");
+			} else {
+				console.log(`Login with ${provider} not implemented yet.`);
+				alert(`${provider} login is coming soon. Please use Internet Identity.`);
+			}
+		} catch (error: unknown) {
+			console.error("Login component error:", error);
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			if (errorMessage.includes("UserInterrupt") || error === "UserInterrupt") {
+				console.log("User cancelled the login process.");
+			} else {
+				alert(`Authentication Error: ${errorMessage}. Please check your browser's console for more details.`);
+			}
 		} finally {
 			setIsLoading(null);
 		}

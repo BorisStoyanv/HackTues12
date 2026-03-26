@@ -1,12 +1,12 @@
-import { IDL } from '@dfinity/candid';
+import { IDL } from "@dfinity/candid";
 
-export const idlFactory: IDL.InterfaceFactory = ({ IDL }: { IDL: any }) => {
-  const Location = IDL.Record({
-    'lat': IDL.Float64,
-    'lng': IDL.Float64,
-    'city': IDL.Text,
-    'country': IDL.Text,
-    'formatted_address': IDL.Text,
+export const idlFactory: IDL.InterfaceFactory = ({ IDL: idl }: { IDL: typeof IDL }) => {
+  const Location = idl.Record({
+    'lat': idl.Float64,
+    'lng': idl.Float64,
+    'city': idl.Text,
+    'country': idl.Text,
+    'formatted_address': idl.Text,
   });
 
   const Proposal = IDL.Record({

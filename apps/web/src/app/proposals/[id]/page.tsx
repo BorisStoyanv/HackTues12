@@ -1,19 +1,19 @@
-"use client";
-
-import { useParams, useRouter } from "next/navigation";
+import { fetchProposalById } from "@/lib/actions/proposals";
 import { ProposalView } from "@/components/proposals/proposal-view";
 
-export default function PublicProposalDetailPage() {
-  const { id } = useParams();
-  const router = useRouter();
-
-  if (typeof id !== "string") return null;
+export default async function PublicProposalDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const result = await fetchProposalById(id);
 
   return (
     <ProposalView 
       id={id} 
       mode="public" 
-      onBack={() => router.push("/explore")} 
+      initialData={result.proposal}
     />
   );
 }

@@ -18,33 +18,61 @@ import {
   ChevronRight
 } from "lucide-react";
 
+import { useState, useEffect } from "react";
+import { fetchMyVP, fetchMyProfile, SerializedUserProfile } from "@/lib/actions/users";
+import { SerializedProposal } from "@/lib/actions/proposals";
+
+import { useRouter } from "next/navigation";
+
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
+  const router = useRouter();
+  const [realVP, setRealVP] = useState<number | null>(null);
+  const [profile, setProfile] = useState<SerializedUserProfile | null>(null);
+  const [proposals, setProposals] = useState<SerializedProposal[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadBackendData() {
+      const [vpRes, profileRes, proposalsRes] = await Promise.all([
+        fetchMyVP(),
+        fetchMyProfile(),
+        import("@/lib/actions/proposals").then(m => m.fetchAllProposals())
+      ]);
+
+      if (vpRes.success && typeof vpRes.vp === "number") setRealVP(vpRes.vp);
+      if (profileRes.success && profileRes.profile) setProfile(profileRes.profile);
+      if (proposalsRes.success && proposalsRes.proposals) setProposals(proposalsRes.proposals.slice(0, 3));
+      setIsLoading(false);
+    }
+
+    loadBackendData();
+  }, []);
 
   const stats = [
     {
       title: "Reputation Score",
-      value: "150 $V_p$",
-      description: "Based on geographic verification",
+      value: realVP !== null ? `${realVP} $V_p$` : "150 $V_p$",
+      description: realVP !== null ? "Fetched from ICP ledger" : "Based on geographic verification",
       icon: ShieldCheck,
       trend: "+12% this month",
     },
     {
       title: "Local Eligibility",
-      value: user?.detected_location?.city || "Verified",
-      description: user?.detected_location?.country || "Citizen",
+      value: profile?.region || user?.detected_location?.city || "Verified",
+      description: profile ? "Primary voting region" : (user?.detected_location?.country || "Citizen"),
       icon: MapPin,
     },
     {
-      title: "Active Votes",
-      value: "12",
-      description: "Participation in 3 regions",
+      title: "Account Status",
+      value: profile?.kyc_status || "Active",
+      description: profile ? "Vetting tier 1" : "Participation in 3 regions",
       icon: Users,
     },
     {
       title: "Integrity Factor",
-      value: "0.98",
-      description: "Top 5% of community",
+      value: profile ? (profile.reputation / 1000).toFixed(2) : "0.98",
+      description: profile ? "System-calculated" : "Top 5% of community",
       icon: TrendingUp,
     },
   ];
@@ -53,7 +81,7 @@ export default function DashboardPage() {
     <div className="h-full overflow-auto bg-neutral-50/50 dark:bg-neutral-950/50 p-6">
       <div className="space-y-8 animate-in fade-in duration-500">
         <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Welcome back, {user?.email?.split('@')[0]}</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Welcome back, {user?.id?.substring(0, 8)}...</h1>
         <p className="text-muted-foreground text-lg">
           Monitor your local governance impact and reputation standing.
         </p>
@@ -102,21 +130,29 @@ export default function DashboardPage() {
             <CardHeader>
                <CardTitle>Regional Alerts</CardTitle>
                <CardDescription>
-                  Active proposals in {user?.detected_location?.city || "your region"}.
+                  Active proposals in {profile?.region || user?.detected_location?.city || "your region"}.
                </CardDescription>
             </CardHeader>
             <CardContent>
                <div className="space-y-4">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="flex items-center gap-4 p-3 rounded-lg bg-neutral-50 dark:bg-neutral-900 border border-transparent hover:border-neutral-200 dark:hover:border-neutral-800 transition-colors cursor-pointer group">
+                  {proposals.length > 0 ? proposals.map((p) => (
+                    <div 
+                      key={p.id} 
+                      onClick={() => router.push(`/dashboard/proposals/${p.id}`)}
+                      className="flex items-center gap-4 p-3 rounded-lg bg-neutral-50 dark:bg-neutral-900 border border-transparent hover:border-neutral-200 dark:hover:border-neutral-800 transition-colors cursor-pointer group"
+                    >
                        <div className="h-2 w-2 rounded-full bg-primary" />
                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold truncate group-hover:text-primary transition-colors">Infrastructure Project #{i}42</p>
-                          <p className="text-xs text-muted-foreground">Voting ends in 2 days</p>
+                          <p className="text-sm font-semibold truncate group-hover:text-primary transition-colors">{p.title}</p>
+                          <p className="text-xs text-muted-foreground uppercase tracking-tighter font-medium">{p.status}</p>
                        </div>
                        <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
                     </div>
-                  ))}
+                  )) : (
+                    <div className="p-4 text-center border-2 border-dashed rounded-lg text-muted-foreground text-xs italic">
+                       {isLoading ? "Fetching ledger..." : "No active proposals in this region."}
+                    </div>
+                  )}
                </div>
             </CardContent>
          </Card>

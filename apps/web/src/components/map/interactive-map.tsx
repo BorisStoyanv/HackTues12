@@ -17,9 +17,11 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { Badge } from "@/components/ui/badge";
 import { ShieldCheck, ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { SerializedProposal } from "@/lib/actions/proposals";
+import type { GeoJSONSource } from "mapbox-gl";
 
 interface InteractiveMapProps {
-  proposals: any[]; // Serialized proposals from server actions
+  proposals: SerializedProposal[];
   interactive?: boolean;
   onBoundingBoxChange?: (bbox: [number, number, number, number] | null) => void;
   onProposalSelect?: (proposalId: string) => void;
@@ -78,12 +80,13 @@ export function InteractiveMap({
     
     if (feature && feature.layer?.id === 'clusters') {
       const clusterId = feature.properties?.cluster_id;
-      const mapboxSource = mapRef.current?.getMap().getSource('proposals') as any;
+      const mapboxSource = mapRef.current?.getMap().getSource('proposals') as GeoJSONSource;
 
-      mapboxSource.getClusterExpansionZoom(clusterId, (err: any, zoom: number) => {
+      mapboxSource.getClusterExpansionZoom(clusterId, (err, zoom) => {
         if (err || !mapRef.current) return;
 
-        const coords = (feature.geometry as any).coordinates as [number, number];
+        const geometry = feature.geometry as { type: 'Point', coordinates: [number, number] };
+        const coords = geometry.coordinates;
         mapRef.current.flyTo({
           center: coords,
           zoom: (zoom ?? 1) + 1,
@@ -141,7 +144,7 @@ export function InteractiveMap({
         <Source
           id="proposals"
           type="geojson"
-          data={geoJsonData as any}
+          data={geoJsonData}
           cluster={true}
           clusterMaxZoom={14}
           clusterRadius={50}

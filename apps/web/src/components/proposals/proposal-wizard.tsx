@@ -63,7 +63,7 @@ export function ProposalWizard() {
       try {
         const parsed = JSON.parse(savedData);
         Object.entries(parsed).forEach(([key, value]) => {
-          setValue(key as any, value);
+          setValue(key as keyof ProposalFormValues, value as any);
         });
       } catch (e) {
         console.error("Failed to parse saved proposal draft");
@@ -79,14 +79,15 @@ export function ProposalWizard() {
   }, [watch]);
 
   const handleNext = async () => {
-    let fieldsToValidate: any[] = [];
+    let fieldsToValidate: (keyof ProposalFormValues)[] = [];
     
     switch (currentStep) {
       case 0:
         fieldsToValidate = ["title", "short_description"];
         break;
       case 1:
-        fieldsToValidate = ["location.city", "location.country", "location.formatted_address", "location.lat", "location.lng"];
+        // Validate nested location fields
+        fieldsToValidate = ["location"];
         break;
       case 2:
         fieldsToValidate = ["problem_statement", "success_metric"];
@@ -95,7 +96,7 @@ export function ProposalWizard() {
         break;
     }
 
-    const isStepValid = await trigger(fieldsToValidate as any);
+    const isStepValid = await trigger(fieldsToValidate);
     if (isStepValid) {
       setDirection(1);
       setCurrentStep((prev) => Math.min(prev + 1, STEPS.length - 1));

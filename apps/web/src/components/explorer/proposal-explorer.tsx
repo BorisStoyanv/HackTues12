@@ -13,8 +13,10 @@ import {
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { SerializedProposal } from "@/lib/actions/proposals";
+
 interface ProposalExplorerProps {
-  proposals: any[];
+  proposals: SerializedProposal[];
   mode: "public" | "authenticated";
   searchQuery?: string;
 }

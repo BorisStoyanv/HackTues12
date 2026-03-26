@@ -1,4 +1,4 @@
-import { Proposal } from "./types/api";
+import { SerializedProposal } from "./actions/proposals";
 
 export interface ProposalGeoJSONProperties {
   id: string;
@@ -28,12 +28,12 @@ export interface ProposalGeoJSONFeatureCollection {
  * Converts backend Proposal objects to GeoJSON for Mapbox.
  * Assumes funding values have already been converted from BigInt to Number.
  */
-export function convertProposalsToGeoJSON(proposals: any[]): ProposalGeoJSONFeatureCollection {
+export function convertProposalsToGeoJSON(proposals: SerializedProposal[]): ProposalGeoJSONFeatureCollection {
   return {
     type: 'FeatureCollection',
     features: proposals.map((proposal) => {
-      const goal = Number(proposal.funding_goal);
-      const current = Number(proposal.current_funding);
+      const goal = proposal.funding_goal;
+      const current = proposal.current_funding;
       
       return {
         type: 'Feature',

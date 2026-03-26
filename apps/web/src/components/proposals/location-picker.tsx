@@ -54,7 +54,7 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
     ? "mapbox://styles/mapbox/dark-v11" 
     : "mapbox://styles/mapbox/light-v11";
 
-  const searchTimeoutRef = useRef<any>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Handle Search Input
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -144,7 +144,7 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
   };
 
   // Reverse geocode when dragging the marker
-  const handleMarkerDragEnd = async (e: any) => {
+  const handleMarkerDragEnd = async (e: { lngLat: { lng: number; lat: number } }) => {
     const lng = e.lngLat.lng;
     const lat = e.lngLat.lat;
 

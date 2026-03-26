@@ -1,14 +1,22 @@
-"use client";
-
 import { ProposalExplorer } from "@/components/explorer/proposal-explorer";
-import { MOCK_FEATURED_PROPOSALS } from "@/lib/mock-data";
+import { fetchAllProposals } from "@/lib/actions/proposals";
 
-export default function DashboardExplorePage() {
+export default async function DashboardExplorePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const { q: searchQuery = "" } = await searchParams;
+  const result = await fetchAllProposals();
+  
+  const proposals = result.success && result.proposals ? result.proposals : [];
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <ProposalExplorer 
         mode="authenticated" 
-        proposals={MOCK_FEATURED_PROPOSALS} 
+        proposals={proposals} 
+        searchQuery={searchQuery}
       />
     </div>
   );
