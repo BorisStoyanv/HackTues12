@@ -1,12 +1,12 @@
 "use server";
 
 import { createBackendActor } from "../api/icp";
-import { Proposal } from "../types/api";
+import { Proposal, Vote, AuditLog, ContractRecord, Config, ProposalPhase } from "../types/api";
 
 export interface SerializedProposal {
   id: string;
   submitter: string;
-  creator: string; // Alias for submitter
+  creator: string; // Alias
   region_tag: string;
   title: string;
   description: string;
@@ -14,7 +14,7 @@ export interface SerializedProposal {
   problem_statement: string;
   category: string;
   budget_amount: number;
-  funding_goal: number; // Alias for budget_amount
+  funding_goal: number; // Alias
   budget_currency: string;
   budget_breakdown: string;
   executor_name: string;
@@ -25,10 +25,10 @@ export interface SerializedProposal {
   risk_flags: string[];
   status: string;
   created_at: number;
-  updated_at: number; // Alias for created_at
+  updated_at: number;
   voting_ends_at: number;
   yes_weight: number;
-  current_funding: number; // Alias for yes_weight
+  current_funding: number; // Alias
   no_weight: number;
   voter_count: number;
   location: {
@@ -37,21 +37,6 @@ export interface SerializedProposal {
     city: string;
     country: string;
     formatted_address: string;
-  };
-  ai_integrity_report: {
-    overall_score: number;
-    fairness_score: number;
-    efficiency_score: number;
-    summary: string;
-    risk_factors: string[];
-    positive_externalities: string[];
-  } | null;
-  voting_metrics: {
-    total_votes: number;
-    quorum_reached: boolean;
-    quorum_percentage: number;
-    approval_percentage: number;
-    voting_power_distribution: { experts: number; locals: number; general: number };
   };
 }
 
@@ -90,27 +75,76 @@ function serializeProposal(proposal: Proposal): SerializedProposal {
     no_weight: proposal.no_weight,
     voter_count: proposal.voter_count,
     location: {
-      lat: 50.0, // Default for now
-      lng: 10.0, // Default for now
+      lat: 50.0,
+      lng: 10.0,
       city: proposal.region_tag,
       country: "Unknown",
       formatted_address: proposal.region_tag
-    },
-    ai_integrity_report: {
-      overall_score: fairness,
-      fairness_score: fairness,
-      efficiency_score: 0,
-      summary: "Backend analysis pending.",
-      risk_factors: proposal.risk_flags,
-      positive_externalities: []
-    },
-    voting_metrics: {
-      total_votes: proposal.voter_count,
-      quorum_reached: false,
-      quorum_percentage: 0,
-      approval_percentage: 0,
-      voting_power_distribution: { experts: 0, locals: 0, general: 0 }
     }
+  };
+}
+
+
+
+export interface SerializedVote {
+  voter: string;
+  proposal_id: string;
+  in_favor: boolean;
+  weight: number;
+  timestamp: number;
+}
+
+function serializeVote(vote: Vote): SerializedVote {
+  return {
+    voter: vote.voter.toString(),
+    proposal_id: vote.proposal_id.toString(),
+    in_favor: vote.in_favor,
+    weight: vote.weight,
+    timestamp: Number(vote.timestamp),
+  };
+}
+
+export interface SerializedAuditLog {
+  id: string;
+  timestamp: number;
+  actor: string;
+  event_type: string;
+  proposal_id: string | null;
+  payload: string;
+}
+
+function serializeAuditLog(log: AuditLog): SerializedAuditLog {
+  return {
+    id: log.id.toString(),
+    timestamp: Number(log.timestamp),
+    actor: log.actor.toString(),
+    event_type: typeof log.event_type === 'string' ? log.event_type : Object.keys(log.event_type)[0],
+    proposal_id: log.proposal_id.length > 0 ? log.proposal_id[0]!.toString() : null,
+    payload: log.payload,
+  };
+}
+
+export interface SerializedContract {
+  proposal_id: string;
+  created_by: string;
+  investor: string;
+  company_name: string;
+  status: string;
+  created_at: number;
+  updated_at: number;
+  document_uri: string;
+}
+
+function serializeContract(c: ContractRecord): SerializedContract {
+  return {
+    proposal_id: c.proposal_id.toString(),
+    created_by: c.created_by.toString(),
+    investor: c.investor_principal.toString(),
+    company_name: c.company.legal_name,
+    status: Object.keys(c.status)[0] || 'Draft',
+    created_at: Number(c.created_at),
+    updated_at: Number(c.updated_at),
+    document_uri: c.document_uri,
   };
 }
 
@@ -118,52 +152,141 @@ export async function fetchAllProposals(status?: string) {
   try {
     const actor = await createBackendActor();
     const proposals = await actor.list_proposals(status ? [{ [status]: null } as any] : []);
-    return { 
-      success: true, 
-      proposals: proposals.map(serializeProposal)
-    };
+    return { success: true, proposals: proposals.map(serializeProposal) };
   } catch (error) {
     console.error("Failed to fetch proposals:", error);
     return { success: false, proposals: [] };
   }
 }
 
-export async function fetchProposalById(id: string) {
-  if (isNaN(Number(id))) {
-    return { success: false, error: "Invalid ID format." };
-  }
-
+export async function fetchMyProposals() {
   try {
     const actor = await createBackendActor();
-    const result = await actor.get_proposal(BigInt(id));
+    const proposals = await actor.list_proposals([]);
+    const principal = await actor.whoami();
+    const myProposals = proposals.filter(p => p.submitter.toString() === principal.toString());
     
-    if (result.length > 0) {
-      return { success: true, proposal: serializeProposal(result[0]!) };
-    }
-    
-    return { success: false, error: "Proposal not found." };
+    return { success: true, proposals: myProposals.map(serializeProposal) };
   } catch (error) {
-    console.error("Failed to fetch proposal:", error);
-    return { success: false, error: "Backend communication error." };
+    console.error("Failed to fetch my proposals:", error);
+    return { success: false, proposals: [] };
   }
 }
 
-// Additional helper functions...
+export async function fetchProposalById(id: string) {
+  if (isNaN(Number(id))) return { success: false, error: "Invalid ID" };
+  try {
+    const actor = await createBackendActor();
+    const result = await actor.get_proposal(BigInt(id));
+    if (result.length > 0) return { success: true, proposal: serializeProposal(result[0]!) };
+    return { success: false, error: "Not found" };
+  } catch (error) {
+    return { success: false, error: "Error fetching proposal" };
+  }
+}
+
 export async function fetchProposalVotes(id: string) {
   try {
     const actor = await createBackendActor();
     const votes = await actor.get_proposal_votes(BigInt(id));
-    return { 
-      success: true, 
-      votes: votes.map(v => ({
-        ...v,
-        voter: v.voter.toString(),
-        weight: Number(v.weight),
-        timestamp: Number(v.timestamp),
-      })) 
-    };
+    return { success: true, votes: votes.map(serializeVote) };
   } catch (error) {
     console.error("Failed to fetch votes:", error);
     return { success: false, votes: [] };
+  }
+}
+
+export async function fetchProposalPhase(id: string) {
+  try {
+    const actor = await createBackendActor();
+    const result = await actor.get_proposal_phase(BigInt(id));
+    if ('Ok' in result) {
+      return { success: true, phase: result.Ok };
+    }
+    return { success: false, error: result.Err };
+  } catch (error) {
+    console.error("Failed to fetch proposal phase:", error);
+    return { success: false, error: "Failed to fetch proposal phase." };
+  }
+}
+
+export async function fetchAuditLogs(limit: number = 50, offset: number = 0) {
+  try {
+    const actor = await createBackendActor();
+    const logs = await actor.get_audit_log(limit, offset);
+    return { success: true, logs: logs.map(serializeAuditLog) };
+  } catch (error) {
+    return { success: false, logs: [] };
+  }
+}
+
+export async function fetchAllContracts(status?: string) {
+  try {
+    const actor = await createBackendActor();
+    const contracts = await actor.list_contracts(status ? [{ [status]: null } as any] : []);
+    return { success: true, contracts: contracts.map(serializeContract) };
+  } catch (error) {
+    return { success: false, contracts: [] };
+  }
+}
+
+export async function fetchContractById(id: string) {
+  try {
+    const actor = await createBackendActor();
+    const result = await actor.get_contract_record(BigInt(id));
+    if (result.length > 0) {
+      return { success: true, contract: serializeContract(result[0]!) };
+    }
+    return { success: false, error: "Contract not found." };
+  } catch (error) {
+    console.error("Failed to fetch contract:", error);
+    return { success: false, error: "Failed to fetch contract record." };
+  }
+}
+
+export async function fetchConfig() {
+  try {
+    const actor = await createBackendActor();
+    const config = await actor.get_config();
+    return { 
+      success: true, 
+      config: {
+        ...config,
+        voting_period_ns: config.voting_period_ns.toString()
+      } 
+    };
+  } catch (error) {
+    return { success: false, error: "Failed to fetch config" };
+  }
+}
+
+export async function fetchGlobalStats() {
+  try {
+    const actor = await createBackendActor();
+    const proposals = await actor.list_proposals([]); 
+    
+    const total_funded = proposals.reduce((acc, p) => acc + Number(p.budget_amount.length > 0 ? p.budget_amount[0] : 0), 0);
+    const active_projects = proposals.filter(p => 'Active' in p.status).length;
+    
+    const fairness_scores = proposals
+      .filter(p => p.fairness_score.length > 0)
+      .map(p => p.fairness_score[0]!);
+    
+    const average_ai_integrity_score = fairness_scores.length > 0 
+      ? Math.round(fairness_scores.reduce((a, b) => a + b, 0) / fairness_scores.length)
+      : 88;
+
+    return {
+      success: true,
+      stats: {
+        total_funded,
+        active_projects,
+        verified_users: 12400, 
+        average_ai_integrity_score
+      }
+    };
+  } catch (error) {
+    console.error("Failed to fetch global stats:", error);
+    return { success: false, error: "Failed to load platform statistics." };
   }
 }

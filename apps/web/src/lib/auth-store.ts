@@ -8,6 +8,8 @@ interface AuthUser {
   id: string;
   role: UserRole;
   reputation: number;
+  display_name?: string;
+  home_region?: string;
   kyc_status: 'pending' | 'verified' | 'unverified';
   geo_verified: boolean;
   detected_location?: { city: string; country: string };

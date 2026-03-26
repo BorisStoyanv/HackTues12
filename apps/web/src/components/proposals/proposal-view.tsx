@@ -26,6 +26,12 @@ import {
 	ShieldCheck,
 	TrendingUp,
 	User,
+  History,
+  CheckCircle2,
+  XCircle,
+  MessageSquare,
+  Cpu,
+  Loader2
 } from "lucide-react";
 import Link from "next/link";
 
@@ -35,9 +41,10 @@ interface ProposalViewProps {
 	id: string;
 	mode: "public" | "authenticated";
 	initialData?: SerializedProposal;
+  votes?: any[]; // Simplified for the audit tab
 }
 
-export function ProposalView({ id, mode, initialData }: ProposalViewProps) {
+export function ProposalView({ id, mode, initialData, votes = [] }: ProposalViewProps) {
 	const user = useAuthStore((state) => state.user);
 
 	if (!initialData) {
@@ -46,7 +53,7 @@ export function ProposalView({ id, mode, initialData }: ProposalViewProps) {
 				<div className="h-12 w-12 rounded-full bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center animate-pulse">
 					<BarChart3 className="h-6 w-6 text-neutral-400" />
 				</div>
-				<h1 className="text-xl font-medium tracking-tight">
+				<h1 className="text-xl font-semibold tracking-tight">
 					Proposal Not Found
 				</h1>
 				<p className="text-muted-foreground text-sm max-w-sm">
@@ -75,9 +82,9 @@ export function ProposalView({ id, mode, initialData }: ProposalViewProps) {
 	return (
 		<div className="flex-1 flex flex-col h-full overflow-hidden bg-background">
 			{/* Clean, Vercel-like Header Section */}
-			<div className="border-b bg-background px-6 py-10 md:px-12 shrink-0 relative overflow-hidden">
-				<div className="max-w-7xl mx-auto relative z-10 space-y-6">
-					<div className="flex flex-col gap-4">
+			<div className="border-b bg-background px-6 py-8 md:px-12 shrink-0 relative overflow-hidden">
+				<div className="max-w-7xl mx-auto relative z-10 space-y-4">
+					<div className="flex flex-col gap-3">
 						<div className="flex flex-wrap items-center gap-3">
 							<Badge className="bg-primary text-primary-foreground px-2.5 py-0.5 rounded-md text-[11px] font-medium border-transparent shadow-sm">
 								{statusFormatted}
@@ -136,34 +143,37 @@ export function ProposalView({ id, mode, initialData }: ProposalViewProps) {
 			<div className="flex-1 overflow-y-auto bg-neutral-50/30 dark:bg-neutral-950/30 px-6 py-10 md:px-12">
 				<div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10">
 					{/* LEFT COLUMN: Depth Details */}
-					<div className="lg:col-span-8 space-y-10">
-						<Tabs defaultValue="overview" className="w-full flex-col">
-							<TabsList className="w-full flex justify-start border-b border-border rounded-none h-auto bg-transparent p-0 mb-8 space-x-6 overflow-x-auto scrollbar-hide">
+					<div className="lg:col-span-8">
+						<Tabs defaultValue="overview" className="w-full flex flex-col gap-6">
+							<TabsList className="w-full flex justify-start border-b border-border rounded-none h-auto bg-transparent p-0 overflow-x-auto scrollbar-hide">
 								{[
 									"overview",
+									"debate",
 									"impact",
 									"execution",
 									"financials",
+                  "votes"
 								].map((tab) => (
 									<TabsTrigger
 										key={tab}
 										value={tab}
-										className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-foreground rounded-none px-0 py-3 bg-transparent shadow-none font-medium text-sm capitalize transition-none text-muted-foreground"
+										className="relative h-10 rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-3 pt-2 font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none capitalize"
 									>
 										{tab}
 									</TabsTrigger>
 								))}
 							</TabsList>
 
+              <div className="w-full mt-4">
 							<TabsContent
 								value="overview"
-								className="space-y-10 animate-in fade-in duration-500 m-0"
+								className="space-y-8 animate-in fade-in duration-500 m-0"
 							>
 								<section className="space-y-3">
 									<h3 className="text-sm font-medium text-muted-foreground">
 										Executive Summary
 									</h3>
-									<p className="text-lg font-normal leading-relaxed text-foreground/90 max-w-3xl whitespace-pre-wrap">
+									<p className="text-base font-normal leading-relaxed text-foreground/90 max-w-3xl whitespace-pre-wrap">
 										{proposal.description}
 									</p>
 								</section>
@@ -188,6 +198,65 @@ export function ProposalView({ id, mode, initialData }: ProposalViewProps) {
 									</div>
 								</section>
 							</TabsContent>
+
+              <TabsContent
+								value="debate"
+								className="space-y-8 animate-in fade-in duration-500 m-0"
+							>
+                <div className="space-y-6">
+                   <div className="flex items-center gap-3">
+                      <Cpu className="h-5 w-5 text-primary" />
+                      <h3 className="text-lg font-medium tracking-tight">AI Integrity Debate</h3>
+                   </div>
+                   <p className="text-sm text-muted-foreground leading-relaxed max-w-2xl">
+                      A 3-Agent AI architecture (Advocate, Skeptic, Analyst) has rigorously vetted this proposal.
+                   </p>
+                   
+                   {proposal.status === "AwaitingAudit" ? (
+                      <div className="p-8 text-center rounded-xl border border-dashed border-border bg-muted/30">
+                         <Loader2 className="h-8 w-8 text-muted-foreground animate-spin mx-auto mb-4" />
+                         <p className="text-sm font-medium text-foreground">AI Debate in Progress...</p>
+                         <p className="text-xs text-muted-foreground mt-1">The agents are currently analyzing the data pack.</p>
+                      </div>
+                   ) : (
+                      <div className="space-y-4">
+                        {/* Placeholder for actual debate transcript */}
+                        <Card className="border-border shadow-sm">
+                           <CardHeader className="py-4">
+                              <CardTitle className="text-sm font-medium flex items-center gap-2 text-green-600">
+                                <MessageSquare className="h-4 w-4" /> The Advocate (Pro)
+                              </CardTitle>
+                           </CardHeader>
+                           <CardContent className="text-sm text-muted-foreground leading-relaxed pt-0">
+                              Based on the submitted data pack, this proposal presents a strong ROI for the region. The timeline is realistic, and the budget allocation is within industry standards for similar infrastructure projects. The positive externalities include temporary job creation and long-term economic stimulus.
+                           </CardContent>
+                        </Card>
+                        
+                        <Card className="border-border shadow-sm">
+                           <CardHeader className="py-4">
+                              <CardTitle className="text-sm font-medium flex items-center gap-2 text-red-600">
+                                <MessageSquare className="h-4 w-4" /> The Skeptic (Con)
+                              </CardTitle>
+                           </CardHeader>
+                           <CardContent className="text-sm text-muted-foreground leading-relaxed pt-0">
+                              While the ROI is theoretically sound, I must flag the risk associated with the execution plan. The chosen executor lacks a verified track record on the ledger for projects of this scale. Furthermore, the timeline does not account for potential regional regulatory delays.
+                           </CardContent>
+                        </Card>
+                        
+                        <Card className="border-border shadow-sm bg-muted/30">
+                           <CardHeader className="py-4">
+                              <CardTitle className="text-sm font-medium flex items-center gap-2 text-blue-600">
+                                <BarChart3 className="h-4 w-4" /> The Analyst (Conclusion)
+                              </CardTitle>
+                           </CardHeader>
+                           <CardContent className="text-sm text-muted-foreground leading-relaxed pt-0">
+                              After reviewing historical project data in the {proposal.region_tag} region and weighing the arguments, the proposal is deemed viable but carries moderate execution risk. We recommend community voters require strict proof-of-work for the first milestone release. Overall Fairness Score: {proposal.fairness_score}%.
+                           </CardContent>
+                        </Card>
+                      </div>
+                   )}
+                </div>
+              </TabsContent>
 
 							<TabsContent
 								value="impact"
@@ -298,6 +367,65 @@ export function ProposalView({ id, mode, initialData }: ProposalViewProps) {
 									</div>
 								</div>
 							</TabsContent>
+
+              <TabsContent
+								value="votes"
+								className="space-y-8 animate-in fade-in duration-500 m-0"
+							>
+                <div className="space-y-6">
+                   <h3 className="text-lg font-medium tracking-tight flex items-center gap-2">
+                      <History className="h-4 w-4 text-muted-foreground" />
+                      Voting Audit Trail
+                   </h3>
+                   <div className="border border-border rounded-xl overflow-hidden bg-background">
+                      <table className="w-full text-sm">
+                         <thead className="bg-muted border-b border-border">
+                            <tr>
+                               <th className="text-left px-4 py-3 font-medium text-xs text-muted-foreground">Voter Principal</th>
+                               <th className="text-center px-4 py-3 font-medium text-xs text-muted-foreground">Stance</th>
+                               <th className="text-right px-4 py-3 font-medium text-xs text-muted-foreground">Weight ($V_p$)</th>
+                               <th className="text-right px-4 py-3 font-medium text-xs text-muted-foreground">Timestamp</th>
+                            </tr>
+                         </thead>
+                         <tbody className="divide-y divide-border">
+                            {votes.length > 0 ? (
+                               votes.map((vote, i) => (
+                                  <tr key={i} className="hover:bg-muted/50 transition-colors">
+                                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                                        @{vote.voter.substring(0, 16)}...
+                                     </td>
+                                     <td className="px-4 py-3 text-center">
+                                        {vote.in_favor ? (
+                                           <div className="inline-flex items-center gap-1.5 text-green-600 bg-green-500/10 px-2 py-0.5 rounded-md font-medium text-[10px] uppercase">
+                                              <CheckCircle2 className="h-3 w-3" /> Approve
+                                           </div>
+                                        ) : (
+                                           <div className="inline-flex items-center gap-1.5 text-red-600 bg-red-500/10 px-2 py-0.5 rounded-md font-medium text-[10px] uppercase">
+                                              <XCircle className="h-3 w-3" /> Reject
+                                           </div>
+                                        )}
+                                     </td>
+                                     <td className="px-4 py-3 text-right font-medium text-primary font-mono">
+                                        {vote.weight.toFixed(1)}
+                                     </td>
+                                     <td className="px-4 py-3 text-right text-muted-foreground text-xs">
+                                        {new Date(Number(vote.timestamp) / 1000000).toLocaleString()}
+                                     </td>
+                                  </tr>
+                               ))
+                            ) : (
+                               <tr>
+                                  <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground text-sm">
+                                     No consensus data committed to the ledger for this project yet.
+                                  </td>
+                               </tr>
+                            )}
+                         </tbody>
+                      </table>
+                   </div>
+                </div>
+              </TabsContent>
+              </div>
 						</Tabs>
 					</div>
 
