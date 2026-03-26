@@ -12,16 +12,19 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle2, ChevronRight, ChevronLeft, Building2, MapPin, FileText, Landmark, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LocationPicker } from "./location-picker";
 import { submitProposalClient } from "@/lib/api/client-mutations";
 import { useAuthStore } from "@/lib/auth-store";
+import { ProposalCategory } from "@/lib/types/api";
 
 const STEPS = [
   { id: "basic", title: "Basic Info", icon: Building2 },
   { id: "location", title: "Location Context", icon: MapPin },
   { id: "details", title: "Problem & Solution", icon: FileText },
+  { id: "execution", title: "Execution Plan", icon: CheckCircle2 },
   { id: "financials", title: "Financials", icon: Landmark },
 ];
 
@@ -31,17 +34,22 @@ export function ProposalWizard() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [direction, setDirection] = useState(1);
   
-  // In a real app, we get identity from a provider or auth store
-  // For now, this is a placeholder for the ICP Identity
-  const identity = null; 
+  const identity = useAuthStore((state) => state.identity);
 
   const form = useForm<ProposalFormValues>({
     resolver: zodResolver(proposalSchema),
     defaultValues: {
       title: "",
-      short_description: "",
-      problem_statement: "",
-      success_metric: "",
+      description: "",
+      region_tag: "",
+      category: "Infrastructure",
+      budget_amount: 0,
+      budget_currency: "USD",
+      budget_breakdown: "",
+      executor_name: "",
+      execution_plan: "",
+      timeline: "",
+      expected_impact: "",
       location: {
         city: "",
         country: "",
@@ -49,7 +57,6 @@ export function ProposalWizard() {
         lat: 0,
         lng: 0,
       },
-      funding_goal: 0,
     },
     mode: "onTouched",
   });
@@ -61,9 +68,11 @@ export function ProposalWizard() {
     const savedData = localStorage.getItem("proposal_draft");
     if (savedData) {
       try {
-        const parsed = JSON.parse(savedData);
+        const parsed = JSON.parse(savedData) as Partial<ProposalFormValues>;
         Object.entries(parsed).forEach(([key, value]) => {
-          setValue(key as keyof ProposalFormValues, value as any);
+          if (value !== undefined) {
+             setValue(key as keyof ProposalFormValues, value as any);
+          }
         });
       } catch (e) {
         console.error("Failed to parse saved proposal draft");
@@ -83,14 +92,16 @@ export function ProposalWizard() {
     
     switch (currentStep) {
       case 0:
-        fieldsToValidate = ["title", "short_description"];
+        fieldsToValidate = ["title", "category", "description"];
         break;
       case 1:
-        // Validate nested location fields
-        fieldsToValidate = ["location"];
+        fieldsToValidate = ["location", "region_tag"];
         break;
       case 2:
-        fieldsToValidate = ["problem_statement", "success_metric"];
+        fieldsToValidate = ["expected_impact"];
+        break;
+      case 3:
+        fieldsToValidate = ["executor_name", "execution_plan", "timeline"];
         break;
       default:
         break;
@@ -119,13 +130,22 @@ export function ProposalWizard() {
     setIsSubmitting(true);
     try {
       const result = await submitProposalClient(identity, {
-        ...data,
-        funding_goal: BigInt(data.funding_goal),
+        title: data.title,
+        description: data.description,
+        region_tag: data.region_tag,
+        category: { [data.category]: null } as any as ProposalCategory,
+        budget_amount: data.budget_amount,
+        budget_currency: data.budget_currency,
+        budget_breakdown: data.budget_breakdown,
+        executor_name: data.executor_name,
+        execution_plan: data.execution_plan,
+        timeline: data.timeline,
+        expected_impact: data.expected_impact,
       });
       
       console.log("Submitted Data:", result);
       localStorage.removeItem("proposal_draft");
-      router.push(`/proposals/${result.id}`);
+      router.push(`/dashboard/proposals/${result.id}`);
     } catch (error) {
       console.error(error);
       alert("Failed to submit proposal. Please check the console for details.");
@@ -192,12 +212,6 @@ export function ProposalWizard() {
               })}
             </div>
           </div>
-
-          <div className="hidden md:block p-4 bg-muted/50 rounded-lg border border-border/50">
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Your proposal will be stored on the Internet Computer blockchain. Ensure all details are accurate.
-            </p>
-          </div>
         </div>
       </div>
 
@@ -217,41 +231,59 @@ export function ProposalWizard() {
                     animate="center"
                     exit="exit"
                     transition={{ duration: 0.3, ease: "easeInOut" }}
-                    className="flex-1"
+                    className="flex-1 p-8"
                   >
-                    <CardHeader>
-                      <CardTitle>Basic Information</CardTitle>
-                      <CardDescription>
-                        Provide a clear, concise title and summary for your project.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
+                    <div className="space-y-6">
                       <div className="space-y-2">
                         <Label htmlFor="title">Proposal Title</Label>
                         <Input 
                           id="title" 
                           placeholder="e.g., Clean Water Initiative: Nairobi" 
                           {...register("title")} 
-                          className={errors.title ? "border-destructive focus-visible:ring-destructive" : ""}
+                          className={errors.title ? "border-destructive" : ""}
                         />
                         {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="short_description">Short Description</Label>
-                        <Textarea 
-                          id="short_description" 
-                          placeholder="Briefly describe what you aim to achieve... (max 200 characters)" 
-                          className={cn("resize-none h-24", errors.short_description ? "border-destructive focus-visible:ring-destructive" : "")}
-                          {...register("short_description")} 
+                        <Label htmlFor="category">Category</Label>
+                        <Controller
+                          name="category"
+                          control={control}
+                          render={({ field }) => (
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select Category" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Infrastructure">Infrastructure</SelectItem>
+                                <SelectItem value="Marketing">Marketing</SelectItem>
+                                <SelectItem value="Events">Events</SelectItem>
+                                <SelectItem value="Conservation">Conservation</SelectItem>
+                                <SelectItem value="Education">Education</SelectItem>
+                                <SelectItem value="Technology">Technology</SelectItem>
+                                <SelectItem value="Other">Other</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
                         />
-                        {errors.short_description && <p className="text-xs text-destructive">{errors.short_description.message}</p>}
                       </div>
-                    </CardContent>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="description">Executive Summary</Label>
+                        <Textarea 
+                          id="description" 
+                          placeholder="Provide a high-level summary of your project..." 
+                          className={cn("min-h-32", errors.description ? "border-destructive" : "")}
+                          {...register("description")} 
+                        />
+                        {errors.description && <p className="text-xs text-destructive">{errors.description.message}</p>}
+                      </div>
+                    </div>
                   </motion.div>
                 )}
 
-                {/* STEP 2: Location Context */}
+                {/* STEP 2: Location */}
                 {currentStep === 1 && (
                   <motion.div
                     key="step1"
@@ -261,34 +293,47 @@ export function ProposalWizard() {
                     animate="center"
                     exit="exit"
                     transition={{ duration: 0.3, ease: "easeInOut" }}
-                    className="flex-1"
+                    className="flex-1 p-8"
                   >
-                    <CardHeader>
-                      <CardTitle>Location Context</CardTitle>
-                      <CardDescription>
-                        Where will this project be executed? Accurate geographic data is critical.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <Controller
-                        name="location"
-                        control={control}
-                        render={({ field }) => (
-                          <LocationPicker 
-                            value={field.value} 
-                            onChange={(val) => {
-                               field.onChange(val);
-                               trigger("location");
-                            }}
-                            error={errors.location?.message || errors.location?.formatted_address?.message || errors.location?.lat?.message}
-                          />
-                        )}
-                      />
-                    </CardContent>
+                    <div className="space-y-6">
+                      <div className="space-y-2">
+                        <Label>Map Location</Label>
+                        <Controller
+                          name="location"
+                          control={control}
+                          render={({ field }) => (
+                            <LocationPicker 
+                              value={{
+                                formatted_address: field.value?.formatted_address || "",
+                                city: field.value?.city || "",
+                                country: field.value?.country || "",
+                                lat: field.value?.lat || 0,
+                                lng: field.value?.lng || 0
+                              }} 
+                              onChange={(val) => {
+                                 field.onChange(val);
+                                 setValue("region_tag", val.city || val.country || "Global");
+                                 trigger("location");
+                              }}
+                              error={errors.location?.message}
+                            />
+                          )}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="region_tag">Region Tag</Label>
+                        <Input 
+                          id="region_tag" 
+                          placeholder="e.g. Sofia, Bulgaria" 
+                          {...register("region_tag")} 
+                        />
+                        {errors.region_tag && <p className="text-xs text-destructive">{errors.region_tag.message}</p>}
+                      </div>
+                    </div>
                   </motion.div>
                 )}
 
-                {/* STEP 3: Details */}
+                {/* STEP 3: Impact */}
                 {currentStep === 2 && (
                   <motion.div
                     key="step2"
@@ -298,41 +343,24 @@ export function ProposalWizard() {
                     animate="center"
                     exit="exit"
                     transition={{ duration: 0.3, ease: "easeInOut" }}
-                    className="flex-1"
+                    className="flex-1 p-8"
                   >
-                    <CardHeader>
-                      <CardTitle>Problem & Success Metrics</CardTitle>
-                      <CardDescription>
-                        Detail the exact problem this project solves and how success will be measured.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
+                    <div className="space-y-6">
                       <div className="space-y-2">
-                        <Label htmlFor="problem_statement">Problem Statement</Label>
+                        <Label htmlFor="expected_impact">Expected Impact</Label>
                         <Textarea 
-                          id="problem_statement" 
-                          placeholder="Detail the exact problem this project solves..." 
-                          className={cn("min-h-32", errors.problem_statement ? "border-destructive focus-visible:ring-destructive" : "")}
-                          {...register("problem_statement")} 
+                          id="expected_impact" 
+                          placeholder="Detail the measurable positive outcomes..." 
+                          className={cn("min-h-48", errors.expected_impact ? "border-destructive" : "")}
+                          {...register("expected_impact")} 
                         />
-                        {errors.problem_statement && <p className="text-xs text-destructive">{errors.problem_statement.message}</p>}
+                        {errors.expected_impact && <p className="text-xs text-destructive">{errors.expected_impact.message}</p>}
                       </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="success_metric">Measurable Success Metrics</Label>
-                        <Textarea 
-                          id="success_metric" 
-                          placeholder="e.g., Provide clean water access to 5,000 residents..." 
-                          className={cn("min-h-24", errors.success_metric ? "border-destructive focus-visible:ring-destructive" : "")}
-                          {...register("success_metric")} 
-                        />
-                        {errors.success_metric && <p className="text-xs text-destructive">{errors.success_metric.message}</p>}
-                      </div>
-                    </CardContent>
+                    </div>
                   </motion.div>
                 )}
 
-                {/* STEP 4: Financials */}
+                {/* STEP 4: Execution */}
                 {currentStep === 3 && (
                   <motion.div
                     key="step3"
@@ -342,46 +370,67 @@ export function ProposalWizard() {
                     animate="center"
                     exit="exit"
                     transition={{ duration: 0.3, ease: "easeInOut" }}
-                    className="flex-1"
+                    className="flex-1 p-8"
                   >
-                    <CardHeader>
-                      <CardTitle>Financials & Submission</CardTitle>
-                      <CardDescription>
-                        Define the required capital. Funds are held in escrow and released per milestone.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
+                    <div className="space-y-6">
                       <div className="space-y-2">
-                        <Label htmlFor="funding_goal">Funding Goal (USD)</Label>
+                        <Label htmlFor="executor_name">Executor Entity Name</Label>
+                        <Input id="executor_name" placeholder="Name of organization or lead..." {...register("executor_name")} />
+                        {errors.executor_name && <p className="text-xs text-destructive">{errors.executor_name.message}</p>}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="execution_plan">Execution Plan</Label>
+                        <Textarea id="execution_plan" placeholder="Step-by-step implementation guide..." className="min-h-32" {...register("execution_plan")} />
+                        {errors.execution_plan && <p className="text-xs text-destructive">{errors.execution_plan.message}</p>}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="timeline">Timeline</Label>
+                        <Input id="timeline" placeholder="e.g. 6 months, 1 year..." {...register("timeline")} />
+                        {errors.timeline && <p className="text-xs text-destructive">{errors.timeline.message}</p>}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* STEP 5: Financials */}
+                {currentStep === 4 && (
+                  <motion.div
+                    key="step4"
+                    custom={direction}
+                    variants={variants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                    className="flex-1 p-8"
+                  >
+                    <div className="space-y-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="budget_amount">Funding Goal (USD)</Label>
                         <div className="relative">
                           <span className="absolute left-3 top-2.5 text-muted-foreground">$</span>
                           <Input 
-                            id="funding_goal" 
+                            id="budget_amount" 
                             type="number"
                             placeholder="0.00" 
-                            className={cn("pl-7", errors.funding_goal ? "border-destructive focus-visible:ring-destructive" : "")}
-                            {...register("funding_goal", { valueAsNumber: true })} 
+                            className="pl-7"
+                            {...register("budget_amount", { valueAsNumber: true })} 
                           />
                         </div>
-                        {errors.funding_goal && <p className="text-xs text-destructive">{errors.funding_goal.message}</p>}
+                        {errors.budget_amount && <p className="text-xs text-destructive">{errors.budget_amount.message}</p>}
                       </div>
-                      
-                      <div className="mt-8 p-4 bg-primary/5 border border-primary/20 rounded-lg text-sm text-foreground space-y-2">
-                        <h4 className="font-semibold flex items-center gap-2">
-                          <ShieldCheck className="w-4 h-4 text-primary" /> Integrity Agreement
-                        </h4>
-                        <p className="text-muted-foreground text-xs leading-relaxed">
-                          By submitting this proposal, you agree to OpenFairTrip's transparent ledger policies. 
-                          Any fraudulent reporting will severely impact your cryptographic reputation score ($V_p$).
-                        </p>
+                      <div className="space-y-2">
+                        <Label htmlFor="budget_breakdown">Budget Breakdown</Label>
+                        <Textarea id="budget_breakdown" placeholder="Explain where the funds go..." className="min-h-32" {...register("budget_breakdown")} />
+                        {errors.budget_breakdown && <p className="text-xs text-destructive">{errors.budget_breakdown.message}</p>}
                       </div>
-                    </CardContent>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
 
-            <CardFooter className="flex justify-between border-t pt-6 pb-6 mt-auto">
+            <CardFooter className="flex justify-between border-t p-6 mt-auto">
               <Button
                 type="button"
                 variant="outline"
