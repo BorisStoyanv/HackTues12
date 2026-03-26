@@ -10,6 +10,8 @@ const MODELS = {
 };
 
 const ROUND_COUNT = 3;
+const REPETITION_SIMILARITY_THRESHOLD = 0.68;
+const MAX_CARRYOVER_ITEMS = 6;
 export const DEBATE_MODELS = MODELS;
 export const DEBATE_ROUND_COUNT = ROUND_COUNT;
 
@@ -120,16 +122,129 @@ async function callModelForJson({
   throw new Error("Unreachable JSON parse path");
 }
 
-async function generateAdvocateStatement({ proposalText, evidenceText, historyText, round }) {
+function splitSentences(text) {
+  return String(text || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(/[.!?]\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+}
+
+function looksConcreteClaim(sentence) {
+  return /\d|€|\$|%|pageview|visitor|fund|budget|roi|cost|year|daily|million/i.test(sentence);
+}
+
+function extractConcreteClaims(rounds) {
+  const claims = [];
+
+  for (const round of rounds) {
+    for (const [speaker, statement] of [
+      ["advocate", round.advocateStatement],
+      ["skeptic", round.skepticStatement],
+    ]) {
+      const sentences = splitSentences(statement);
+      const concrete = sentences.find(looksConcreteClaim) || sentences[0];
+
+      if (concrete) {
+        claims.push(`Round ${round.round} ${speaker}: ${concrete}`);
+      }
+    }
+  }
+
+  return claims.slice(-MAX_CARRYOVER_ITEMS);
+}
+
+function extractUnresolvedJudgePoints(rounds) {
+  return rounds
+    .slice(-MAX_CARRYOVER_ITEMS)
+    .map((round) => `Round ${round.round}: ${round.rationale}`);
+}
+
+function formatNumberedList(items, fallback) {
+  if (!items.length) {
+    return fallback;
+  }
+
+  return items.map((item, index) => `${index + 1}. ${item}`).join("\n");
+}
+
+function normalizeSimilarityTokens(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3);
+}
+
+function jaccardSimilarity(aTokens, bTokens) {
+  if (!aTokens.length || !bTokens.length) {
+    return 0;
+  }
+
+  const aSet = new Set(aTokens);
+  const bSet = new Set(bTokens);
+  let overlap = 0;
+
+  for (const token of aSet) {
+    if (bSet.has(token)) {
+      overlap += 1;
+    }
+  }
+
+  const union = aSet.size + bSet.size - overlap;
+  if (!union) {
+    return 0;
+  }
+
+  return overlap / union;
+}
+
+function maxSimilarityWithHistory(statement, previousStatements) {
+  const candidateTokens = normalizeSimilarityTokens(statement);
+
+  return previousStatements.reduce((max, previous) => {
+    const similarity = jaccardSimilarity(candidateTokens, normalizeSimilarityTokens(previous));
+    return Math.max(max, similarity);
+  }, 0);
+}
+
+async function generateDebaterStatement({
+  speaker,
+  proposalText,
+  evidenceText,
+  historyText,
+  round,
+  concreteClaims,
+  unresolvedJudgePoints,
+  opponentCurrentRoundStatement,
+  retryInstruction,
+}) {
+  const isAdvocate = speaker === "advocate";
+  const roleTitle = isAdvocate ? "ADVOCATE" : "SKEPTIC";
+  const stanceGoal = isAdvocate
+    ? "argue for funding the proposal"
+    : "argue against funding the proposal";
+  const finalAction = isAdvocate ? "supporting funding" : "opposing funding";
+
   const systemPrompt = [
-    "You are the ADVOCATE in a public-funding debate.",
-    "Your goal is to argue for funding the proposal.",
+    `You are the ${roleTitle} in a public-funding debate.`,
+    `Your goal is to ${stanceGoal}.`,
     "Use concrete facts from proposal details, internet evidence, and prior debate context.",
-    "Respond with one concise statement only (max 140 words, no bullets).",
+    round > 1
+      ? "For rounds 2 and 3, you must explicitly reference one concrete prior-round claim and one unresolved judge concern."
+      : "For round 1, establish at least one concrete claim that can be challenged later.",
+    opponentCurrentRoundStatement
+      ? "You are speaking second this round. Directly rebut at least one claim from the current-round opponent statement."
+      : "You are speaking first this round. Anticipate and pre-empt the strongest likely counterpoint.",
+    "Respond with exactly one concise statement only (max 170 words, no bullets).",
   ].join(" ");
 
   const userPrompt = [
     `Round: ${round} of ${ROUND_COUNT}`,
+    `Role: ${roleTitle}`,
+    "",
     "Proposal:",
     proposalText,
     "",
@@ -139,47 +254,90 @@ async function generateAdvocateStatement({ proposalText, evidenceText, historyTe
     "Previous rounds:",
     historyText,
     "",
-    "Write exactly one strong statement supporting funding.",
-  ].join("\n");
+    "Concrete claims from prior rounds:",
+    formatNumberedList(concreteClaims, "No prior rounds yet."),
+    "",
+    "Unresolved judge points:",
+    formatNumberedList(unresolvedJudgePoints, "No judge concerns yet."),
+    "",
+    opponentCurrentRoundStatement
+      ? `Current-round opponent statement to rebut: ${opponentCurrentRoundStatement}`
+      : "Current-round opponent statement to rebut: none yet.",
+    "",
+    round > 1
+      ? "Mandatory: reference at least one concrete prior-round claim and one unresolved judge point."
+      : "Mandatory: provide at least one concrete claim rooted in proposal or evidence.",
+    `Write exactly one strong statement ${finalAction}.`,
+    retryInstruction ? `Revision requirement: ${retryInstruction}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   return callOpenRouter({
-    model: MODELS.advocate,
+    model: isAdvocate ? MODELS.advocate : MODELS.skeptic,
     systemPrompt,
     userPrompt,
     temperature: 0.5,
-    maxTokens: 220,
+    maxTokens: 260,
   });
 }
 
-async function generateSkepticStatement({ proposalText, evidenceText, historyText, round }) {
-  const systemPrompt = [
-    "You are the SKEPTIC in a public-funding debate.",
-    "Your goal is to argue against funding the proposal.",
-    "Use concrete concerns from proposal details, internet evidence, and prior debate context.",
-    "Respond with one concise statement only (max 140 words, no bullets).",
-  ].join(" ");
+async function generateDebaterStatementWithRetry({
+  speaker,
+  proposalText,
+  evidenceText,
+  historyText,
+  round,
+  rounds,
+  concreteClaims,
+  unresolvedJudgePoints,
+  opponentCurrentRoundStatement,
+}) {
+  const previousStatements = rounds
+    .map((entry) => (speaker === "advocate" ? entry.advocateStatement : entry.skepticStatement))
+    .filter(Boolean);
 
-  const userPrompt = [
-    `Round: ${round} of ${ROUND_COUNT}`,
-    "Proposal:",
-    proposalText,
-    "",
-    "Internet evidence:",
-    evidenceText,
-    "",
-    "Previous rounds:",
-    historyText,
-    "",
-    "Write exactly one strong statement opposing funding.",
-  ].join("\n");
+  const firstAttempt = cleanStatement(
+    await generateDebaterStatement({
+      speaker,
+      proposalText,
+      evidenceText,
+      historyText,
+      round,
+      concreteClaims,
+      unresolvedJudgePoints,
+      opponentCurrentRoundStatement,
+      retryInstruction: "",
+    })
+  );
 
-  return callOpenRouter({
-    model: MODELS.skeptic,
-    systemPrompt,
-    userPrompt,
-    temperature: 0.5,
-    maxTokens: 220,
-  });
+  if (!previousStatements.length) {
+    return firstAttempt;
+  }
+
+  const firstSimilarity = maxSimilarityWithHistory(firstAttempt, previousStatements);
+  if (firstSimilarity < REPETITION_SIMILARITY_THRESHOLD) {
+    return firstAttempt;
+  }
+
+  const secondAttempt = cleanStatement(
+    await generateDebaterStatement({
+      speaker,
+      proposalText,
+      evidenceText,
+      historyText,
+      round,
+      concreteClaims,
+      unresolvedJudgePoints,
+      opponentCurrentRoundStatement,
+      retryInstruction: opponentCurrentRoundStatement
+        ? "Your previous draft repeated prior phrasing. Use a clearly different angle and directly rebut one specific claim from the current-round opponent statement."
+        : "Your previous draft repeated prior phrasing. Use a clearly different angle and pre-empt a likely counterargument without reusing prior sentence structures.",
+    })
+  );
+
+  const secondSimilarity = maxSimilarityWithHistory(secondAttempt, previousStatements);
+  return secondSimilarity <= firstSimilarity ? secondAttempt : firstAttempt;
 }
 
 const roundJudgmentSchema = z.object({
@@ -372,31 +530,74 @@ export async function runProposalDebate(proposal, hooks = {}) {
   const rounds = [];
 
   for (let round = 1; round <= ROUND_COUNT; round += 1) {
+    const speakingOrder = round % 2 === 1 ? ["advocate", "skeptic"] : ["skeptic", "advocate"];
+
     await onProgress({
       type: "round_started",
       round,
+      speakingOrder,
     });
     ensureContinue();
 
     const historyText = formatHistory(rounds);
+    const concreteClaims = extractConcreteClaims(rounds);
+    const unresolvedJudgePoints = extractUnresolvedJudgePoints(rounds);
 
-    const [advocateRaw, skepticRaw] = await Promise.all([
-      generateAdvocateStatement({
+    let advocateStatement = "";
+    let skepticStatement = "";
+
+    if (speakingOrder[0] === "advocate") {
+      advocateStatement = await generateDebaterStatementWithRetry({
+        speaker: "advocate",
         proposalText,
         evidenceText,
         historyText,
         round,
-      }),
-      generateSkepticStatement({
+        rounds,
+        concreteClaims,
+        unresolvedJudgePoints,
+        opponentCurrentRoundStatement: "",
+      });
+      ensureContinue();
+
+      skepticStatement = await generateDebaterStatementWithRetry({
+        speaker: "skeptic",
         proposalText,
         evidenceText,
         historyText,
         round,
-      }),
-    ]);
+        rounds,
+        concreteClaims,
+        unresolvedJudgePoints,
+        opponentCurrentRoundStatement: advocateStatement,
+      });
+    } else {
+      skepticStatement = await generateDebaterStatementWithRetry({
+        speaker: "skeptic",
+        proposalText,
+        evidenceText,
+        historyText,
+        round,
+        rounds,
+        concreteClaims,
+        unresolvedJudgePoints,
+        opponentCurrentRoundStatement: "",
+      });
+      ensureContinue();
 
-    const advocateStatement = cleanStatement(advocateRaw);
-    const skepticStatement = cleanStatement(skepticRaw);
+      advocateStatement = await generateDebaterStatementWithRetry({
+        speaker: "advocate",
+        proposalText,
+        evidenceText,
+        historyText,
+        round,
+        rounds,
+        concreteClaims,
+        unresolvedJudgePoints,
+        opponentCurrentRoundStatement: skepticStatement,
+      });
+    }
+
     await onProgress({
       type: "round_statements",
       round,
