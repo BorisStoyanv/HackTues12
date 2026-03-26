@@ -1,18 +1,33 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import VotePage from "@/app/proposals/[id]/vote/page";
+import { ProposalVoteView } from "@/components/proposals/proposal-vote-view";
+import { fetchProposalById, SerializedProposal } from "@/lib/actions/proposals";
+import { useEffect, useState } from "react";
 
 export default function DashboardVotePage() {
   const { id } = useParams();
   const router = useRouter();
+  const [proposal, setProposal] = useState<SerializedProposal | undefined>(undefined);
+
+  useEffect(() => {
+    if (typeof id === "string") {
+      fetchProposalById(id).then(res => {
+        if (res.success) setProposal(res.proposal);
+      });
+    }
+  }, [id]);
 
   if (typeof id !== "string") return null;
 
-  // We can wrap the existing VotePage or create a shared component.
-  // For now, since the existing VotePage is already "use client" and standalone,
-  // we can either redirect or import its content.
-  // Actually, VotePage has its own header. I should make it a shared component if I want it nested perfectly.
-  
-  return <VotePage />;
+  return (
+    <div className="h-full overflow-auto">
+      <ProposalVoteView 
+        id={id} 
+        mode="authenticated" 
+        initialData={proposal}
+        onBack={() => router.push(`/dashboard/proposals/${id}`)} 
+      />
+    </div>
+  );
 }

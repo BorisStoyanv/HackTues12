@@ -22,11 +22,7 @@ function AuthStateSync({ children }: { children: React.ReactNode }) {
 
 export function AuthInitializer({ children }: { children: React.ReactNode }) {
   return (
-    <InternetIdentityProvider
-      loginOptions={{
-        identityProvider: process.env.NEXT_PUBLIC_II_URL || "https://identity.ic0.app",
-      }}
-    >
+    <InternetIdentityProvider>
       <AuthStateSync>{children}</AuthStateSync>
     </InternetIdentityProvider>
   );
