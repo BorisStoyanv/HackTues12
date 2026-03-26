@@ -1,0 +1,232 @@
+type UserType = variant { User; InvestorUser };
+
+type UserProfile = record {
+  display_name : text;
+  user_type : UserType;
+  reputation : float64;
+  home_region : opt text;
+  created_at : nat64;
+  updated_at : nat64;
+  last_activity_ts : nat64;
+  activity_count : nat32;
+  vote_count : nat32;
+  is_local_verified : bool;
+  has_expert_standing : bool;
+  concluded_votes : nat32;
+  accurate_votes : nat32;
+  is_verified : opt bool;
+};
+
+type CreateProfileInput = record {
+  display_name : text;
+  user_type : UserType;
+  home_region : opt text;
+};
+
+type UpdateProfileInput = record {
+  display_name : text;
+  home_region : opt text;
+};
+
+type ProposalStatus = variant {
+  Active;
+  QuorumNotMet;
+  Rejected;
+  AwaitingFunding;
+  Backed;
+};
+
+type ProposalCategory = variant {
+  Infrastructure;
+  Marketing;
+  Events;
+  Conservation;
+  Education;
+  Technology;
+  Other;
+};
+
+type Proposal = record {
+  id : nat64;
+  submitter : principal;
+  region_tag : text;
+  title : text;
+  description : text;
+  category : opt ProposalCategory;
+  budget_amount : opt float64;
+  budget_currency : opt text;
+  budget_breakdown : opt text;
+  executor_name : opt text;
+  execution_plan : opt text;
+  timeline : opt text;
+  expected_impact : opt text;
+  fairness_score : opt float64;
+  risk_flags : vec text;
+  backed_by : opt principal;
+  backed_at : opt nat64;
+  status : ProposalStatus;
+  created_at : nat64;
+  voting_ends_at : nat64;
+  yes_weight : float64;
+  no_weight : float64;
+  voter_count : nat32;
+};
+
+type SubmitProposalInput = record {
+  title : text;
+  description : text;
+  region_tag : text;
+  category : ProposalCategory;
+  budget_amount : float64;
+  budget_currency : text;
+  budget_breakdown : text;
+  executor_name : text;
+  execution_plan : text;
+  timeline : text;
+  expected_impact : text;
+};
+
+type Vote = record {
+  voter : principal;
+  proposal_id : nat64;
+  in_favor : bool;
+  weight : float64;
+  timestamp : nat64;
+};
+
+type AuditEventType = variant {
+  UserRegistered;
+  InvestorVerified;
+  ProposalSubmitted;
+  VoteCast;
+  ProposalFinalized;
+  ProposalBacked;
+  ReputationAwarded;
+  ReputationPenalized;
+  ContractCreated;
+  InvestorContractAcked;
+  CompanyContractAcked;
+  ExternalSignatureRecorded;
+};
+
+type AuditEvent = record {
+  id : nat64;
+  timestamp : nat64;
+  actor : principal;
+  event_type : AuditEventType;
+  proposal_id : opt nat64;
+  payload : text;
+};
+
+type Config = record {
+  voting_period_ns : nat64;
+  quorum_percent : float64;
+  quorum_min_region_size : nat32;
+  majority_threshold : float64;
+  absolute_majority : float64;
+};
+
+type ContractStatus = variant {
+  Draft;
+  PendingSignatures;
+  Signed;
+  Rejected;
+  Expired;
+};
+
+type SignatureMode = variant {
+  OnChainAck;
+  ExternalQualifiedSignature;
+};
+
+type ContractParty = record {
+  legal_name : text;
+  registration_id : text;
+  representative_name : text;
+  representative_principal : opt principal;
+};
+
+type ContractRecord = record {
+  proposal_id : nat64;
+  created_by : principal;
+  investor_principal : principal;
+  company : ContractParty;
+  document_hash : text;
+  document_uri : text;
+  milestone_hash : opt text;
+  signature_mode : SignatureMode;
+  external_provider : opt text;
+  external_envelope_id : opt text;
+  investor_ack_at : opt nat64;
+  company_ack_at : opt nat64;
+  external_signed_at : opt nat64;
+  status : ContractStatus;
+  created_at : nat64;
+  updated_at : nat64;
+};
+
+type CreateContractInput = record {
+  company_legal_name : text;
+  company_registration_id : text;
+  company_representative_name : text;
+  company_representative_principal : opt principal;
+  document_hash : text;
+  document_uri : text;
+  milestone_hash : opt text;
+  signature_mode : SignatureMode;
+  external_provider : opt text;
+};
+
+type ExternalSignatureUpdateInput = record {
+  external_envelope_id : text;
+  signed : bool;
+};
+
+type ProposalPhase = record {
+  proposal_id : nat64;
+  proposal_status : ProposalStatus;
+  contract_status : opt ContractStatus;
+  phase_label : text;
+};
+
+type Result_1 = variant { Ok : UserProfile; Err : text };
+type Result_2 = variant { Ok : Proposal; Err : text };
+type Result_3 = variant { Ok : Vote; Err : text };
+type Result_4 = variant { Ok : float64; Err : text };
+type Result_5 = variant { Ok; Err : text };
+type Result_6 = variant { Ok : ContractRecord; Err : text };
+type Result_7 = variant { Ok : ProposalPhase; Err : text };
+
+service : {
+  create_my_profile : (CreateProfileInput) -> (Result_1);
+  update_my_profile : (UpdateProfileInput) -> (Result_1);
+  get_user : (principal) -> (opt UserProfile) query;
+  get_my_profile : () -> (opt UserProfile) query;
+  whoami : () -> (principal) query;
+
+  request_verification : () -> (Result_5);
+  admin_verify_investor : (principal) -> (Result_5);
+
+  submit_proposal : (SubmitProposalInput) -> (Result_2);
+  get_proposal : (nat64) -> (opt Proposal) query;
+  list_proposals : (opt ProposalStatus) -> (vec Proposal) query;
+
+  cast_vote : (nat64, bool) -> (Result_3);
+  get_proposal_votes : (nat64) -> (vec Vote) query;
+
+  finalize_proposal : (nat64) -> (Result_2);
+  back_proposal : (nat64) -> (Result_2);
+
+  create_contract_record : (nat64, CreateContractInput) -> (Result_6);
+  investor_ack_contract : (nat64) -> (Result_6);
+  company_ack_contract : (nat64) -> (Result_6);
+  record_external_signature_status : (nat64, ExternalSignatureUpdateInput) -> (Result_6);
+  get_contract_record : (nat64) -> (opt ContractRecord) query;
+  list_contracts : (opt ContractStatus) -> (vec ContractRecord) query;
+  get_proposal_phase : (nat64) -> (Result_7) query;
+
+  get_audit_log : (nat32, nat32) -> (vec AuditEvent) query;
+  get_my_vp : (text) -> (Result_4) query;
+  get_region_total_vp : (text) -> (float64) query;
+  get_config : () -> (Config) query;
+}

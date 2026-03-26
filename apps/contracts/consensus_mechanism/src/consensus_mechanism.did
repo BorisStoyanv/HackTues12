@@ -1,0 +1,197 @@
+type UserType = variant { Community; Investor };
+
+type UserProfile = record {
+  user_type : UserType;
+  reputation : float64;
+  home_region : opt text;
+  last_activity_ts : nat64;
+  activity_count : nat32;
+  vote_count : nat32;
+  is_local_verified : bool;
+  has_expert_standing : bool;
+  concluded_votes : nat32;
+  accurate_votes : nat32;
+};
+
+type ProposalKind = variant { OpenFunding; ProgramAllocation };
+
+type ProposalStatus = variant {
+  Active;
+  QuorumNotMet;
+  Rejected;
+  AwaitingFunding;
+  Backed;
+};
+
+type EscrowState = variant { Held; Released; Refunded };
+
+type EscrowAgreement = record {
+  funder : principal;
+  beneficiary : principal;
+  amount_e8s : nat64;
+  transfer_fee_e8s : nat64;
+  escrow_subaccount_hex : text;
+  deposit_block_index : nat64;
+  state : EscrowState;
+  deposit_reference : opt text;
+  release_reference : opt text;
+  refund_reference : opt text;
+  deposited_at : nat64;
+  released_at : opt nat64;
+  refunded_at : opt nat64;
+  release_block_index : opt nat64;
+  refund_block_index : opt nat64;
+};
+
+type EscrowAccountView = record {
+  proposal_id : nat64;
+  ledger_canister_id : principal;
+  account_owner : principal;
+  subaccount_hex : text;
+  account_id_hex : text;
+  requested_amount_e8s : nat64;
+  suggested_transfer_fee_e8s : nat64;
+  suggested_deposit_e8s : nat64;
+};
+
+type Proposal = record {
+  id : nat64;
+  kind : ProposalKind;
+  submitter : principal;
+  beneficiary : principal;
+  region_tag : text;
+  title : text;
+  description : text;
+  budget_description : text;
+  requested_funding_e8s : nat64;
+  fairness_score : opt float64;
+  risk_flags : vec text;
+  funding_program_id : opt nat64;
+  backed_by : opt principal;
+  backed_at : opt nat64;
+  status : ProposalStatus;
+  created_at : nat64;
+  voting_ends_at : nat64;
+  yes_weight : float64;
+  no_weight : float64;
+  voter_count : nat32;
+  escrow : opt EscrowAgreement;
+};
+
+type Vote = record {
+  proposal_id : nat64;
+  voter : principal;
+  in_favor : bool;
+  weight : float64;
+  timestamp : nat64;
+};
+
+type AuditEventType = variant {
+  UserRegistered;
+  AttributeVerified;
+  ProposalSubmitted;
+  AiScoreIngested;
+  VoteCast;
+  ProposalFinalized;
+  ProposalBacked;
+  EscrowReleased;
+  EscrowRefunded;
+  ReputationAwarded;
+  ReputationPenalized;
+};
+
+type AuditEvent = record {
+  id : nat64;
+  timestamp : nat64;
+  actor : principal;
+  event_type : AuditEventType;
+  proposal_id : opt nat64;
+  payload : text;
+};
+
+type CanisterSettings = record {
+  controller : principal;
+  ledger_canister_id : principal;
+  quorum_basis_points : nat16;
+  approval_basis_points : nat16;
+  active_window_ns : nat64;
+  voting_window_ns : nat64;
+  small_region_cutoff : nat32;
+  small_region_min_votes : nat32;
+};
+
+type RegisterUserInput = record {
+  user_type : UserType;
+  home_region : opt text;
+};
+
+type SubmitProposalInput = record {
+  title : text;
+  description : text;
+  budget_description : text;
+  region_tag : text;
+  beneficiary : principal;
+  requested_funding_e8s : nat64;
+};
+
+type VoteInput = record {
+  proposal_id : nat64;
+  in_favor : bool;
+};
+
+type FundProposalInput = record {
+  proposal_id : nat64;
+  amount_e8s : nat64;
+  deposit_block_index : opt nat64;
+  deposit_reference : opt text;
+};
+
+type EscrowResolutionInput = record {
+  proposal_id : nat64;
+  reference : opt text;
+};
+
+type AiReviewInput = record {
+  proposal_id : nat64;
+  fairness_score : opt float64;
+  risk_flags : vec text;
+};
+
+type VerificationInput = record {
+  user_principal : principal;
+  is_local_verified : bool;
+  has_expert_standing : bool;
+};
+
+type UpdateSettingsInput = record {
+  ledger_canister_id : opt principal;
+  quorum_basis_points : opt nat16;
+  approval_basis_points : opt nat16;
+  active_window_ns : opt nat64;
+  voting_window_ns : opt nat64;
+  small_region_cutoff : opt nat32;
+  small_region_min_votes : opt nat32;
+};
+
+service : {
+  register_user : (RegisterUserInput) -> (variant { Ok : UserProfile; Err : text });
+  set_user_verification : (VerificationInput) -> (variant { Ok : UserProfile; Err : text });
+  submit_proposal : (SubmitProposalInput) -> (variant { Ok : Proposal; Err : text });
+  submit_vote : (VoteInput) -> (variant { Ok : Proposal; Err : text });
+  finalize_proposal : (nat64) -> (variant { Ok : Proposal; Err : text });
+  fund_proposal : (FundProposalInput) -> (variant { Ok : Proposal; Err : text });
+  release_escrow : (EscrowResolutionInput) -> (variant { Ok : Proposal; Err : text });
+  refund_escrow : (EscrowResolutionInput) -> (variant { Ok : Proposal; Err : text });
+  ingest_ai_review : (AiReviewInput) -> (variant { Ok : Proposal; Err : text });
+  update_settings : (UpdateSettingsInput) -> (variant { Ok : CanisterSettings; Err : text });
+  get_settings_view : () -> (CanisterSettings) query;
+  get_proposal_escrow_account : (nat64) -> (variant { Ok : EscrowAccountView; Err : text }) query;
+  get_my_profile : () -> (opt UserProfile) query;
+  get_user : (principal) -> (opt UserProfile) query;
+  get_proposal_view : (nat64) -> (opt Proposal) query;
+  list_proposals : () -> (vec Proposal) query;
+  list_votes : (nat64) -> (vec Vote) query;
+  list_audit_events : (opt nat64) -> (vec AuditEvent) query;
+  get_quorum_snapshot : (text) -> (nat32) query;
+  __get_candid_interface_tmp_hack : () -> (text) query;
+}

@@ -2,7 +2,7 @@
 
 # dependencies
 node_modules/
-/.pnp
+.pnp
 .pnp.js
 .yarn/install-state.gz
 
@@ -12,8 +12,6 @@ coverage/
 # next.js
 .next/
 out/
-
-# production
 build/
 dist/
 
@@ -37,6 +35,12 @@ pnpm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ICP / Dfinity Canisters
+.dfx/
+.azle/
+build_env.txt
+canister_ids.json
 
 # Hardhat
 cache/
