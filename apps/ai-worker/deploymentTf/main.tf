@@ -74,3 +74,19 @@ resource "google_compute_firewall" "allow_app" {
     ports    = [tostring(var.app_port)]
   }
 }
+
+resource "google_compute_firewall" "allow_web" {
+  count = var.allow_http_https ? 1 : 0
+
+  name          = "${var.instance_name}-allow-web"
+  network       = var.network
+  direction     = "INGRESS"
+  priority      = 1000
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = var.tags
+
+  allow {
+    protocol = "tcp"
+    ports    = ["80", "443"]
+  }
+}
