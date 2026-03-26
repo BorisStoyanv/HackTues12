@@ -10,37 +10,45 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { useAuthStore } from "@/lib/auth-store";
+import { useInternetIdentity } from "ic-use-internet-identity";
 import { Landmark, Mail, Link as LinkIcon, Code } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function LoginPage() {
 	const router = useRouter();
-	const login = useAuthStore((state) => state.login);
+	const { login: iiLogin, isLoggingIn, status } = useInternetIdentity();
 	const [isLoading, setIsLoading] = useState<string | null>(null);
 
+	// Redirect when login is successful
+	useEffect(() => {
+		if (status === "success") {
+			console.log("[Login] Success detected, redirecting...");
+			router.push("/onboarding/role");
+		}
+	}, [status, router]);
+
 	const handleLogin = async (provider: string) => {
-		console.log(`Initiating login for ${provider}...`);
+		if (provider !== "internet-identity") {
+			alert(`${provider} login is coming soon. Please use Internet Identity.`);
+			return;
+		}
+
+		console.log(`[Login] Initiating II flow on origin: ${window.location.origin}`);
 		setIsLoading(provider);
+		
 		try {
-			if (provider === "internet-identity") {
-				await login();
-				console.log("Login successful, redirecting...");
-				router.push("/onboarding/role");
+			iiLogin();
+		} catch (error: any) {
+			console.error("[Login] Handshake error:", error);
+			const errorMessage = typeof error === 'string' ? error : error?.message || String(error);
+			
+			if (errorMessage.includes("UserInterrupt")) {
+				console.log("[Login] User interrupted the process.");
 			} else {
-				console.log(`Login with ${provider} not implemented yet.`);
-				alert(`${provider} login is coming soon. Please use Internet Identity.`);
+				alert(`Authentication Handshake Failed: ${errorMessage}\n\nCheck the console for security context details.`);
 			}
-		} catch (error: unknown) {
-			console.error("Login component error:", error);
-			const errorMessage = error instanceof Error ? error.message : String(error);
-			if (errorMessage.includes("UserInterrupt") || error === "UserInterrupt") {
-				console.log("User cancelled the login process.");
-			} else {
-				alert(`Authentication Error: ${errorMessage}. Please check your browser's console for more details.`);
-			}
-		} finally {
 			setIsLoading(null);
 		}
 	};
@@ -71,9 +79,9 @@ export default function LoginPage() {
 							variant="default"
 							className="h-12 text-base font-semibold"
 							onClick={() => handleLogin("internet-identity")}
-							disabled={!!isLoading}
+							disabled={!!isLoading || isLoggingIn}
 						>
-							{isLoading === "internet-identity" ? (
+							{isLoading === "internet-identity" || isLoggingIn ? (
 								<div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
 							) : (
 								<>
@@ -129,22 +137,36 @@ export default function LoginPage() {
 							GitHub
 						</Button>
 					</CardContent>
-					<CardFooter className="flex flex-wrap items-center justify-center gap-1 text-sm text-muted-foreground">
-						By continuing, you agree to our{" "}
-						<Link
-							href="/terms"
-							className="underline hover:text-primary underline-offset-4"
-						>
-							Terms of Service
-						</Link>{" "}
-						and{" "}
-						<Link
-							href="/privacy"
-							className="underline hover:text-primary underline-offset-4"
-						>
-							Privacy Policy
-						</Link>
-						.
+					<CardFooter className="flex flex-col items-center justify-center gap-4">
+						<div className="flex flex-wrap items-center justify-center gap-1 text-sm text-muted-foreground">
+							By continuing, you agree to our{" "}
+							<Link
+								href="/terms"
+								className="underline hover:text-primary underline-offset-4"
+							>
+								Terms of Service
+							</Link>{" "}
+							and{" "}
+							<Link
+								href="/privacy"
+								className="underline hover:text-primary underline-offset-4"
+							>
+								Privacy Policy
+							</Link>
+							.
+						</div>
+						
+						<div className="pt-4 border-t w-full text-center">
+							<button 
+								onClick={() => {
+									useAuthStore.getState().loginMock();
+									router.push("/dashboard");
+								}}
+								className="text-xs text-muted-foreground hover:text-primary transition-colors italic"
+							>
+								[Dev Mode] Skip authentication and go to Dashboard
+							</button>
+						</div>
 					</CardFooter>
 				</Card>
 			</div>
