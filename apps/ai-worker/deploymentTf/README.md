@@ -35,3 +35,4 @@ terraform destroy
 - If you need SSH access, set `ssh_public_key` and optionally `ssh_username`.
 - External IP is created only when `assign_public_ip = true`.
 - By default an SSH firewall rule is created; restrict `ssh_source_ranges` before apply.
+- By default an app firewall rule is created for port `8080`; control it with `app_port`, `app_source_ranges`, and `create_app_firewall_rule`.
