@@ -37,10 +37,9 @@ export function useAIDebate() {
     abortControllerRef.current = abortController;
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_AI_WORKER_URL || "https://ai.open-ft.app";
-      console.log(`[AI Debate] Connecting to ${baseUrl}...`);
+      console.log(`[AI Debate] Connecting to local proxy...`);
       
-      const response = await fetch(`${baseUrl}/api/v1/debate/proposals/evaluate/stream`, {
+      const response = await fetch(`/api/ai/debate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
