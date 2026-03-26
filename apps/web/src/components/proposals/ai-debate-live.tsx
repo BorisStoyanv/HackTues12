@@ -30,7 +30,7 @@ interface TypewriterProps {
   className?: string;
 }
 
-function Typewriter({ text, speed = 10, onComplete, className }: TypewriterProps) {
+function Typewriter({ text = "", speed = 10, onComplete, className }: TypewriterProps) {
   const [displayedText, setDisplayedText] = useState("");
   const index = useRef(0);
 
@@ -103,8 +103,8 @@ export function AIDebateLive({ proposal, onComplete }: AIDebateLiveProps) {
     return events
       .filter(e => e.event === "round_statements")
       .flatMap(e => [
-        { agent: "Advocate", text: e.data.advocate, round: e.data.round, color: "text-blue-500", bgColor: "bg-blue-500" },
-        { agent: "Skeptic", text: e.data.skeptic, round: e.data.round, color: "text-red-500", bgColor: "bg-red-500" }
+        { agent: "Advocate", text: e.data.advocateStatement || e.data.advocate || "", round: e.data.round, color: "text-blue-500", bgColor: "bg-blue-500" },
+        { agent: "Skeptic", text: e.data.skepticStatement || e.data.skeptic || "", round: e.data.round, color: "text-red-500", bgColor: "bg-red-500" }
       ]);
   }, [events]);
 
@@ -194,7 +194,7 @@ export function AIDebateLive({ proposal, onComplete }: AIDebateLiveProps) {
         {/* Dynamic Statements */}
         {statements.map((stmt, i) => (
           <motion.div 
-            key={`${stmt.agent}-${stmt.round}`}
+            key={`${stmt.agent}-${stmt.round}-${i}`}
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             className="relative"
