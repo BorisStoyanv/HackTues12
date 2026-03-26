@@ -1,0 +1,26 @@
+# Build artifacts
+target/
+.dfx/
+dist/
+
+# Dependencies
+node_modules/
+
+# Environment / secrets
+.env
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+/icp_proposals_mvp/frontend
+# Rust
+*.swp
+**/*.rs.bk
+/skill
+# Documents (local reference only)
+/documents
+/docs

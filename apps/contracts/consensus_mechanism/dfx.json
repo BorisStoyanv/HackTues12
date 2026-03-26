@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "canisters": {
+    "consensus_mechanism": {
+      "type": "rust",
+      "package": "consensus_mechanism",
+      "candid": "src/consensus_mechanism.did",
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
+      ]
+    }
+  }
+}
