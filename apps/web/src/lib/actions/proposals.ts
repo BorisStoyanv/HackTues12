@@ -11,8 +11,20 @@ function serializeProposal(proposal: Proposal) {
     current_funding: Number(proposal.current_funding),
     created_at: Number(proposal.created_at),
     updated_at: Number(proposal.updated_at),
+    // Ensure nested objects are handled or defaulted
+    tags: proposal.tags || [],
+    ai_integrity_report: proposal.ai_integrity_report || null,
+    voting_metrics: proposal.voting_metrics || {
+      total_votes: 0,
+      quorum_reached: false,
+      quorum_percentage: 0,
+      approval_percentage: 0,
+      voting_power_distribution: { experts: 0, locals: 0, general: 0 }
+    }
   };
 }
+
+export type SerializedProposal = ReturnType<typeof serializeProposal>;
 
 function serializeVote(vote: Vote) {
   return {

@@ -21,6 +21,43 @@ export interface Proposal {
   status: string;
   created_at: bigint;
   updated_at: bigint;
+  
+  // Rich Metadata (Optional, may be fetched from separate stores/maps)
+  ai_integrity_report?: AIIntegrityReport;
+  voting_metrics?: VotingMetrics;
+  tags?: string[];
+}
+
+export interface AIIntegrityReport {
+  fairness_score: number;
+  efficiency_score: number;
+  overall_score: number;
+  summary: string;
+  risk_factors: string[];
+  positive_externalities: string[];
+  debate_logs?: AIDebateLog[];
+}
+
+export interface AIDebateLog {
+  agent: 'advocate' | 'skeptic' | 'analyst';
+  round: number;
+  argument: string;
+  timestamp: string;
+}
+
+export interface VotingMetrics {
+  total_votes: number;
+  quorum_reached: boolean;
+  quorum_percentage: number;
+  approval_percentage: number;
+  yes_votes_weighted?: number;
+  no_votes_weighted?: number;
+  abstain_votes_weighted?: number;
+  voting_power_distribution: {
+    experts: number;
+    locals: number;
+    general: number;
+  };
 }
 
 export interface UserProfile {

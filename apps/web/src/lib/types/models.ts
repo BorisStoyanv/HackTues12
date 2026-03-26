@@ -1,13 +1,10 @@
-export interface Location {
-  lat: number;
-  lng: number;
-  address_line_1: string;
+import { AIIntegrityReport, VotingMetrics, Location as ApiLocation } from "./api";
+
+export interface Location extends ApiLocation {
+  address_line_1?: string;
   address_line_2?: string;
-  city: string;
   state_province?: string;
-  country: string;
-  postal_code: string;
-  formatted_address: string; // The full readable address string
+  postal_code?: string;
 }
 
 export interface LineItem {
@@ -26,38 +23,6 @@ export interface Milestone {
   status: 'pending' | 'in_progress' | 'completed' | 'verified';
   proof_url?: string; // URL to uploaded proof (video, photos, receipts)
   verification_date?: string; // ISO string
-}
-
-export interface AIDebateLog {
-  agent: 'advocate' | 'skeptic' | 'analyst';
-  round: number;
-  argument: string;
-  timestamp: string; // ISO string
-}
-
-export interface AIIntegrityReport {
-  fairness_score: number; // 0-100
-  efficiency_score: number; // 0-100
-  overall_score: number; // 0-100
-  summary: string;
-  debate_logs: AIDebateLog[];
-  risk_factors: string[];
-  positive_externalities: string[];
-}
-
-export interface VotingMetrics {
-  total_votes: number; // Total number of individual voters
-  quorum_reached: boolean; // Has it hit the 5% regional quorum?
-  quorum_percentage: number; // Current participation % vs 5% required
-  approval_percentage: number; // Current approval % vs 51% required
-  yes_votes_weighted: number; // Reputation-weighted yes votes
-  no_votes_weighted: number; // Reputation-weighted no votes
-  abstain_votes_weighted: number;
-  voting_power_distribution: {
-    experts: number; // Weighted power from expert voters
-    locals: number; // Weighted power from local residents
-    general: number; // Weighted power from others
-  };
 }
 
 export interface FunderPledge {
@@ -88,7 +53,7 @@ export interface ProposalMock {
   funder_pledges: FunderPledge[];
   
   // Status and AI Analysis
-  status: 'draft' | 'ai_debate' | 'voting' | 'funding' | 'in_progress' | 'completed' | 'rejected' | 'cancelled';
+  status: string;
   ai_integrity_report: AIIntegrityReport | null; // Null if AI debate is not finished
   
   // Governance & Community
