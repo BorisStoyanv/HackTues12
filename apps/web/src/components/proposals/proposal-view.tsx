@@ -1,17 +1,5 @@
 "use client";
 
-import {
-	ArrowLeft,
-	BarChart3,
-	ChevronRight,
-	Clock,
-	MapPin,
-	MessageSquare,
-	ShieldCheck,
-} from "lucide-react";
-import Link from "next/link";
-import { useMemo } from "react";
-
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -25,601 +13,402 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/lib/auth-store";
-import { MOCK_FEATURED_PROPOSALS } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
+import {
+	AlertTriangle,
+	BarChart3,
+	Briefcase,
+	Calendar,
+	Clock,
+	DollarSign,
+	Globe,
+	ShieldCheck,
+	TrendingUp,
+	User,
+} from "lucide-react";
+import Link from "next/link";
 
 import { SerializedProposal } from "@/lib/actions/proposals";
 
 interface ProposalViewProps {
 	id: string;
 	mode: "public" | "authenticated";
-	onBack?: () => void;
 	initialData?: SerializedProposal;
 }
 
-export function ProposalView({
-	id,
-	mode,
-	onBack,
-	initialData,
-}: ProposalViewProps) {
+export function ProposalView({ id, mode, initialData }: ProposalViewProps) {
 	const user = useAuthStore((state) => state.user);
 
-	const proposal = useMemo(() => {
-		// Merge backend data with mock data as fallback for UI-only fields
-		const mock =
-			MOCK_FEATURED_PROPOSALS.find((p) => p.id === id) ||
-			MOCK_FEATURED_PROPOSALS[0]!;
-
-		if (initialData) {
-			return {
-				...mock,
-				...initialData,
-				// Ensure complex nested objects use initialData if provided, otherwise mock
-				ai_integrity_report:
-					initialData.ai_integrity_report || mock.ai_integrity_report,
-				voting_metrics:
-					initialData.voting_metrics || mock.voting_metrics,
-				tags:
-					initialData.tags && initialData.tags.length > 0
-						? initialData.tags
-						: mock.tags,
-			};
-		}
-		return mock;
-	}, [id, initialData]);
-
-	if (!proposal) {
+	if (!initialData) {
 		return (
-			<div className="flex flex-col items-center justify-center h-full p-4 text-center">
-				<h1 className="text-2xl font-bold mb-4">Proposal not found</h1>
-				<Button onClick={onBack}>Go Back</Button>
+			<div className="flex flex-col items-center justify-center h-full p-4 text-center space-y-4">
+				<div className="h-12 w-12 rounded-full bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center animate-pulse">
+					<BarChart3 className="h-6 w-6 text-neutral-400" />
+				</div>
+				<h1 className="text-xl font-medium tracking-tight">
+					Proposal Not Found
+				</h1>
+				<p className="text-muted-foreground text-sm max-w-sm">
+					This proposal may have been pruned from the ledger or the ID
+					is incorrect.
+				</p>
+				<Link
+					href="/dashboard"
+					className={buttonVariants({ variant: "outline", size: "sm" })}
+				>
+					Return to Dashboard
+				</Link>
 			</div>
 		);
 	}
 
-	const fundingProgress =
-		(proposal.current_funding / (proposal.funding_goal ?? 1)) * 100;
-	const creatorId = proposal.creator_id;
+	const proposal = initialData;
+	const fundingGoal = proposal.budget_amount || 1;
+	// yes_weight acts as the current backing proxy in this specific backend version
+	const fundingProgress = Math.min(
+		100,
+		(proposal.yes_weight / fundingGoal) * 100,
+	);
+	const statusFormatted = proposal.status.replace(/([A-Z])/g, " $1").trim();
 
 	return (
-		<div className="w-full min-h-screen bg-background text-foreground">
-			{/* Header logic depends on mode */}
-			{mode === "public" && (
-				<header className="z-40 border-b bg-background/80 backdrop-blur-md sticky top-0 h-14">
-					<div className="container mx-auto flex h-full items-center justify-between px-4 sm:px-6">
-						<div className="flex items-center gap-4">
-							<Button
-								variant="ghost"
-								size="icon"
-								onClick={onBack}
-								className="-ml-2"
+		<div className="flex-1 flex flex-col h-full overflow-hidden bg-background">
+			{/* Clean, Vercel-like Header Section */}
+			<div className="border-b bg-background px-6 py-10 md:px-12 shrink-0 relative overflow-hidden">
+				<div className="max-w-7xl mx-auto relative z-10 space-y-6">
+					<div className="flex flex-col gap-4">
+						<div className="flex flex-wrap items-center gap-3">
+							<Badge className="bg-primary text-primary-foreground px-2.5 py-0.5 rounded-md text-[11px] font-medium border-transparent shadow-sm">
+								{statusFormatted}
+							</Badge>
+							<Badge
+								variant="outline"
+								className="border-neutral-200 dark:border-neutral-800 px-2.5 py-0.5 rounded-md text-[11px] font-medium bg-background"
 							>
-								<ArrowLeft className="h-5 w-5" />
-							</Button>
-							<div className="flex items-center gap-2 text-sm font-medium">
-								<span className="text-muted-foreground">
-									Explore
-								</span>
-								<ChevronRight className="h-4 w-4 text-muted-foreground" />
-								<span className="truncate max-w-50">
-									{proposal.title}
-								</span>
+								{proposal.region_tag}
+							</Badge>
+							<div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground ml-1">
+								<Clock className="w-3.5 h-3.5" />
+								{new Date(
+									proposal.created_at / 1000000,
+								).toLocaleDateString()}
 							</div>
 						</div>
-						<div className="flex items-center gap-2">
-							{!user && (
-								<Link
-									href="/login"
-									className={buttonVariants({
-										variant: "outline",
-										size: "sm",
-									})}
-								>
-									Sign in to Vote
-								</Link>
-							)}
-						</div>
-					</div>
-				</header>
-			)}
 
-			<main
-				className={cn(
-					"py-8 px-4 sm:px-6 md:px-8 lg:px-12",
-					mode === "public" && "container mx-auto",
-					mode === "authenticated" && "max-w-400 mx-auto w-full",
-				)}
-			>
-				<div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start w-full">
-					{/* LEFT: Main Content Area (8/12 or 9/12) */}
-					<div className="lg:col-span-8 xl:col-span-9 space-y-12 min-w-0">
-						{/* Header Section */}
-						<div className="space-y-6">
-							<div className="flex flex-wrap gap-2">
-								<Badge
-									variant="secondary"
-									className="uppercase tracking-wider text-[10px] px-2 py-0.5"
-								>
-									{proposal.status.replace("_", " ")}
-								</Badge>
-								{proposal.tags.map((tag) => (
-									<Badge
-										key={tag}
-										variant="outline"
-										className="text-[10px] px-2 py-0.5"
-									>
-										{tag}
-									</Badge>
-								))}
-							</div>
-							<h1 className="text-4xl md:text-7xl font-bold tracking-tight leading-[1.1]">
-								{proposal.title}
-							</h1>
-							<div className="flex flex-wrap items-center gap-10 text-sm text-muted-foreground">
-								<div className="flex items-center gap-3">
-									<div className="h-10 w-10 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center border text-xs font-bold">
-										{creatorId?.[0]?.toUpperCase() || "U"}
-									</div>
-									<span className="text-lg">
-										Proposed by{" "}
-										<span className="text-foreground font-semibold">
-											@{creatorId}
-										</span>
+						<h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground leading-snug max-w-3xl">
+							{proposal.title}
+						</h1>
+
+						<div className="flex flex-wrap items-center gap-6 pt-2">
+							<div className="flex items-center gap-3">
+								<div className="h-8 w-8 rounded-full bg-muted border border-border flex items-center justify-center">
+									<User className="h-4 w-4 text-muted-foreground" />
+								</div>
+								<div className="flex flex-col">
+									<span className="text-[11px] font-medium text-muted-foreground">
+										Submitter
+									</span>
+									<span className="text-sm font-medium">
+										@{proposal.submitter.substring(0, 8)}...
 									</span>
 								</div>
-								<div className="flex items-center gap-2 text-lg">
-									<MapPin className="h-5 w-5" />{" "}
-									{proposal.location.city},{" "}
-									{proposal.location.country}
+							</div>
+
+							<div className="flex items-center gap-3">
+								<div className="h-8 w-8 rounded-full bg-muted border border-border flex items-center justify-center">
+									<Globe className="h-4 w-4 text-muted-foreground" />
 								</div>
-								<div className="flex items-center gap-2 text-lg">
-									<Clock className="h-5 w-5" /> Created March
-									2024
+								<div className="flex flex-col">
+									<span className="text-[11px] font-medium text-muted-foreground">
+										Region
+									</span>
+									<span className="text-sm font-medium">
+										{proposal.region_tag}
+									</span>
 								</div>
 							</div>
 						</div>
+					</div>
+				</div>
+			</div>
 
-						<Separator />
-
-						{/* Tabs Section */}
-						<Tabs defaultValue="overview" className="w-full">
-							{/* Tab List with a fixed border-bottom but naturally spaced triggers */}
-							<TabsList className="w-full flex justify-start border-b rounded-none h-auto bg-transparent p-0 mb-10 overflow-x-auto">
-								<div className="flex space-x-12 min-w-max">
-									{[
-										"overview",
-										"ai-integrity",
-										"debate",
-										"budget",
-									].map((tab) => (
-										<TabsTrigger
-											key={tab}
-											value={tab}
-											className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-5 bg-transparent shadow-none font-bold text-lg transition-none capitalize"
-										>
-											{tab === "ai-integrity"
-												? "AI Integrity"
-												: tab === "budget"
-													? "Financials"
-													: tab.replace("-", " ")}
-											{tab === "ai-integrity" &&
-												proposal.ai_integrity_report && (
-													<Badge className="ml-3 bg-primary/10 text-primary border-none text-xs">
-														{
-															proposal
-																.ai_integrity_report
-																.overall_score
-														}
-														%
-													</Badge>
-												)}
-										</TabsTrigger>
-									))}
-								</div>
+			<div className="flex-1 overflow-y-auto bg-neutral-50/30 dark:bg-neutral-950/30 px-6 py-10 md:px-12">
+				<div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10">
+					{/* LEFT COLUMN: Depth Details */}
+					<div className="lg:col-span-8 space-y-10">
+						<Tabs defaultValue="overview" className="w-full flex-col">
+							<TabsList className="w-full flex justify-start border-b border-border rounded-none h-auto bg-transparent p-0 mb-8 space-x-6 overflow-x-auto scrollbar-hide">
+								{[
+									"overview",
+									"impact",
+									"execution",
+									"financials",
+								].map((tab) => (
+									<TabsTrigger
+										key={tab}
+										value={tab}
+										className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-foreground rounded-none px-0 py-3 bg-transparent shadow-none font-medium text-sm capitalize transition-none text-muted-foreground"
+									>
+										{tab}
+									</TabsTrigger>
+								))}
 							</TabsList>
 
-							{/* OVERVIEW CONTENT */}
 							<TabsContent
 								value="overview"
-								className="space-y-12 focus-visible:outline-none m-0"
+								className="space-y-10 animate-in fade-in duration-500 m-0"
 							>
-								<section className="space-y-6">
-									<h3 className="text-3xl font-bold tracking-tight">
-										Problem Statement
+								<section className="space-y-3">
+									<h3 className="text-sm font-medium text-muted-foreground">
+										Executive Summary
 									</h3>
-									<p className="text-muted-foreground leading-relaxed text-2xl max-w-5xl">
-										{proposal.problem_statement}
+									<p className="text-lg font-normal leading-relaxed text-foreground/90 max-w-3xl whitespace-pre-wrap">
+										{proposal.description}
 									</p>
 								</section>
-								<section className="space-y-6">
-									<h3 className="text-3xl font-bold tracking-tight">
-										Proposed Solution
-									</h3>
-									<p className="text-muted-foreground leading-relaxed text-2xl max-w-5xl">
-										{proposal.short_description}
-									</p>
-								</section>
-								<section className="space-y-6">
-									<h3 className="text-3xl font-bold tracking-tight">
-										Success Metrics
-									</h3>
-									<div className="p-10 rounded-3xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 max-w-5xl shadow-sm">
-										<p className="text-2xl font-medium italic text-foreground leading-relaxed">
-											"{proposal.success_metric}"
-										</p>
-									</div>
-								</section>
-							</TabsContent>
 
-							{/* AI INTEGRITY CONTENT */}
-							<TabsContent
-								value="ai-integrity"
-								className="space-y-12 focus-visible:outline-none m-0"
-							>
-								{proposal.ai_integrity_report ? (
-									<>
-										<div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-											{[
-												{
-													label: "Overall Integrity",
-													value: proposal
-														.ai_integrity_report
-														.overall_score,
-													color: "text-primary",
-												},
-												{
-													label: "Fairness Score",
-													value: proposal
-														.ai_integrity_report
-														.fairness_score,
-													color: "text-blue-500",
-												},
-												{
-													label: "Efficiency Score",
-													value: proposal
-														.ai_integrity_report
-														.efficiency_score,
-													color: "text-green-500",
-												},
-											].map((item, i) => (
-												<Card
-													key={i}
-													className="border-neutral-200 dark:border-neutral-800 shadow-none p-4"
-												>
-													<CardHeader className="pb-2">
-														<CardDescription className="text-xs uppercase font-bold tracking-widest">
-															{item.label}
-														</CardDescription>
-														<CardTitle
-															className={cn(
-																"text-6xl font-black",
-																item.color,
-															)}
-														>
-															{item.value}%
-														</CardTitle>
-													</CardHeader>
-												</Card>
-											))}
-										</div>
-										<section className="space-y-6">
-											<h3 className="text-4xl font-bold tracking-tight">
-												AI Analysis Summary
-											</h3>
-											<p className="text-muted-foreground leading-relaxed text-2xl max-w-5xl">
-												{
-													proposal.ai_integrity_report
-														.summary
-												}
-											</p>
-										</section>
-									</>
-								) : (
-									<div className="p-16 text-center border-2 border-dashed rounded-3xl">
-										<BarChart3 className="h-20 w-20 mx-auto text-muted-foreground mb-6 opacity-20" />
-										<h4 className="text-3xl font-bold tracking-tight">
-											AI Debate in Progress
-										</h4>
-									</div>
-								)}
-							</TabsContent>
+								<Separator className="bg-border" />
 
-							{/* DEBATE LOG CONTENT */}
-							<TabsContent
-								value="debate"
-								className="space-y-10 focus-visible:outline-none m-0"
-							>
-								<div className="flex items-center justify-between">
-									<h3 className="text-4xl font-bold tracking-tight">
-										3-Agent AI Consensus
-									</h3>
-									<Badge
-										variant="outline"
-										className="gap-2 px-5 py-2 text-sm font-semibold"
-									>
-										<ShieldCheck className="h-5 w-5 text-primary" />{" "}
-										Verifiable Protocol
-									</Badge>
-								</div>
-								<div className="relative pl-12 border-l-2 border-neutral-200 dark:border-neutral-800 space-y-20 py-8">
-									{[
-										{
-											agent: "Advocate",
-											role: "Proponent",
-											color: "bg-blue-500",
-											text: "The long-term impact on regional air quality justifies the initial capital outlay. Indigenous tree species are low-maintenance and provide maximum ecological resilience.",
-										},
-										{
-											agent: "Skeptic",
-											role: "Adversarial",
-											color: "bg-red-500",
-											text: "I question the maintenance budget in Years 2-5. Without a formal commitment from the municipal water department, survival rates could drop below 60% during drought.",
-										},
-										{
-											agent: "Analyst",
-											role: "Synthesizer",
-											color: "bg-green-500",
-											text: "Data indicates an average 12% property value increase. Recommending a 5% budget buffer for irrigation to mitigate Skeptic's concerns.",
-										},
-									].map((log, i) => (
-										<div key={i} className="relative">
-											<div
-												className={cn(
-													"absolute -left-16.25 top-0 h-12 w-12 rounded-full border-4 border-background flex items-center justify-center shadow-xl",
-													log.color,
-												)}
-											>
-												<MessageSquare className="h-5 w-5 text-white" />
-											</div>
-											<div className="space-y-5">
-												<div className="flex items-center gap-4">
-													<span
-														className={cn(
-															"text-base font-bold uppercase tracking-widest",
-															log.agent ===
-																"Advocate"
-																? "text-blue-500"
-																: log.agent ===
-																	  "Skeptic"
-																	? "text-red-500"
-																	: "text-green-500",
-														)}
-													>
-														Agent: {log.agent}
-													</span>
-													<Badge
-														variant="secondary"
-														className="text-[11px] h-6 px-3"
-													>
-														{log.role}
-													</Badge>
-												</div>
-												<div className="p-8 md:p-10 rounded-[2.5rem] bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm hover:shadow-md transition-shadow">
-													<p className="text-xl md:text-2xl leading-relaxed italic text-muted-foreground">
-														"{log.text}"
-													</p>
-												</div>
-											</div>
-										</div>
-									))}
-								</div>
-							</TabsContent>
-
-							{/* BUDGET CONTENT */}
-							<TabsContent
-								value="budget"
-								className="space-y-12 focus-visible:outline-none m-0"
-							>
-								<h3 className="text-4xl font-bold tracking-tight">
-									Financial Roadmap
-								</h3>
-								<div className="grid gap-8">
-									{[
-										{
-											title: "Planning & Sourcing",
-											pct: 20,
-											desc: "Finalize tree species and nursery contracts.",
-										},
-										{
-											title: "Phase 1: Excavation",
-											pct: 30,
-											desc: "Preparation of 250 sites along the Northern corridor.",
-										},
-										{
-											title: "Phase 2: Planting",
-											pct: 40,
-											desc: "Installation of all 500 trees and irrigation setup.",
-										},
-										{
-											title: "Verification & Audit",
-											pct: 10,
-											desc: "Independent survival audit after 3 months.",
-										},
-									].map((m, i) => (
-										<div
-											key={i}
-											className="flex gap-10 p-10 rounded-4xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 hover:border-primary/40 transition-all shadow-sm hover:shadow-md"
+								<section className="space-y-4">
+									<h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+										<Briefcase className="w-4 h-4" />{" "}
+										Category
+									</h4>
+									<div className="flex items-center gap-3">
+										<span className="text-base font-medium">
+											{proposal.category}
+										</span>
+										<Badge
+											variant="secondary"
+											className="font-mono text-[10px] font-normal"
 										>
-											<div className="h-20 w-20 rounded-3xl bg-primary/10 text-primary flex items-center justify-center font-black text-3xl shrink-0">
-												{m.pct}%
-											</div>
-											<div className="space-y-3">
-												<p className="font-bold text-2xl">
-													{m.title}
+											Verified Tag
+										</Badge>
+									</div>
+								</section>
+							</TabsContent>
+
+							<TabsContent
+								value="impact"
+								className="space-y-8 animate-in fade-in duration-500 m-0"
+							>
+								<Card className="border-border shadow-sm bg-background">
+									<CardContent className="p-8 space-y-8">
+										<div className="space-y-2">
+											<h3 className="text-lg font-medium tracking-tight">
+												Projected Impact
+											</h3>
+											<p className="text-sm text-muted-foreground leading-relaxed max-w-2xl">
+												Quantifiable outcomes cross-referenced by our autonomous protocol.
+											</p>
+										</div>
+										<div className="text-base leading-relaxed text-foreground/80 whitespace-pre-wrap">
+											{proposal.expected_impact}
+										</div>
+										<Separator className="bg-border" />
+										<div className="grid sm:grid-cols-2 gap-6">
+											<div className="space-y-2">
+												<div className="flex items-center gap-2">
+													<ShieldCheck className="h-5 w-5 text-primary" />
+													<h4 className="font-medium text-sm">
+														Fairness Score: {proposal.fairness_score}%
+													</h4>
+												</div>
+												<p className="text-xs text-muted-foreground leading-relaxed">
+													Equitable distribution verified by protocol.
 												</p>
-												<p className="text-muted-foreground text-xl leading-relaxed">
-													{m.desc}
+											</div>
+											<div className="space-y-2">
+												<div className="flex items-center gap-2">
+													<TrendingUp className="h-5 w-5 text-muted-foreground" />
+													<h4 className="font-medium text-sm text-foreground">
+														Regional ROI
+													</h4>
+												</div>
+												<p className="text-xs text-muted-foreground leading-relaxed">
+													Direct correlation with local stability.
 												</p>
 											</div>
 										</div>
-									))}
+									</CardContent>
+								</Card>
+							</TabsContent>
+
+							<TabsContent
+								value="execution"
+								className="space-y-8 animate-in fade-in duration-500 m-0"
+							>
+								<Card className="border-border shadow-sm bg-background">
+									<CardContent className="p-8 space-y-8">
+										<section className="space-y-4">
+											<h3 className="text-lg font-medium tracking-tight">Materialization</h3>
+											<div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+												<Calendar className="w-4 h-4" />
+												Timeline: {proposal.timeline}
+											</div>
+											<div className="text-base leading-relaxed text-foreground/90 whitespace-pre-wrap">
+												{proposal.execution_plan}
+											</div>
+										</section>
+
+										<Separator className="bg-border" />
+
+										<div className="flex items-center gap-4">
+											<div className="h-10 w-10 rounded-full bg-muted border border-border flex items-center justify-center">
+												<Briefcase className="h-4 w-4 text-muted-foreground" />
+											</div>
+											<div className="flex flex-col">
+												<span className="text-xs font-medium text-muted-foreground">Executor</span>
+												<span className="text-sm font-medium">{proposal.executor_name}</span>
+											</div>
+										</div>
+									</CardContent>
+								</Card>
+							</TabsContent>
+
+							<TabsContent
+								value="financials"
+								className="space-y-8 animate-in fade-in duration-500 m-0"
+							>
+								<div className="grid lg:grid-cols-3 gap-6">
+									<Card className="lg:col-span-2 border-border shadow-sm bg-background">
+										<CardContent className="p-8 space-y-6">
+											<h3 className="text-lg font-medium tracking-tight">Budget Allocation</h3>
+											<div className="text-sm leading-relaxed font-mono whitespace-pre-wrap p-4 bg-muted/50 rounded-md border border-border">
+												{proposal.budget_breakdown}
+											</div>
+										</CardContent>
+									</Card>
+									<div className="space-y-6">
+										<Card className="border-border shadow-sm bg-background">
+											<CardContent className="p-6 flex flex-col items-center text-center space-y-2">
+												<DollarSign className="h-6 w-6 text-muted-foreground" />
+												<p className="text-xs font-medium text-muted-foreground">Target Capital</p>
+												<p className="text-3xl font-semibold tracking-tight">${proposal.budget_amount.toLocaleString()}</p>
+												<p className="text-xs font-medium text-muted-foreground">{proposal.budget_currency}</p>
+											</CardContent>
+										</Card>
+										<div className="p-5 rounded-lg border border-border bg-muted/50">
+											<p className="text-xs font-medium text-muted-foreground mb-2">Protocol Rule</p>
+											<p className="text-xs text-muted-foreground leading-relaxed">
+												Funds pinned to milestones. 66% consensus required for release.
+											</p>
+										</div>
+									</div>
 								</div>
 							</TabsContent>
 						</Tabs>
 					</div>
 
-					{/* RIGHT: Sidebar (Fixed height, sticky) */}
-					<div className="lg:col-span-4 xl:col-span-3 space-y-10 lg:sticky lg:top-24 h-fit">
-						<Card className="border-neutral-200 dark:border-neutral-800 shadow-2xl overflow-hidden rounded-4xl">
-							<div className="h-2.5 bg-primary w-full" />
-							<CardHeader className="pb-8 pt-8 px-8">
-								<CardTitle className="text-3xl font-bold tracking-tight">
-									Project Governance
-								</CardTitle>
-								<CardDescription className="text-lg font-medium">
-									Target: $
-									{(
-										proposal.funding_goal ?? 0
-									).toLocaleString()}{" "}
-									{proposal.currency ?? "USD"}
+					{/* RIGHT COLUMN: Governance Sidebar */}
+					<div className="lg:col-span-4 space-y-6">
+						<Card className="border-border shadow-sm rounded-xl overflow-hidden sticky top-24 bg-background">
+							<CardHeader className="p-6 pb-4 border-b border-border">
+								<CardTitle className="text-lg font-medium tracking-tight">Consensus Status</CardTitle>
+								<CardDescription className="text-sm font-medium mt-1">
+									{statusFormatted}
 								</CardDescription>
 							</CardHeader>
-							<CardContent className="space-y-10 px-8 pb-10">
-								<div className="space-y-4">
+							<CardContent className="p-6 space-y-8">
+								<div className="space-y-3">
 									<div className="flex justify-between items-end">
-										<span className="font-black text-4xl">
-											$
-											{proposal.current_funding.toLocaleString()}
-										</span>
-										<span className="text-muted-foreground font-bold text-lg mb-1">
-											{fundingProgress.toFixed(1)}% Funded
+										<div className="flex flex-col">
+											<span className="text-xs font-medium text-muted-foreground mb-1">Regional Backing</span>
+											<span className="font-semibold text-2xl tracking-tight">
+												${proposal.yes_weight.toLocaleString()}
+											</span>
+										</div>
+										<span className="text-primary font-medium text-sm mb-1">
+											{fundingProgress.toFixed(1)}%
 										</span>
 									</div>
-									<Progress
-										value={fundingProgress}
-										className="h-4 rounded-full"
-									/>
+									<div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+										<motion.div
+											className="h-full bg-primary rounded-full"
+											initial={{ width: 0 }}
+											animate={{ width: `${fundingProgress}%` }}
+											transition={{ duration: 1.2, ease: "circOut" }}
+										/>
+									</div>
 								</div>
-								<div className="grid grid-cols-2 gap-8 pt-2">
-									<div className="space-y-2">
-										<p className="text-[12px] uppercase font-black text-muted-foreground tracking-[0.2em]">
-											Goal
+
+								<div className="grid grid-cols-2 gap-4">
+									<div className="space-y-1">
+										<p className="text-xs font-medium text-muted-foreground">
+											Quorum
 										</p>
-										<p className="text-xl font-black">
-											$
-											{proposal.funding_goal?.toLocaleString()}
+										<p className="text-base font-semibold tracking-tight">
+											{proposal.voter_count} <span className="text-xs font-normal text-muted-foreground">VP</span>
 										</p>
 									</div>
-									<div className="space-y-2 text-right">
-										<p className="text-[12px] uppercase font-black text-muted-foreground tracking-[0.2em]">
-											Status
+									<div className="space-y-1 text-right">
+										<p className="text-xs font-medium text-muted-foreground">
+											Ratio
 										</p>
-										<p
+										<p className="text-base font-semibold tracking-tight">
+											{proposal.yes_weight.toFixed(0)}:{proposal.no_weight.toFixed(0)}
+										</p>
+									</div>
+								</div>
+
+								<Separator className="bg-border" />
+
+								<div className="space-y-3">
+									{proposal.status === "Active" && (
+										<Link
+											href={`/dashboard/proposals/${id}/vote`}
 											className={cn(
-												"text-xl font-black capitalize",
-												proposal.status === "funding"
-													? "text-green-500"
-													: "text-primary",
+												buttonVariants({ size: "default" }),
+												"w-full font-medium"
 											)}
 										>
-											{proposal.status.replace("_", " ")}
-										</p>
-									</div>
-								</div>
-								<Separator className="bg-neutral-200 dark:bg-neutral-800" />
-								<div className="space-y-6 pt-4">
-									{proposal.status === "voting" && (
-										<Link
-											href={
-												mode === "authenticated"
-													? `/dashboard/proposals/${id}/vote`
-													: `/proposals/${id}/vote`
-											}
-											className={buttonVariants({
-												className:
-													"w-full h-16 text-2xl font-black shadow-xl rounded-2xl",
-											})}
-										>
-											Cast Your Vote
+											Sign Consensus
 										</Link>
 									)}
-									{proposal.status === "funding" && (
+									{proposal.status === "AwaitingFunding" && (
 										<Link
-											href={
-												mode === "authenticated"
-													? `/dashboard/proposals/${id}/fund`
-													: `/proposals/${id}/fund`
-											}
-											className={buttonVariants({
-												variant: "default",
-												className:
-													"w-full h-16 text-2xl font-black shadow-xl rounded-2xl",
-											})}
+											href={`/dashboard/proposals/${id}/fund`}
+											className={cn(
+												buttonVariants({ variant: "default", size: "default" }),
+												"w-full font-medium bg-green-600 hover:bg-green-700 text-white"
+											)}
 										>
-											Deploy Capital
+											Back Project
 										</Link>
 									)}
 									<Button
 										variant="outline"
-										className="w-full h-16 font-bold text-xl rounded-2xl border-2"
+										className="w-full font-medium"
 									>
-										Share Proposal
+										Export Audit
 									</Button>
 								</div>
-							</CardContent>
-						</Card>
-
-						<Card className="border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 rounded-4xl">
-							<CardHeader className="pb-6 pt-8 px-8">
-								<CardTitle className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground">
-									Governance Power Split
-								</CardTitle>
-							</CardHeader>
-							<CardContent className="space-y-8 px-8 pb-10">
-								{[
-									{
-										label: "Local Residents",
-										val: proposal.voting_metrics
-											.voting_power_distribution.locals,
-										color: "bg-primary",
-										width: "w-[60%]",
-									},
-									{
-										label: "Verified Experts",
-										val: proposal.voting_metrics
-											.voting_power_distribution.experts,
-										color: "bg-blue-500",
-										width: "w-[30%]",
-									},
-									{
-										label: "Global Community",
-										val: proposal.voting_metrics
-											.voting_power_distribution.general,
-										color: "bg-neutral-400",
-										width: "w-[10%]",
-									},
-								].map((item, i) => (
-									<div key={i} className="space-y-3">
-										<div className="flex justify-between text-sm">
-											<span className="font-bold text-muted-foreground uppercase tracking-wider text-[11px]">
-												{item.label}
-											</span>
-											<span className="font-black text-foreground">
-												{item.val} $V_p$
-											</span>
-										</div>
-										<div className="h-3 w-full bg-neutral-200 dark:bg-neutral-800 rounded-full overflow-hidden">
-											<div
-												className={cn(
-													"h-full rounded-full transition-all duration-1000",
-													item.color,
-													item.width,
-												)}
-											/>
-										</div>
+								
+								<div className="p-4 rounded-lg bg-muted/50 border border-border space-y-3">
+									<div className="flex items-center gap-2">
+										<AlertTriangle className="w-4 h-4 text-muted-foreground" />
+										<span className="text-xs font-medium text-muted-foreground">Constraints</span>
 									</div>
-								))}
-								<p className="text-xs text-muted-foreground italic opacity-70 leading-relaxed">
-									*Weight is dynamically calculated via
-									ZK-proofs of residency and reputation
-									scores.
-								</p>
+									<div className="flex flex-wrap gap-2">
+										{proposal.risk_flags.length > 0 ? (
+											proposal.risk_flags.map((flag: string) => (
+												<Badge key={flag} variant="secondary" className="text-xs font-normal">
+													{flag}
+												</Badge>
+											))
+										) : (
+											<Badge variant="secondary" className="text-xs font-normal bg-green-500/10 text-green-700 dark:text-green-400 hover:bg-green-500/20">
+												Clean Profile
+											</Badge>
+										)}
+									</div>
+								</div>
 							</CardContent>
 						</Card>
 					</div>
 				</div>
-			</main>
+			</div>
 		</div>
 	);
 }

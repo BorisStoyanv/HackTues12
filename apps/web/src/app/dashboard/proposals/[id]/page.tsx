@@ -10,17 +10,15 @@ export default async function DashboardProposalDetailPage({
   const { id } = await params;
   const result = await fetchProposalById(id);
 
-  if (!result.success || !result.proposal) {
-    // If not found in backend, let the ProposalView handle mock fallback or show 404
-    // But for a better UX, we'll pass it if we have it
-  }
-
+  // If the result is explicitly failed, we still pass undefined to initialData
+  // and the ProposalView will render its own "Not Found" state which is more
+  // graceful for the dashboard context than a hard next/navigation notFound()
   return (
-    <div className="h-full overflow-auto">
+    <div className="h-full overflow-hidden flex flex-col">
       <ProposalView 
         id={id} 
         mode="authenticated" 
-        initialData={result.proposal}
+        initialData={result.success ? result.proposal : undefined}
       />
     </div>
   );
