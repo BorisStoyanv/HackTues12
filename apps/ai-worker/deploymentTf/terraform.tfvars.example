@@ -1,0 +1,24 @@
+project_id       = "your-gcp-project-id"
+region           = "europe-west1"
+zone             = "europe-west1-b"
+instance_name    = "ai-worker-vm"
+machine_type     = "e2-medium"
+assign_public_ip = true
+
+# Optional custom network/subnetwork
+# network    = "default"
+# subnetwork = null
+
+# Restrict SSH ingress to your public IP or office CIDR
+# ssh_source_ranges = ["203.0.113.10/32"]
+
+# Optional SSH key injection (recommended)
+# ssh_username   = "ubuntu"
+# ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... your@email"
+
+# Optional startup script
+# startup_script = <<-EOT
+#   #!/bin/bash
+#   apt-get update -y
+#   apt-get install -y docker.io
+# EOT
