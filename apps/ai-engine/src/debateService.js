@@ -77,6 +77,27 @@ function formatHistory(rounds) {
     .join("\n\n");
 }
 
+function detectResponseLanguage(proposal) {
+  const proposalText = [
+    proposal?.name || "",
+    proposal?.location || "",
+    proposal?.category || "",
+    proposal?.info || "",
+  ].join(" ");
+
+  if (/[\u0400-\u04FF]/.test(proposalText)) {
+    return {
+      code: "bg",
+      name: "Bulgarian",
+    };
+  }
+
+  return {
+    code: "en",
+    name: "English",
+  };
+}
+
 function normalizeScore(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
@@ -215,6 +236,7 @@ async function generateDebaterStatement({
   proposalText,
   evidenceText,
   historyText,
+  responseLanguageName,
   round,
   concreteClaims,
   unresolvedJudgePoints,
@@ -238,12 +260,14 @@ async function generateDebaterStatement({
     opponentCurrentRoundStatement
       ? "You are speaking second this round. Directly rebut at least one claim from the current-round opponent statement."
       : "You are speaking first this round. Anticipate and pre-empt the strongest likely counterpoint.",
+    `All natural-language output must be in ${responseLanguageName}.`,
     "Respond with exactly one concise statement only (max 170 words, no bullets).",
   ].join(" ");
 
   const userPrompt = [
     `Round: ${round} of ${ROUND_COUNT}`,
     `Role: ${roleTitle}`,
+    `Response language: ${responseLanguageName}`,
     "",
     "Proposal:",
     proposalText,
@@ -287,6 +311,7 @@ async function generateDebaterStatementWithRetry({
   proposalText,
   evidenceText,
   historyText,
+  responseLanguageName,
   round,
   rounds,
   concreteClaims,
@@ -303,6 +328,7 @@ async function generateDebaterStatementWithRetry({
       proposalText,
       evidenceText,
       historyText,
+      responseLanguageName,
       round,
       concreteClaims,
       unresolvedJudgePoints,
@@ -326,6 +352,7 @@ async function generateDebaterStatementWithRetry({
       proposalText,
       evidenceText,
       historyText,
+      responseLanguageName,
       round,
       concreteClaims,
       unresolvedJudgePoints,
@@ -346,16 +373,27 @@ const roundJudgmentSchema = z.object({
   rationale: z.string().min(1),
 });
 
-async function judgeRound({ proposalText, evidenceText, historyText, round, advocateStatement, skepticStatement }) {
+async function judgeRound({
+  proposalText,
+  evidenceText,
+  historyText,
+  responseLanguageName,
+  round,
+  advocateStatement,
+  skepticStatement,
+}) {
   const systemPrompt = [
     "You are the neutral JUDGE in a funding debate.",
     "Evaluate only argument quality and evidence use.",
     "Scoring rule: 0.5 is neutral/tie, >0.5 means advocate stronger, <0.5 means skeptic stronger.",
+    `Write the rationale in ${responseLanguageName}.`,
+    'Keep "winner" strictly as advocate|skeptic|tie and "score" as a number in [0,1].',
     "Return JSON only.",
   ].join(" ");
 
   const userPrompt = [
     `Round: ${round} of ${ROUND_COUNT}`,
+    `Rationale language: ${responseLanguageName}`,
     "Proposal:",
     proposalText,
     "",
@@ -428,7 +466,7 @@ function computeFundingPriority(criteriaRatings) {
   };
 }
 
-async function judgeFinal({ proposalText, evidenceText, rounds }) {
+async function judgeFinal({ proposalText, evidenceText, responseLanguageName, rounds }) {
   const roundsText = rounds
     .map((round) => {
       return [
@@ -448,10 +486,13 @@ async function judgeFinal({ proposalText, evidenceText, rounds }) {
     "Criteria rating scale is 0..1 where higher means more of that metric itself.",
     "For popularity and tourism_attendance, high values imply lower funding priority.",
     "For neglect_and_age and potential_tourism_benefit, high values imply higher funding priority.",
+    `Write the rationale in ${responseLanguageName}.`,
+    'Keep "funding_recommendation" strictly as one of: fund, defer, reject (in English).',
     "Return JSON only.",
   ].join(" ");
 
   const userPrompt = [
+    `Rationale language: ${responseLanguageName}`,
     "Proposal:",
     proposalText,
     "",
@@ -518,6 +559,7 @@ export async function runProposalDebate(proposal, hooks = {}) {
   });
 
   ensureContinue();
+  const responseLanguage = detectResponseLanguage(proposal);
   const proposalText = formatProposal(proposal);
   const evidence = await collectInternetEvidence(proposal);
   const evidenceText = formatEvidence(evidence);
@@ -552,6 +594,7 @@ export async function runProposalDebate(proposal, hooks = {}) {
         proposalText,
         evidenceText,
         historyText,
+        responseLanguageName: responseLanguage.name,
         round,
         rounds,
         concreteClaims,
@@ -565,6 +608,7 @@ export async function runProposalDebate(proposal, hooks = {}) {
         proposalText,
         evidenceText,
         historyText,
+        responseLanguageName: responseLanguage.name,
         round,
         rounds,
         concreteClaims,
@@ -577,6 +621,7 @@ export async function runProposalDebate(proposal, hooks = {}) {
         proposalText,
         evidenceText,
         historyText,
+        responseLanguageName: responseLanguage.name,
         round,
         rounds,
         concreteClaims,
@@ -590,6 +635,7 @@ export async function runProposalDebate(proposal, hooks = {}) {
         proposalText,
         evidenceText,
         historyText,
+        responseLanguageName: responseLanguage.name,
         round,
         rounds,
         concreteClaims,
@@ -610,6 +656,7 @@ export async function runProposalDebate(proposal, hooks = {}) {
       proposalText,
       evidenceText,
       historyText,
+      responseLanguageName: responseLanguage.name,
       round,
       advocateStatement,
       skepticStatement,
@@ -638,6 +685,7 @@ export async function runProposalDebate(proposal, hooks = {}) {
   const finalJudgeResult = await judgeFinal({
     proposalText,
     evidenceText,
+    responseLanguageName: responseLanguage.name,
     rounds,
   });
 
