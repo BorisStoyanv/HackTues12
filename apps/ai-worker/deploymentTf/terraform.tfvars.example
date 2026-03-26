@@ -12,6 +12,10 @@ assign_public_ip = true
 # Restrict SSH ingress to your public IP or office CIDR
 # ssh_source_ranges = ["203.0.113.10/32"]
 
+# App ingress (default port 8080). Restrict for production.
+# app_port = 8080
+# app_source_ranges = ["0.0.0.0/0"]
+
 # Optional SSH key injection (recommended)
 # ssh_username   = "ubuntu"
 # ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... your@email"

@@ -27,3 +27,13 @@ output "ssh_firewall_rule_name" {
   description = "Name of created SSH firewall rule"
   value       = try(google_compute_firewall.allow_ssh[0].name, null)
 }
+
+output "app_firewall_rule_name" {
+  description = "Name of created app ingress firewall rule"
+  value       = try(google_compute_firewall.allow_app[0].name, null)
+}
+
+output "app_url" {
+  description = "Public URL of the app endpoint"
+  value       = var.assign_public_ip ? "http://${google_compute_instance.vm.network_interface[0].access_config[0].nat_ip}:${var.app_port}" : null
+}
