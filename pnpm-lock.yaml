@@ -59,6 +59,12 @@ importers:
       '@hookform/resolvers':
         specifier: ^5.2.2
         version: 5.2.2(react-hook-form@7.72.0(react@19.2.4))
+      '@icp-sdk/auth':
+        specifier: ^5.0.0
+        version: 5.0.0(@icp-sdk/core@5.2.0)
+      '@icp-sdk/core':
+        specifier: ^5.2.0
+        version: 5.2.0
       '@stripe/stripe-js':
         specifier: ^9.0.0
         version: 9.0.0
@@ -74,6 +80,9 @@ importers:
       framer-motion:
         specifier: ^12.38.0
         version: 12.38.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      ic-use-internet-identity:
+        specifier: ^0.7.0
+        version: 0.7.0(@icp-sdk/auth@5.0.0(@icp-sdk/core@5.2.0))(@icp-sdk/core@5.2.0)(react@19.2.4)
       lucide-react:
         specifier: ^1.7.0
         version: 1.7.0(react@19.2.4)
@@ -745,6 +754,14 @@ packages:
   '@humanwhocodes/retry@0.4.3':
     resolution: {integrity: sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ==}
     engines: {node: '>=18.18'}
+
+  '@icp-sdk/auth@5.0.0':
+    resolution: {integrity: sha512-TaPfdaELT7s0vTIFOmCnlCmhPdL7kABA7+2Q0YNAUWIa/FFiwq6ffGPLvr0U0+2zFLaLQ4l7UCB2zf7vo6PFPQ==}
+    peerDependencies:
+      '@icp-sdk/core': ^5
+
+  '@icp-sdk/core@5.2.0':
+    resolution: {integrity: sha512-HIEzaUO3MpQDoVYJ9IqN0rA3Gb9PR28//XOQFBCpSTJc+wv2URKumSslYfnDEaHIvmK92Bn817EuTnBa1XOR6A==}
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -1593,6 +1610,17 @@ packages:
 
   '@vitest/utils@4.1.2':
     resolution: {integrity: sha512-xw2/TiX82lQHA06cgbqRKFb5lCAy3axQ4H4SoUFhUsg+wztiet+co86IAMDtF6Vm1hc7J6j09oh/rgDn+JdKIQ==}
+
+  '@xstate/store@3.17.1':
+    resolution: {integrity: sha512-jwNJ4nXM6WNXhW8IvrWuNqf7sMTBzfRXj2mHoxVkQDLCuZCjQ3xtXeykB4fLkdmWPAjh9dEZAjMAX43IlWq1LA==}
+    peerDependencies:
+      react: ^18.2.0 || ^19.0.0
+      solid-js: ^1.7.6
+    peerDependenciesMeta:
+      react:
+        optional: true
+      solid-js:
+        optional: true
 
   accepts@2.0.0:
     resolution: {integrity: sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng==}
@@ -2587,6 +2615,13 @@ packages:
   human-signals@8.0.1:
     resolution: {integrity: sha512-eKCa6bwnJhvxj14kZk5NCPc6Hb6BdsU9DZcOnmQKSnO1VKrfV0zCvtttPZUsBvjmNDn8rpcJfpwSYnHBjc95MQ==}
     engines: {node: '>=18.18.0'}
+
+  ic-use-internet-identity@0.7.0:
+    resolution: {integrity: sha512-iPsrsWMDVQLnx75iFvMLs/pgiYqUUmNinYaNUHEOj040fTKLk4lSadmAN0sCq1XdVCvgq5niBUxe12OFXmnwSA==}
+    peerDependencies:
+      '@icp-sdk/auth': ^5
+      '@icp-sdk/core': ^5
+      react: '>=18.0.0'
 
   iconv-lite@0.7.2:
     resolution: {integrity: sha512-im9DjEDQ55s9fL4EYzOAv0yMqmMBSZp6G0VvFyTMPKWxiSBHUj9NW/qqLmXUwXrrM7AvqSlTCfvqRb0cM8yYqw==}
@@ -4722,6 +4757,20 @@ snapshots:
 
   '@humanwhocodes/retry@0.4.3': {}
 
+  '@icp-sdk/auth@5.0.0(@icp-sdk/core@5.2.0)':
+    dependencies:
+      '@icp-sdk/core': 5.2.0
+      idb: 7.1.1
+
+  '@icp-sdk/core@5.2.0':
+    dependencies:
+      '@dfinity/cbor': 0.2.2
+      '@noble/curves': 1.9.7
+      '@noble/hashes': 1.8.0
+      '@scure/bip32': 1.7.0
+      '@scure/bip39': 1.6.0
+      asn1js: 3.0.7
+
   '@img/colour@1.1.0':
     optional: true
 
@@ -5454,6 +5503,10 @@ snapshots:
       '@vitest/pretty-format': 4.1.2
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.0
+
+  '@xstate/store@3.17.1(react@19.2.4)':
+    optionalDependencies:
+      react: 19.2.4
 
   accepts@2.0.0:
     dependencies:
@@ -6618,6 +6671,15 @@ snapshots:
   human-signals@2.1.0: {}
 
   human-signals@8.0.1: {}
+
+  ic-use-internet-identity@0.7.0(@icp-sdk/auth@5.0.0(@icp-sdk/core@5.2.0))(@icp-sdk/core@5.2.0)(react@19.2.4):
+    dependencies:
+      '@icp-sdk/auth': 5.0.0(@icp-sdk/core@5.2.0)
+      '@icp-sdk/core': 5.2.0
+      '@xstate/store': 3.17.1(react@19.2.4)
+      react: 19.2.4
+    transitivePeerDependencies:
+      - solid-js
 
   iconv-lite@0.7.2:
     dependencies:
