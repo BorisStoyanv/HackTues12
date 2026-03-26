@@ -276,7 +276,7 @@ export function InteractiveMap({
 						<motion.div
 							initial={{ opacity: 0, y: 10 }}
 							animate={{ opacity: 1, y: 0 }}
-							className="flex flex-col p-5 font-sans text-foreground bg-background rounded-[2rem] shadow-2xl border border-neutral-200 dark:border-neutral-800"
+							className="flex flex-col p-5 font-sans text-foreground bg-background rounded-4xl shadow-2xl border border-neutral-200 dark:border-neutral-800"
 						>
 							<div className="flex items-center justify-between mb-4">
 								<Badge className="bg-primary text-primary-foreground px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border-none">
