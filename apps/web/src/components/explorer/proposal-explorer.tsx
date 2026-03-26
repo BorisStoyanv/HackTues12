@@ -115,7 +115,7 @@ export function ProposalExplorer({ proposals, mode, searchQuery = "" }: Proposal
                         <div
                           className="h-full bg-primary"
                           style={{
-                            width: `${proposal.funding_goal > 0 ? (proposal.current_funding / proposal.funding_goal) * 100 : 0}%`,
+                            width: `${(proposal.funding_goal ?? 0) > 0 ? (proposal.current_funding / (proposal.funding_goal ?? 1)) * 100 : 0}%`,
                           }}
                         />
                       </div>

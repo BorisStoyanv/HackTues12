@@ -28,6 +28,7 @@
 - [x] `/dashboard/explore`: **Connected to canister `list_proposals`.**
 - [x] `/proposals/new`: **Wired to `submit_proposal` (canister).**
 - [x] `/proposals/[id]/vote`: **Wired to `cast_vote` (canister).**
+- [x] `/proposals/[id]/fund`: **Capital deployment and escrow UI active.**
 - [ ] `/profile/settings`: **Pending.**
 
 ---

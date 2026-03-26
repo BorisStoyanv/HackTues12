@@ -49,7 +49,7 @@ const navItems = [
   },
   {
     title: "New Proposal",
-    href: "/proposals/new",
+    href: "/dashboard/proposals/new",
     icon: FilePlus,
   },
   {

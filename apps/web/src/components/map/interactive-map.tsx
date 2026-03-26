@@ -231,20 +231,20 @@ export function InteractiveMap({
                 {selectedProposal.title}
               </h4>
               <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
-                {selectedProposal.short_description}
+                {selectedProposal.short_description || selectedProposal.description}
               </p>
               <div className="flex flex-col gap-1.5 mb-3">
                 <div className="flex items-center justify-between text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                   <span>Funding</span>
                   <span>
-                    {selectedProposal.funding_goal > 0 ? Math.round((selectedProposal.current_funding / selectedProposal.funding_goal) * 100) : 0}%
+                    {(selectedProposal.funding_goal ?? 0) > 0 ? Math.round((selectedProposal.current_funding / (selectedProposal.funding_goal ?? 1)) * 100) : 0}%
                   </span>
-                </div>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
                   <div
                     className="h-full bg-primary transition-all"
                     style={{ 
-                      width: `${selectedProposal.funding_goal > 0 ? Math.min(100, (selectedProposal.current_funding / selectedProposal.funding_goal) * 100) : 0}%` 
+                      width: `${(selectedProposal.funding_goal ?? 0) > 0 ? Math.min(100, (selectedProposal.current_funding / (selectedProposal.funding_goal ?? 1)) * 100) : 0}%` 
                     }}
                   />
                 </div>

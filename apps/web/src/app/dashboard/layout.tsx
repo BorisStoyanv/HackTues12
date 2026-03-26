@@ -24,7 +24,7 @@ export default function DashboardLayout({
   const getPageTitle = () => {
     if (pathname === "/dashboard") return "Overview";
     if (pathname === "/dashboard/explore") return "Map Explorer";
-    if (pathname === "/proposals/new") return "Submit Proposal";
+    if (pathname === "/dashboard/proposals/new") return "Submit Proposal";
     if (pathname?.startsWith("/dashboard/proposals/")) return "Proposal Detail";
     return "Dashboard";
   };
