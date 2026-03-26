@@ -177,6 +177,7 @@ export async function fetchAuditLogs(limit: number = 50, offset: number = 0) {
     const logs = await actor.get_audit_log(limit, offset);
     return { success: true, logs: logs.map(serializeAuditLog) };
   } catch (error) {
+    console.error("fetchAuditLogs error:", error);
     return { success: false, logs: [] };
   }
 }

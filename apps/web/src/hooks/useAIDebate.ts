@@ -37,12 +37,14 @@ export function useAIDebate() {
     abortControllerRef.current = abortController;
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_AI_WORKER_URL || "http://localhost:3001";
+      const baseUrl = process.env.NEXT_PUBLIC_AI_WORKER_URL || "https://ai.open-ft.app";
+      console.log(`[AI Debate] Connecting to ${baseUrl}...`);
       
       const response = await fetch(`${baseUrl}/api/v1/debate/proposals/evaluate/stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Accept": "text/event-stream",
         },
         body: JSON.stringify({
           proposal: {
@@ -58,29 +60,36 @@ export function useAIDebate() {
       });
 
       if (!response.ok) {
-        throw new Error(`AI Worker error: ${response.statusText}`);
+        const text = await response.text();
+        throw new Error(`AI Worker error (${response.status}): ${text || response.statusText}`);
       }
 
       const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-
       if (!reader) throw new Error("Body reader not available");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || ""; // Keep the last partial line in buffer
 
         let currentEvent = "";
         for (const line of lines) {
-          if (line.startsWith("event: ")) {
-            currentEvent = line.replace("event: ", "").trim();
-          } else if (line.startsWith("data: ")) {
-            const dataStr = line.replace("data: ", "").trim();
+          const trimmedLine = line.trim();
+          if (!trimmedLine) continue;
+
+          if (trimmedLine.startsWith("event: ")) {
+            currentEvent = trimmedLine.replace("event: ", "").trim();
+          } else if (trimmedLine.startsWith("data: ")) {
+            const dataStr = trimmedLine.replace("data: ", "").trim();
             try {
               const data = JSON.parse(dataStr);
+              console.log(`[AI Debate] Received event: ${currentEvent}`, data);
               
               if (currentEvent === "debate_completed") {
                 setState(prev => ({ ...prev, result: data }));
@@ -95,15 +104,16 @@ export function useAIDebate() {
                 events: [...prev.events, { event: currentEvent, data }],
               }));
             } catch (e) {
-              console.error("Failed to parse SSE data", e);
+              console.error("[AI Debate] Failed to parse SSE data", e, dataStr);
             }
           }
         }
       }
     } catch (err: any) {
       if (err.name === "AbortError") {
-        console.log("Debate aborted");
+        console.log("[AI Debate] Protocol aborted by user");
       } else {
+        console.error("[AI Debate] Protocol error:", err);
         setState(prev => ({ ...prev, error: err.message || "Failed to connect to AI worker" }));
       }
     } finally {
@@ -114,6 +124,7 @@ export function useAIDebate() {
   const stopDebate = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
+      abortControllerRef.current = null;
     }
   }, []);
 
