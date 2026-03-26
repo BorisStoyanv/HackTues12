@@ -1,0 +1,38 @@
+{
+  "canisters": {
+    "icp_proposals_mvp": {
+      "type": "rust",
+      "candid": "icp_proposals_mvp.did",
+      "package": "icp_proposals_mvp"
+    },
+    "icp_proposals_mvp_frontend": {
+      "type": "assets",
+      "dependencies": [
+        "icp_proposals_mvp"
+      ],
+      "source": [
+        "frontend/dist"
+      ],
+      "workspace": "frontend"
+    },
+    "internet_identity": {
+      "type": "custom",
+      "candid": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity.did",
+      "wasm": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity_dev.wasm.gz",
+      "specified_id": "rdmx6-jaaaa-aaaaa-aaadq-cai",
+      "remote": {
+        "id": {
+          "ic": "rdmx6-jaaaa-aaaaa-aaadq-cai"
+        }
+      },
+      "frontend": {}
+    }
+  },
+  "defaults": {
+    "build": {
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
