@@ -1,6 +1,6 @@
 import "./styles.css";
 import { Actor, HttpAgent } from "@icp-sdk/core/agent";
-import { idlFactory } from "declarations/icp_proposals_mvp/icp_proposals_mvp.did.js";
+import { idlFactory } from "./icp_proposals_idl.js";
 
 const DEFAULT_CANISTER_ID = "sk6yb-aqaaa-aaaad-qljxa-cai";
 const urlParams = new URLSearchParams(window.location.search);
