@@ -121,7 +121,7 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
               </div>
             </div>
             <Link
-              href={`/proposals/${proposal.id}`}
+              href={`/dashboard/proposals/detail?id=${proposal.id}`}
               className={cn(
                 buttonVariants({
                   variant: "outline",

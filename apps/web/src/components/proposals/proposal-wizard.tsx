@@ -171,7 +171,7 @@ export function ProposalWizard() {
       
       console.log("Broadcasting successful:", result);
       localStorage.removeItem("proposal_draft_v3");
-      router.push(`/dashboard/proposals/${result.id.toString()}`);
+      router.push(`/dashboard/proposals/detail?id=${result.id.toString()}`);
     } catch (error) {
       console.error(error);
       const message =

@@ -158,7 +158,7 @@ export function ProposalFundView({
 						onClick={() =>
 							(window.location.href =
 								mode === "authenticated"
-									? `/dashboard/proposals/${id}`
+									? `/dashboard/proposals/detail?id=${id}`
 									: `/proposals/${id}`)
 						}
 					>

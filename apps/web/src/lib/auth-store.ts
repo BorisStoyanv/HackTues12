@@ -27,6 +27,7 @@ interface AuthState {
   user: AuthUser | null;
   initialize: () => Promise<void>;
   login: () => Promise<void>;
+  loginMock: () => void;
   logout: () => Promise<void>;
   setRole: (role: UserRole) => void;
   setKycStatus: (status: "pending" | "verified" | "unverified") => void;
@@ -158,6 +159,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       "[Auth] Store login called directly, please use useInternetIdentity hook instead",
     );
     return Promise.resolve();
+  },
+
+  loginMock: () => {
+    const mockPrincipal = "aaaaa-aa-mock-user";
+    set({
+      identity: new AnonymousIdentity(),
+      principal: mockPrincipal,
+      isAuthenticated: true,
+      isInitializing: false,
+      hasProfile: false,
+      user: {
+        id: mockPrincipal,
+        role: null,
+        reputation: 0,
+        kyc_status: "unverified",
+        geo_verified: false,
+      },
+    });
   },
 
   logout: async () => {
