@@ -2,12 +2,13 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import Map, { Marker, NavigationControl } from "react-map-gl/mapbox";
-import type { MapRef, ViewState } from "react-map-gl/mapbox";
+import type { MapMouseEvent, MapRef, ViewState } from "react-map-gl/mapbox";
 import { useTheme } from "next-themes";
 import { Input } from "@/components/ui/input";
 import { MapPin, Search, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MAPBOX_API_KEY } from "@/lib/env";
+import { reverseGeocodeCoordinates } from "@/lib/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 interface LocationData {
@@ -38,7 +39,12 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
   
   const [searchQuery, setSearchQuery] = useState(value.formatted_address || "");
   const [isSearching, setIsSearching] = useState(false);
+<<<<<<< HEAD
   const [searchResults, setSearchResults] = useState<GeocodeResult[]>([]);
+=======
+  const [isResolvingPin, setIsResolvingPin] = useState(false);
+  const [searchResults, setSearchResults] = useState<MapboxFeature[]>([]);
+>>>>>>> origin/Boris
   const [showResults, setShowResults] = useState(false);
 
   // Initialize viewState based on value or default to a global view
@@ -116,12 +122,37 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
     });
   };
 
+  const resolveAndSetLocation = useCallback(
+    async (lng: number, lat: number) => {
+      setIsResolvingPin(true);
+      setViewState((prev) => ({ ...prev, longitude: lng, latitude: lat }));
+      try {
+        const resolved = await reverseGeocodeCoordinates(lng, lat);
+        setSearchQuery(resolved.formatted_address);
+        onChange(resolved);
+      } catch (err) {
+        console.error("Reverse geocoding error:", err);
+        onChange({
+          formatted_address: value.formatted_address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+          city: value.city || "Pinned location",
+          country: value.country || "Unknown Country",
+          lat,
+          lng,
+        });
+      } finally {
+        setIsResolvingPin(false);
+      }
+    },
+    [onChange, value.city, value.country, value.formatted_address],
+  );
+
   // Reverse geocode when dragging the marker
   // Note: Using the same /api/geocode route but with lat,lng coordinates if Google supports it,
   // or we might need a separate reverse geocode route. For now, we'll just update coordinates.
   const handleMarkerDragEnd = async (e: { lngLat: { lng: number; lat: number } }) => {
     const lng = e.lngLat.lng;
     const lat = e.lngLat.lat;
+<<<<<<< HEAD
 
     setViewState((prev) => ({ ...prev, longitude: lng, latitude: lat }));
 
@@ -133,7 +164,20 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
       console.error("Marker drag error:", err);
       onChange({ ...value, lat, lng });
     }
+=======
+    await resolveAndSetLocation(lng, lat);
+>>>>>>> origin/Boris
   };
+
+  const handleMapClick = useCallback(async (event: MapMouseEvent) => {
+    const lng = event.lngLat.lng;
+    const lat = event.lngLat.lat;
+    setViewState((prev) => ({ ...prev, longitude: lng, latitude: lat }));
+    if (mapRef.current) {
+      mapRef.current.flyTo({ center: [lng, lat], zoom: Math.max(Number(viewState.zoom || 12), 12) });
+    }
+    await resolveAndSetLocation(lng, lat);
+  }, [resolveAndSetLocation, viewState.zoom]);
 
   // Sync prop value to internal view state (e.g. initial load or programmatic changes)
   useEffect(() => {
@@ -196,6 +240,7 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
           ref={mapRef}
           {...viewState}
           onMove={(e) => setViewState(e.viewState)}
+          onClick={handleMapClick}
           mapStyle={mapStyle}
           mapboxAccessToken={MAPBOX_API_KEY}
           onError={(e) => {
@@ -218,10 +263,16 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
           ) : (
              <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-background/50 backdrop-blur-[1px]">
                 <p className="text-sm font-medium bg-background px-4 py-2 rounded-full shadow-sm border">
-                   Search for a location to place a pin
+                   Search or click anywhere on the map to place a pin
                 </p>
              </div>
           )}
+
+          <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-full border bg-background/90 px-3 py-1.5 text-[11px] font-medium text-muted-foreground shadow-sm">
+            {isResolvingPin
+              ? "Resolving pinned location..."
+              : "Click map to drop a pin, or drag the marker to refine it"}
+          </div>
         </Map>
       </div>
       
