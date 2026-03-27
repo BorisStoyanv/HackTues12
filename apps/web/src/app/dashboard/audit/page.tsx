@@ -1,10 +1,26 @@
+"use client";
+
 import { fetchAuditLogs } from "@/lib/actions/proposals";
 import { History } from "lucide-react";
 import { AuditExplorer } from "@/components/dashboard/audit-explorer";
+import { useEffect, useState } from "react";
+import type { SerializedAuditLog } from "@/lib/actions/proposals";
 
-export default async function AuditLogPage() {
-  const result = await fetchAuditLogs(500, 0); // Fetch a larger batch for the explorer
-  const logs = result.success ? result.logs : [];
+export default function AuditLogPage() {
+  const [logs, setLogs] = useState<SerializedAuditLog[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchAuditLogs(500, 0).then((result) => {
+      if (cancelled) return;
+      setLogs(result.success ? result.logs : []);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="flex-1 overflow-y-auto bg-background">

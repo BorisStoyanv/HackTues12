@@ -129,3 +129,27 @@ variable "ssh_source_ranges" {
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }
+
+variable "create_app_firewall_rule" {
+  description = "Whether to create an ingress firewall rule for the app port"
+  type        = bool
+  default     = true
+}
+
+variable "app_port" {
+  description = "Public app port exposed by the VM service"
+  type        = number
+  default     = 8080
+}
+
+variable "allow_http_https" {
+  description = "Whether to allow standard HTTP (80) and HTTPS (443) traffic"
+  type        = bool
+  default     = true
+}
+
+variable "app_source_ranges" {
+  description = "Source CIDR blocks allowed for app ingress"
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}

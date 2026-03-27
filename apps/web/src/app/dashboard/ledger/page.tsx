@@ -1,17 +1,32 @@
+"use client";
+
 import { fetchAuditLogs, fetchAllProposals } from "@/lib/actions/proposals";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FileText, TrendingUp, DollarSign, ArrowUpRight, ArrowDownRight, Wallet, Landmark } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useEffect, useState } from "react";
+import type { SerializedAuditLog, SerializedProposal } from "@/lib/actions/proposals";
 
-export default async function LedgerPage() {
-  const [logsResult, proposalsResult] = await Promise.all([
-    fetchAuditLogs(50, 0),
-    fetchAllProposals()
-  ]);
+export default function LedgerPage() {
+  const [logs, setLogs] = useState<SerializedAuditLog[]>([]);
+  const [proposals, setProposals] = useState<SerializedProposal[]>([]);
 
-  const logs = logsResult.success ? logsResult.logs : [];
-  const proposals = proposalsResult.success ? proposalsResult.proposals : [];
+  useEffect(() => {
+    let cancelled = false;
+
+    Promise.all([fetchAuditLogs(50, 0), fetchAllProposals()]).then(
+      ([logsResult, proposalsResult]) => {
+        if (cancelled) return;
+        setLogs(logsResult.success ? logsResult.logs : []);
+        setProposals(proposalsResult.success ? proposalsResult.proposals : []);
+      },
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   
   // Calculate aggregate stats
   const totalBudget = proposals.reduce((acc, p) => acc + (p.budget_amount || 0), 0);

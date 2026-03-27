@@ -28,6 +28,13 @@ describe('API Service Layer', () => {
     execution_plan: ['Step 1: Planning, Step 2: Execution'] as [string],
     timeline: ['6 months'] as [string],
     expected_impact: ['Positive impact on the community'] as [string],
+    location: [{
+      city: 'Test Region',
+      country: 'Bulgaria',
+      formatted_address: 'Test Region, Bulgaria',
+      lat: 42.7,
+      lng: 23.3,
+    }] as any,
     fairness_score: [85] as [number],
     risk_flags: [] as string[],
     status: { 'Active': null },
@@ -95,6 +102,13 @@ describe('API Service Layer', () => {
         execution_plan: 'Detailed execution plan text...',
         timeline: '12 months',
         expected_impact: 'Community impact text...',
+        location: [{
+          city: 'New Region',
+          country: 'Bulgaria',
+          formatted_address: 'New Region, Bulgaria',
+          lat: 42.7,
+          lng: 23.3,
+        }] as any,
       };
 
       const result = await submitProposalClient(mockIdentity, proposalData);

@@ -1,21 +1,50 @@
+"use client";
+
 import { ProposalExplorer } from "@/components/explorer/proposal-explorer";
-import { fetchAllProposals } from "@/lib/actions/proposals";
+import { fetchAllProposals, SerializedProposal } from "@/lib/actions/proposals";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Search, Globe, Activity, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 
-export default async function DashboardExplorePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ q?: string }>;
-}) {
-  const { q: searchQuery = "" } = await searchParams;
-  const result = await fetchAllProposals();
-  
-  const proposals = result.success && result.proposals ? result.proposals : [];
+function DashboardExploreContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const searchQuery = searchParams.get("q") ?? "";
+  const [inputValue, setInputValue] = useState(searchQuery);
+  const [proposals, setProposals] = useState<SerializedProposal[]>([]);
+
+  useEffect(() => {
+    setInputValue(searchQuery);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchAllProposals().then((result) => {
+      if (cancelled) return;
+      setProposals(result.success && result.proposals ? result.proposals : []);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Platform-wide metrics for the explorer
   const activeNodes = proposals.reduce((acc, p) => acc + (p.voter_count || 0), 0);
   const totalPledged = proposals.reduce((acc, p) => acc + (p.budget_amount || 0), 0);
+
+  const handleSearch = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const nextQuery = inputValue.trim();
+
+    router.replace(
+      nextQuery
+        ? `/dashboard/explore?q=${encodeURIComponent(nextQuery)}`
+        : "/dashboard/explore",
+    );
+  };
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-background">
@@ -39,11 +68,15 @@ export default async function DashboardExplorePage({
           </div>
 
           {/* Center: Search Protocol */}
-          <form action="/dashboard/explore" className="relative group w-full max-w-md mx-auto">
+          <form
+            onSubmit={handleSearch}
+            className="relative group w-full max-w-md mx-auto"
+          >
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
             <Input
               name="q"
-              defaultValue={searchQuery}
+              value={inputValue}
+              onChange={(event) => setInputValue(event.target.value)}
               placeholder="Search ID, title or region..."
               className="h-10 pl-10 bg-neutral-100/50 dark:bg-neutral-900/50 border-transparent focus-visible:ring-1 focus-visible:ring-primary/40 transition-all rounded-xl text-xs shadow-inner"
             />
@@ -79,5 +112,13 @@ export default async function DashboardExplorePage({
         />
       </div>
     </div>
+  );
+}
+
+export default function DashboardExplorePage() {
+  return (
+    <Suspense fallback={<div className="flex-1 bg-background" />}>
+      <DashboardExploreContent />
+    </Suspense>
   );
 }

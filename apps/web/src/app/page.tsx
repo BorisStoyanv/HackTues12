@@ -1,3 +1,5 @@
+"use client";
+
 import { buttonVariants } from "@/components/ui/button";
 import { LandingNav } from "@/components/landing/landing-nav";
 import { ProposalCard } from "@/components/proposals/proposal-card";
@@ -15,23 +17,50 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { useEffect, useState } from "react";
 
-export default async function LandingPage() {
-  const [statsResult, proposalsResult] = await Promise.all([
-    fetchGlobalStats(),
-    fetchAllProposals()
-  ]);
+const DEFAULT_STATS = {
+  total_funded: 1250000,
+  active_projects: 42,
+  verified_users: 12400,
+  average_ai_integrity_score: 88,
+};
 
-  const stats = statsResult.success && statsResult.stats ? statsResult.stats : {
+export default function LandingPage() {
+  const [stats, setStats] = useState(DEFAULT_STATS);
+  const [featuredProposals, setFeaturedProposals] = useState<SerializedProposal[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    Promise.all([fetchGlobalStats(), fetchAllProposals()]).then(
+      ([statsResult, proposalsResult]) => {
+        if (cancelled) return;
+
+        setStats(
+          statsResult.success && statsResult.stats
+            ? statsResult.stats
+            : DEFAULT_STATS,
+        );
+        setFeaturedProposals(
+          proposalsResult.success && proposalsResult.proposals
+            ? proposalsResult.proposals.slice(0, 3)
+            : [],
+        );
+      },
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const resolvedStats = stats ?? {
     total_funded: 1250000,
     active_projects: 42,
     verified_users: 12400,
-    average_ai_integrity_score: 88
+    average_ai_integrity_score: 88,
   };
-
-  const featuredProposals = proposalsResult.success 
-    ? proposalsResult.proposals.slice(0, 3) 
-    : [];
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground selection:bg-primary selection:text-primary-foreground">
@@ -83,19 +112,19 @@ export default async function LandingPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-12">
               <div className="text-center md:text-left">
                 <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mb-2">Total Deployed</p>
-                <p className="text-4xl font-black tabular-nums">${(stats.total_funded / 1000000).toFixed(1)}M</p>
+                <p className="text-4xl font-black tabular-nums">${(resolvedStats.total_funded / 1000000).toFixed(1)}M</p>
               </div>
               <div className="text-center md:text-left">
                 <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mb-2">Active Initiatives</p>
-                <p className="text-4xl font-black tabular-nums">{stats.active_projects}</p>
+                <p className="text-4xl font-black tabular-nums">{resolvedStats.active_projects}</p>
               </div>
               <div className="text-center md:text-left">
                 <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mb-2">Verified Citizens</p>
-                <p className="text-4xl font-black tabular-nums">{(stats.verified_users / 1000).toFixed(1)}k</p>
+                <p className="text-4xl font-black tabular-nums">{(resolvedStats.verified_users / 1000).toFixed(1)}k</p>
               </div>
               <div className="text-center md:text-left">
                 <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mb-2">Avg. Integrity</p>
-                <p className="text-4xl font-black tabular-nums text-primary">{stats.average_ai_integrity_score}%</p>
+                <p className="text-4xl font-black tabular-nums text-primary">{resolvedStats.average_ai_integrity_score}%</p>
               </div>
             </div>
           </div>

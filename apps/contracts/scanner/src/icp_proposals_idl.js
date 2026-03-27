@@ -36,6 +36,7 @@ export const idlFactory = ({ IDL }) => {
     category: IDL.Opt(ProposalCategory),
     backed_at: IDL.Opt(IDL.Nat64),
     backed_by: IDL.Opt(IDL.Principal),
+    resolved_total_vp: IDL.Opt(IDL.Float64),
     voter_count: IDL.Nat32,
     budget_amount: IDL.Opt(IDL.Float64),
     no_weight: IDL.Float64,

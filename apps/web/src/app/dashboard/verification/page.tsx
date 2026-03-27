@@ -77,12 +77,12 @@ export default function VerificationPage() {
                 <CardHeader className="pb-2">
                    <CardDescription className="text-[10px] uppercase font-black tracking-widest opacity-70 text-primary-foreground">Network Weight</CardDescription>
                    <CardTitle className="text-4xl font-black tracking-tighter">
-                      {user?.reputation || 100} <span className="text-sm font-bold opacity-60 uppercase tracking-widest ml-1">$V_p$</span>
+                      {typeof user?.reputation === "number" ? user.reputation.toLocaleString(undefined, { maximumFractionDigits: 1 }) : "—"} <span className="text-sm font-bold opacity-60 uppercase tracking-widest ml-1">Reputation</span>
                    </CardTitle>
                 </CardHeader>
                 <CardContent>
                    <p className="text-xs font-medium leading-relaxed opacity-80 pt-2">
-                      Calculated based on successful consensus participation and verified regional residency.
+                      Base trust score stored on-chain and used in voting power calculations.
                    </p>
                 </CardContent>
              </Card>

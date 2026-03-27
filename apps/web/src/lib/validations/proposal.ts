@@ -33,7 +33,9 @@ export const proposalSchema = z.object({
     formatted_address: z.string(),
     lat: z.number(),
     lng: z.number()
-  }).optional(),
+  }, {
+    required_error: "Select a location on the map before continuing.",
+  }),
 });
 
 export type ProposalFormValues = z.infer<typeof proposalSchema>;
