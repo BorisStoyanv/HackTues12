@@ -8,6 +8,7 @@ from typing import Any
 import fitz
 import pytesseract
 from PIL import Image, ImageOps, ImageSequence
+from docx import Document as DocxDocument
 
 from .models import (
     ErrorPayload,
@@ -26,6 +27,7 @@ from .models import (
 
 SUPPORTED_MIME_TYPES = {
     "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "image/jpeg",
     "image/png",
     "image/webp",
@@ -38,7 +40,7 @@ COMMON_FIELD_PATTERNS: dict[str, tuple[str, ...]] = {
     "document_number": (
         r"(?:document\s*number|document\s*no\.?|certificate\s*number|invoice\s*number|id\s*number)\s*[:\-]\s*([A-Z0-9\-/]+)",
     ),
-    "issue_date": (r"(?:issue\s*date|issued\s*on|date\s*issued)\s*[:\-]\s*([0-9./-]+)",),
+    "issue_date": (r"(?:issue\s*date|issued\s*on|date\s*issued|date)\s*[:\-]\s*([0-9./-]+)",),
     "issuing_organization": (
         r"(?:issuing\s*organization|issued\s*by|institution|organization|supplier|academy|university)\s*[:\-]\s*(.+)",
     ),
@@ -74,6 +76,45 @@ DOCUMENT_SPECIFIC_PATTERNS: dict[str, dict[str, tuple[str, ...]]] = {
         "program": (r"(?:program|course)\s*[:\-]\s*(.+)",),
         "gpa": (r"\b(?:gpa|grade average)\s*[:\-]\s*([0-9.]+)",),
     },
+    "letter of authorization": {
+        "authorized_person_name": (
+            r"authorize\s+(?:mr\.?|mrs\.?|ms\.?|dr\.?)?\s*([A-Z][A-Za-z.' -]+?)\s+to act on behalf of",
+            r"authorize\s+(?:mr\.?|mrs\.?|ms\.?|dr\.?)?\s*([A-Z][A-Za-z.' -]+?)\s+to\b",
+        ),
+        "authorizing_person_name": (
+            r"Issued by:\s*([A-Z][A-Za-z.' -]+)",
+        ),
+        "organization_name": (
+            r"on behalf of\s+(.+?)(?:\.|\n)",
+            r"Issued by:\s*[A-Z][A-Za-z.' -]+\s+[A-Za-z ]+\s+(.+)",
+        ),
+        "valid_from": (
+            r"valid from\s*([0-9./-]+)",
+        ),
+        "valid_until": (
+            r"(?:until|through)\s*([0-9./-]+)",
+        ),
+    },
+    "power of attorney": {
+        "authorized_person_name": (
+            r"appoint\s+(?:mr\.?|mrs\.?|ms\.?|dr\.?)?\s*([A-Z][A-Za-z.' -]+?)\s+as my attorney",
+            r"appoint\s+([A-Z][A-Za-z.' -]+?)\s+to act as attorney",
+        ),
+        "authorizing_person_name": (
+            r"I,\s*([A-Z][A-Za-z.' -]+?),\s*(?:hereby|do hereby)",
+            r"principal\s*[:\-]\s*([A-Z][A-Za-z.' -]+)",
+        ),
+        "organization_name": (
+            r"on behalf of\s+(.+?)(?:\.|\n)",
+        ),
+        "valid_from": (
+            r"effective from\s*([0-9./-]+)",
+            r"valid from\s*([0-9./-]+)",
+        ),
+        "valid_until": (
+            r"(?:until|through)\s*([0-9./-]+)",
+        ),
+    },
 }
 
 DOCUMENT_KEYWORDS = {
@@ -82,6 +123,8 @@ DOCUMENT_KEYWORDS = {
     "certificate": ("certificate", "certifies", "awarded", "course", "academy"),
     "transcript": ("transcript", "semester", "credits", "course"),
     "identity_card": ("identity card", "national id", "date of birth", "expiry date"),
+    "letter of authorization": ("letter of authorization", "authorize", "act on behalf of", "to whom it may concern"),
+    "power of attorney": ("power of attorney", "attorney-in-fact", "principal", "agent"),
 }
 
 DATE_FORMATS = ("%Y-%m-%d", "%d.%m.%Y", "%d/%m/%Y", "%m/%d/%Y", "%Y/%m/%d")
@@ -93,8 +136,32 @@ INSTRUCTION_PATTERNS: tuple[tuple[str, str], ...] = (
 )
 
 
-def ensure_supported_type(content_type: str | None) -> str:
+def ensure_supported_type(
+    content_type: str | None,
+    filename: str | None = None,
+    file_bytes: bytes | None = None,
+) -> str:
     mime_type = (content_type or "").lower()
+    lowered_name = (filename or "").lower()
+
+    if mime_type in SUPPORTED_MIME_TYPES:
+        return mime_type
+
+    if lowered_name.endswith(".docx") or (
+        mime_type in {"application/msword", "application/octet-stream"}
+        and file_bytes
+        and file_bytes.startswith(b"PK")
+    ):
+        return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+    if lowered_name.endswith(".pdf"):
+        return "application/pdf"
+
+    if any(lowered_name.endswith(ext) for ext in (".png", ".jpg", ".jpeg", ".webp", ".tiff", ".bmp")):
+        for known_type in SUPPORTED_MIME_TYPES:
+            if known_type.startswith("image/") and lowered_name.endswith(known_type.split("/")[-1].replace("jpeg", "jpg")):
+                return known_type
+
     if mime_type not in SUPPORTED_MIME_TYPES:
         raise ProcessingFailure(
             code="UNSUPPORTED_FILE_TYPE",
@@ -107,6 +174,8 @@ def ensure_supported_type(content_type: str | None) -> str:
 def extract_ocr_artifacts(file_bytes: bytes, mime_type: str) -> OcrArtifacts:
     if mime_type == "application/pdf":
         return _extract_from_pdf(file_bytes)
+    if mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        return _extract_from_docx(file_bytes)
     return _extract_from_image(file_bytes)
 
 
@@ -152,6 +221,7 @@ def classify_and_extract(raw_text: str, document_type_hint: str | None = None) -
             confidence=specific_fields["degree_level"].confidence,
         )
     _enrich_academic_fields(document_type, raw_text, specific_fields)
+    _enrich_authorization_fields(document_type, raw_text, common_fields, specific_fields)
 
     extraction_confidence = _average(
         [field.confidence for field in common_fields.values()]
@@ -214,6 +284,20 @@ def build_validation_results(
                 rule="date_consistency",
                 status=RuleStatus.skipped,
                 details="Relevant dates were not available.",
+            )
+        )
+
+    valid_from = _field_value(extraction.document_specific_fields, "valid_from")
+    valid_until = _field_value(extraction.document_specific_fields, "valid_until")
+    if valid_from and valid_until:
+        valid_from_dt = _parse_date(valid_from)
+        valid_until_dt = _parse_date(valid_until)
+        is_ordered = bool(valid_from_dt and valid_until_dt and valid_until_dt >= valid_from_dt)
+        results.append(
+            ValidationRuleResult(
+                rule="authorization_validity_window",
+                status=RuleStatus.passed if is_ordered else RuleStatus.warning,
+                details=None if is_ordered else "Authorization validity dates are missing or out of order.",
             )
         )
 
@@ -504,6 +588,33 @@ def _extract_from_image(file_bytes: bytes) -> OcrArtifacts:
     )
 
 
+def _extract_from_docx(file_bytes: bytes) -> OcrArtifacts:
+    try:
+        document = DocxDocument(io.BytesIO(file_bytes))
+    except Exception as exc:  # pragma: no cover
+        raise ProcessingFailure(
+            "UNSUPPORTED_FILE_TYPE",
+            "The uploaded Word document could not be decoded.",
+            retryable=False,
+        ) from exc
+
+    paragraphs = [paragraph.text.strip() for paragraph in document.paragraphs if paragraph.text.strip()]
+    joined_text = "\n".join(paragraphs).strip()
+    if not joined_text:
+        raise ProcessingFailure(
+            "OCR_FAILED",
+            "The uploaded Word document did not contain readable text.",
+            retryable=False,
+        )
+
+    return OcrArtifacts(
+        raw_text=joined_text,
+        pages=1,
+        raw_ocr={"engine": "python-docx", "paragraphs": len(paragraphs)},
+        ocr_confidence=0.98,
+    )
+
+
 def _ocr_image(image: Image.Image) -> tuple[str, float]:
     prepared = ImageOps.grayscale(ImageOps.autocontrast(image))
     try:
@@ -593,6 +704,10 @@ def _infer_subtype(document_type: str, raw_text: str) -> str | None:
         if "achievement" in lowered:
             return "achievement_certificate"
         return "general_certificate"
+    if document_type == "letter of authorization":
+        return "delegation_letter"
+    if document_type == "power of attorney":
+        return "attorney_in_fact"
     return None
 
 
@@ -661,10 +776,82 @@ def _infer_degree_level(lowered_text: str) -> str | None:
     return None
 
 
+def _enrich_authorization_fields(
+    document_type: str,
+    raw_text: str,
+    common_fields: dict[str, ExtractedField],
+    specific_fields: dict[str, ExtractedField],
+) -> None:
+    if document_type not in {"letter of authorization", "power of attorney"}:
+        return
+
+    if "organization_name" in specific_fields:
+        common_fields["issuing_organization"] = specific_fields["organization_name"]
+
+    if "authorizing_person_name" not in specific_fields:
+        match = re.search(
+            r"Issued by:\s*([A-Z][A-Za-z.' -]+)",
+            raw_text,
+            flags=re.IGNORECASE,
+        )
+        if match:
+            value = _clean_extracted_value(match.group(1))
+            specific_fields["authorizing_person_name"] = ExtractedField(
+                value=value,
+                confidence=_field_confidence(raw_text, value),
+            )
+
+    org_match = re.search(
+        r"on behalf of\s+(.+?)(?:\.\s|This authorization|This power of attorney|Issued by:|$)",
+        raw_text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if org_match:
+        value = _clean_multiline_value(org_match.group(1))
+        specific_fields["organization_name"] = ExtractedField(
+            value=value,
+            confidence=_field_confidence(raw_text, value),
+        )
+        common_fields["issuing_organization"] = specific_fields["organization_name"]
+
+    if "authorized_person_name" not in specific_fields:
+        auth_match = re.search(
+            r"authorize\s+(?:mr\.?|mrs\.?|ms\.?|dr\.?)?\s*([A-Z][A-Za-z.' -]+?)\s+to\b",
+            raw_text,
+            flags=re.IGNORECASE,
+        )
+        if auth_match:
+            value = _clean_extracted_value(auth_match.group(1))
+            specific_fields["authorized_person_name"] = ExtractedField(
+                value=value,
+                confidence=_field_confidence(raw_text, value),
+            )
+
+    scope_match = re.search(
+        r"(?:is permitted to|is authorized to)\s*:\s*(.+?)(?:This authorization is valid|This power of attorney is valid|Issued by:|Signature:|$)",
+        raw_text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if scope_match and "authorization_scope" not in specific_fields:
+        bullets = [line.strip(" -\u2022\t") for line in scope_match.group(1).splitlines() if line.strip()]
+        if bullets:
+            value = "; ".join(bullets[:5])
+            specific_fields["authorization_scope"] = ExtractedField(
+                value=value,
+                confidence=min(_field_confidence(raw_text, value), 0.9),
+            )
+
+
 def _clean_extracted_value(value: str) -> str:
     cleaned = value.strip().splitlines()[0].strip(" _")
     cleaned = re.sub(r"^the\s+", "", cleaned, flags=re.IGNORECASE)
-    return cleaned.strip()
+    return cleaned.strip().strip(".,;:")
+
+
+def _clean_multiline_value(value: str) -> str:
+    cleaned = re.sub(r"\s+", " ", value).strip().strip(" _")
+    cleaned = re.sub(r"^the\s+", "", cleaned, flags=re.IGNORECASE)
+    return cleaned.strip(".,;:")
 
 
 def _field_value(fields: dict[str, ExtractedField], field_name: str) -> Any | None:

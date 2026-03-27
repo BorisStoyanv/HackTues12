@@ -12,6 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
 from .models import (
+    BatchDocumentResponse,
+    BatchUploadAcceptedResponse,
     DocumentStatus,
     ErrorPayload,
     ExtractedField,
@@ -65,35 +67,43 @@ async def healthcheck() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.post("/v1/documents", response_model=UnifiedDocumentResponse | UploadAcceptedResponse)
+@app.post(
+    "/v1/documents",
+    response_model=UnifiedDocumentResponse | UploadAcceptedResponse | BatchDocumentResponse | BatchUploadAcceptedResponse,
+)
 async def upload_document(
     response: Response,
     background_tasks: BackgroundTasks,
-    file: Annotated[UploadFile, File(...)],
+    file: Annotated[UploadFile | None, File()] = None,
+    files: Annotated[list[UploadFile] | None, File()] = None,
     sync: Annotated[bool | None, Query()] = None,
     document_type_hint: Annotated[str | None, Form()] = None,
     external_id: Annotated[str | None, Form()] = None,
-) -> UnifiedDocumentResponse | UploadAcceptedResponse:
+) -> UnifiedDocumentResponse | UploadAcceptedResponse | BatchDocumentResponse | BatchUploadAcceptedResponse:
     del external_id
 
-    file_bytes = await file.read()
-    if len(file_bytes) > settings.max_file_size_bytes:
+    uploads = [upload for upload in ([file] if file else []) + (files or []) if upload is not None]
+    if not uploads:
         raise _http_error(
-            "FILE_TOO_LARGE",
-            f"File exceeds the {settings.max_file_size_mb} MB upload limit.",
+            "UNSUPPORTED_FILE_TYPE",
+            "At least one file upload is required.",
             retryable=False,
-            status_code=413,
+            status_code=400,
         )
 
-    try:
-        mime_type = ensure_supported_type(file.content_type)
-    except ProcessingFailure as exc:
-        payload = exc.payload
-        raise _http_error(payload.code, payload.message, payload.retryable, 415) from exc
+    should_process_sync = settings.default_sync if sync is None else sync
+    if len(uploads) > 1:
+        return await _handle_batch_upload(
+            uploads=uploads,
+            response=response,
+            background_tasks=background_tasks,
+            should_process_sync=should_process_sync,
+            document_type_hint=document_type_hint,
+        )
 
+    prepared = await _prepare_upload(uploads[0])
     document_id = f"doc_{uuid4().hex[:12]}"
     job_id = f"job_{uuid4().hex[:12]}"
-    should_process_sync = settings.default_sync if sync is None else sync
 
     async with STORE_LOCK:
         JOBS[job_id] = ProcessingJob(
@@ -107,9 +117,9 @@ async def upload_document(
         return await _process_document(
             document_id=document_id,
             job_id=job_id,
-            filename=file.filename or "upload",
-            mime_type=mime_type,
-            file_bytes=file_bytes,
+            filename=str(prepared["filename"]),
+            mime_type=str(prepared["mime_type"]),
+            file_bytes=prepared["file_bytes"],
             document_type_hint=document_type_hint,
         )
 
@@ -117,9 +127,9 @@ async def upload_document(
         _process_document,
         document_id,
         job_id,
-        file.filename or "upload",
-        mime_type,
-        file_bytes,
+        str(prepared["filename"]),
+        str(prepared["mime_type"]),
+        prepared["file_bytes"],
         document_type_hint,
     )
     response.status_code = 202
@@ -237,6 +247,94 @@ def _http_error(code: str, message: str, retryable: bool, status_code: int) -> H
         status_code=status_code,
         detail={"code": code, "message": message, "retryable": retryable},
     )
+
+
+async def _prepare_upload(upload: UploadFile) -> dict[str, str | bytes]:
+    file_bytes = await upload.read()
+    if len(file_bytes) > settings.max_file_size_bytes:
+        raise _http_error(
+            "FILE_TOO_LARGE",
+            f"File exceeds the {settings.max_file_size_mb} MB upload limit.",
+            retryable=False,
+            status_code=413,
+        )
+
+    try:
+        mime_type = ensure_supported_type(upload.content_type, upload.filename, file_bytes)
+    except ProcessingFailure as exc:
+        payload = exc.payload
+        raise _http_error(payload.code, payload.message, payload.retryable, 415) from exc
+
+    return {
+        "filename": upload.filename or "upload",
+        "mime_type": mime_type,
+        "file_bytes": file_bytes,
+    }
+
+
+async def _handle_batch_upload(
+    *,
+    uploads: list[UploadFile],
+    response: Response,
+    background_tasks: BackgroundTasks,
+    should_process_sync: bool,
+    document_type_hint: str | None,
+) -> BatchDocumentResponse | BatchUploadAcceptedResponse:
+    prepared_uploads = [await _prepare_upload(upload) for upload in uploads]
+
+    if should_process_sync:
+        items: list[UnifiedDocumentResponse] = []
+        for prepared in prepared_uploads:
+            document_id = f"doc_{uuid4().hex[:12]}"
+            job_id = f"job_{uuid4().hex[:12]}"
+            async with STORE_LOCK:
+                JOBS[job_id] = ProcessingJob(
+                    job_id=job_id,
+                    document_id=document_id,
+                    status=DocumentStatus.processing,
+                )
+            items.append(
+                await _process_document(
+                    document_id=document_id,
+                    job_id=job_id,
+                    filename=str(prepared["filename"]),
+                    mime_type=str(prepared["mime_type"]),
+                    file_bytes=prepared["file_bytes"],
+                    document_type_hint=document_type_hint,
+                )
+            )
+        response.status_code = 200
+        return BatchDocumentResponse(items=items)
+
+    accepted_items: list[UploadAcceptedResponse] = []
+    for prepared in prepared_uploads:
+        document_id = f"doc_{uuid4().hex[:12]}"
+        job_id = f"job_{uuid4().hex[:12]}"
+        async with STORE_LOCK:
+            JOBS[job_id] = ProcessingJob(
+                job_id=job_id,
+                document_id=document_id,
+                status=DocumentStatus.queued,
+            )
+        background_tasks.add_task(
+            _process_document,
+            document_id,
+            job_id,
+            str(prepared["filename"]),
+            str(prepared["mime_type"]),
+            prepared["file_bytes"],
+            document_type_hint,
+        )
+        accepted_items.append(
+            UploadAcceptedResponse(
+                document_id=document_id,
+                job_id=job_id,
+                status=DocumentStatus.queued,
+            )
+        )
+
+    response.status_code = 202
+    return BatchUploadAcceptedResponse(items=accepted_items)
 
 
 def _merge_llm_review(extraction, llm_review) -> None:
