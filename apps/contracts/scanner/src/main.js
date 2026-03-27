@@ -146,6 +146,7 @@ function normalizeProposal(proposal) {
     riskFlags: proposal.risk_flags ?? [],
     backedBy: principalText(optionValue(proposal.backed_by)),
     backedAt: optionValue(proposal.backed_at),
+    resolvedTotalVp: optionValue(proposal.resolved_total_vp),
     status: variantKey(proposal.status),
     createdAt: proposal.created_at,
     votingEndsAt: proposal.voting_ends_at,
@@ -692,7 +693,8 @@ class ScannerApp {
     const contract = this.state.contracts.get(proposal.idText);
     const votes = this.state.votesByProposal.get(proposal.idText) ?? [];
     const fingerprint = this.state.fingerprints.get(proposal.idText) ?? "pending";
-    const regionTotalVp = this.state.regionVp.get(proposal.region) ?? 0;
+    const regionTotalVp =
+      proposal.resolvedTotalVp ?? (this.state.regionVp.get(proposal.region) ?? 0);
     const metrics = getProposalVotingMetrics(proposal, regionTotalVp);
     const anchorHash = contract?.documentHash ?? fingerprint;
     const isPassedStatus =
@@ -944,7 +946,8 @@ class ScannerApp {
 
     const { proposal, contract, phase, fingerprint, votes, auditTrail, totalRegionVp } =
       selected;
-    const metrics = getProposalVotingMetrics(proposal, totalRegionVp);
+    const effectiveTotalRegionVp = proposal.resolvedTotalVp ?? totalRegionVp;
+    const metrics = getProposalVotingMetrics(proposal, effectiveTotalRegionVp);
     const anchorHash = contract?.documentHash ?? fingerprint ?? "pending";
 
     return `
