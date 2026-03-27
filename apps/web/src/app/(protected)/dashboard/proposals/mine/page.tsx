@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { formatCurrency } from "@/lib/utils";
 
 export default function MyProposalsPage() {
   const [proposals, setProposals] = useState<SerializedProposal[]>([]);
@@ -86,7 +87,7 @@ export default function MyProposalsPage() {
               const sidebarValue =
                 proposal.status === "Active"
                   ? formatPercent(votingMetrics.supportPercent, 0)
-                  : `$${proposal.budget_amount.toLocaleString()}`;
+                  : formatCurrency(proposal.budget_amount, proposal.budget_currency);
               const sidebarProgress =
                 proposal.status === "Active"
                   ? votingMetrics.supportPercent
@@ -145,7 +146,7 @@ export default function MyProposalsPage() {
                           <p className="text-2xl font-semibold">
                             {proposal.status === "Active"
                               ? votingMetrics.totalCastWeight.toFixed(1)
-                              : `$${proposal.budget_amount.toLocaleString()}`}
+                              : formatCurrency(proposal.budget_amount, proposal.budget_currency)}
                           </p>
                         </div>
                         <div className="pt-2">

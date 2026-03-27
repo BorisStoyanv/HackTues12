@@ -40,7 +40,7 @@ import {
 } from "@/lib/actions/proposals";
 import { createBackendActor } from "@/lib/api/icp";
 import { useRouter } from "next/navigation";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
@@ -241,55 +241,45 @@ export default function DashboardPage() {
               <Globe className="h-64 w-64" />
            </div>
 
-           <div className="max-w-screen-2xl mx-auto px-6 py-12 md:px-12">
-              <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-10">
-                 <div className="space-y-6">
-                    <div className="flex flex-wrap items-center gap-3">
-                       <Badge className="bg-foreground text-background border-none rounded-full px-4 py-1.5 text-[10px] font-semibold uppercase tracking-widest shadow-lg">
-                          {identityTier}
-                       </Badge>
-                       <div className="h-8 w-px bg-border/40 mx-2" />
-                       <div className={cn("flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest", kycStatusDisplay.color)}>
-                          <kycStatusDisplay.icon className="h-3.5 w-3.5" />
-                          Status: {kycStatusDisplay.label}
-                       </div>
+           <div className="max-w-screen-2xl mx-auto px-6 py-10 md:px-12">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+                 <div className="space-y-4">
+                    <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                       <span className="bg-foreground/5 px-2 py-0.5 rounded text-foreground">{identityTier}</span>
+                       <span className="h-1 w-1 rounded-full bg-border" />
+                       <span className={cn("flex items-center gap-1.5", kycStatusDisplay.color)}>
+                          <kycStatusDisplay.icon className="h-3 w-3" />
+                          {kycStatusDisplay.label} Node
+                       </span>
                     </div>
 
-                    <div className="space-y-2">
-                       <h1 className="text-3xl md:text-2xl font-semibold tracking-tight text-foreground leading-tight ">
-                          Account <br />
-                          <span className="text-muted-foreground/30">Overview</span>
+                    <div className="space-y-1">
+                       <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                          Welcome back, {user.display_name || "Authorized Node"}
                        </h1>
-                       <p className="text-base font-medium text-muted-foreground flex items-center gap-3 pt-4 border-t border-border/40 mt-6">
-                          Welcome back, <span className="text-foreground font-semibold uppercase tracking-tight">{user.display_name || "Authorized Node"}</span>
-                          <span className="h-1 w-1 rounded-full bg-border" />
-                          <span className="text-sm font-mono text-muted-foreground/60">@{user.id.substring(0, 10)}...</span>
+                       <p className="text-sm text-muted-foreground font-medium flex items-center gap-2">
+                          Manage your regional impact and governance ledger.
+                          <span className="font-mono text-[10px] opacity-40 uppercase">@{user.id.substring(0, 10)}</span>
                        </p>
                     </div>
                  </div>
 
-                 <div className="flex flex-col gap-6 lg:items-end">
-                    <div className="grid grid-cols-2 gap-4 w-full sm:w-auto">
-                       <Button 
-                         className="h-16 px-10 rounded-2xl bg-foreground text-background font-semibold text-xs uppercase tracking-widest shadow-2xl hover:scale-[1.02] active:scale-95 transition-all group shrink-0"
-                         onClick={() => router.push("/dashboard/proposals/new")}
-                       >
-                         <Plus className="mr-2 h-5 w-5 transition-transform group-hover:rotate-90" />
-                         New Proposal
-                       </Button>
-                       <Button 
-                         variant="outline"
-                         className="h-16 px-10 rounded-2xl border-2 border-border font-semibold text-xs uppercase tracking-widest hover:bg-muted/50 transition-all active:scale-95 shadow-sm shrink-0"
-                         onClick={() => router.push("/dashboard/explore")}
-                       >
-                         <Compass className="mr-2 h-5 w-5" />
-                         Impact Map
-                       </Button>
-                    </div>
-                    <div className="flex items-center gap-2 px-6 py-3 rounded-xl bg-background border border-border/40 shadow-sm w-fit">
-                       <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                       <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Mainnet Consensus Active</span>
-                    </div>
+                 <div className="flex items-center gap-3">
+                    <Button 
+                      className="h-11 px-6 rounded-xl bg-foreground text-background font-semibold text-xs uppercase tracking-widest shadow-sm hover:bg-foreground/90 transition-all group shrink-0"
+                      onClick={() => router.push("/dashboard/proposals/new")}
+                    >
+                      <Plus className="mr-2 h-4 w-4 transition-transform group-hover:rotate-90" />
+                      New Proposal
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      className="h-11 px-6 rounded-xl border-border font-semibold text-xs uppercase tracking-widest hover:bg-muted transition-all shadow-sm shrink-0"
+                      onClick={() => router.push("/dashboard/explore")}
+                    >
+                      <Compass className="mr-2 h-4 w-4" />
+                      Impact Map
+                    </Button>
                  </div>
               </div>
            </div>
@@ -377,7 +367,7 @@ export default function DashboardPage() {
                                       </div>
                                       <div className="text-right shrink-0">
                                          <p className="text-[9px] font-semibold uppercase text-muted-foreground tracking-widest mb-1">Target</p>
-                                         <p className="text-lg font-semibold tabular-nums">${p.budget_amount.toLocaleString()}</p>
+                                         <p className="text-lg font-semibold tabular-nums">{formatCurrency(p.budget_amount, p.budget_currency)}</p>
                                       </div>
                                    </div>
                                    
@@ -478,12 +468,12 @@ export default function DashboardPage() {
                  <div className="flex items-center gap-10 px-10 py-6 bg-muted/20 border border-border/40 rounded-[2.5rem] shadow-inner">
                     <div className="space-y-0.5">
                        <p className="text-[10px] font-semibold uppercase text-muted-foreground tracking-widest opacity-60">Network Cap</p>
-                       <p className="text-xl font-semibold tracking-tight">${(globalStats.budget / 1000).toFixed(1)}k</p>
+                       <p className="text-xl font-semibold tracking-tight">{formatCurrency(globalStats.budget, "USD")}</p>
                     </div>
                     <div className="h-10 w-px bg-border/40" />
                     <div className="space-y-0.5">
                        <p className="text-[10px] font-semibold uppercase text-muted-foreground tracking-widest opacity-60">Escrow Value</p>
-                       <p className="text-xl font-semibold tracking-tight text-emerald-500">${(globalStats.pledged / 1000).toFixed(1)}k</p>
+                       <p className="text-xl font-semibold tracking-tight text-emerald-500">{formatCurrency(globalStats.pledged, "USD")}</p>
                     </div>
                  </div>
               </div>

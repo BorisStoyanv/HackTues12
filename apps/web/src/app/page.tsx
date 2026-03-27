@@ -16,7 +16,7 @@ import {
   Landmark
 } from "lucide-react";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { useAuthStore } from "@/lib/auth-store";
 import { useRouter } from "next/navigation";
@@ -136,7 +136,7 @@ export default function LandingPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-12">
               <div className="text-center md:text-left">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground mb-2">Total Deployed</p>
-                <p className="text-2xl font-semibold tabular-nums">${(resolvedStats.total_funded / 1000000).toFixed(1)}M</p>
+                <p className="text-2xl font-semibold tabular-nums">{formatCurrency(resolvedStats.total_funded, "USD")}</p>
               </div>
               <div className="text-center md:text-left">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground mb-2">Active Initiatives</p>

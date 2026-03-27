@@ -31,7 +31,7 @@ import { useAuthStore } from "@/lib/auth-store";
 import { EUROPEAN_CURRENCIES } from "@/lib/currencies";
 import { normalizeRegionTag } from "@/lib/profile-utils";
 import { Location, ProposalCategory } from "@/lib/types/api";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import {
 	AlertCircle,
 	ArrowRight,
@@ -864,24 +864,10 @@ export function ProposalWizard({
 															Requested Capital
 														</p>
 														<div className="flex items-baseline gap-1">
-															<span className="text-2xl font-semibold text-primary/60">
-																{
-																	EUROPEAN_CURRENCIES.find(
-																		(c) =>
-																			c.code ===
-																			watch(
-																				"budget_currency",
-																			),
-																	)?.symbol
-																}
-															</span>
 															<h4 className="text-2xl font-semibold tracking-tight tabular-nums">
-																{watch(
-																	"budget_amount",
-																).toLocaleString()}
+																{formatCurrency(watch("budget_amount"), watch("budget_currency"))}
 															</h4>
-														</div>
-													</div>
+														</div>													</div>
 
 													<div className="space-y-3 pt-6 border-t border-primary/10">
 														<div className="flex items-center gap-2">
@@ -941,7 +927,7 @@ export function ProposalWizard({
 								onClick={handleNext}
 								className="h-14 px-14 rounded-2xl font-semibold text-xs bg-foreground text-background hover:bg-foreground/90 transition-all shadow-lg active:scale-95 group"
 							>
-								Continue Step
+								Next Phase
 								<ChevronRight className="w-5 h-5 ml-2 transition-transform group-hover:translate-x-1" />
 							</Button>
 						) : (

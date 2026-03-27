@@ -7,7 +7,7 @@ import {
   formatPercent,
   getProposalVotingMetrics,
 } from "@/lib/proposals/voting";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 
 interface ProposalCardProps {
   proposal: SerializedProposal;
@@ -105,7 +105,7 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
                 <span className="text-xl font-bold">
                   {proposal.status === "Active"
                     ? votingMetrics.totalCastWeight.toFixed(1)
-                    : `$${proposal.budget_amount.toLocaleString()}`}
+                    : formatCurrency(proposal.budget_amount, proposal.budget_currency)}
                 </span>
               </div>
               <div className="flex flex-col border-l border-neutral-100 dark:border-neutral-900 pl-8">

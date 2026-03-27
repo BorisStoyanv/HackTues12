@@ -3,6 +3,7 @@
 import { ProposalExplorer } from "@/components/explorer/proposal-explorer";
 import { Input } from "@/components/ui/input";
 import { fetchAllProposals, SerializedProposal } from "@/lib/actions/proposals";
+import { formatCurrency } from "@/lib/utils";
 import { Activity, Globe, Search, Users } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useState } from "react";
@@ -45,14 +46,6 @@ function DashboardExploreContent() {
 		0,
 	);
 	const platformCurrency = safeProposals[0]?.budget_currency || "USD";
-
-	const formatAmount = (amount: number, currency: string) => {
-		return new Intl.NumberFormat(undefined, {
-			style: "currency",
-			currency: currency,
-			maximumFractionDigits: 0,
-		}).format(amount);
-	};
 
 	const handleSearch = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
@@ -119,7 +112,7 @@ function DashboardExploreContent() {
 							</span>
 							<div className="flex items-center gap-1.5 font-mono text-sm font-bold text-foreground">
 								<Activity className="h-3.5 w-3.5 text-primary" />
-								{formatAmount(totalPledged, platformCurrency)}
+								{formatCurrency(totalPledged, platformCurrency)}
 							</div>
 						</div>
 					</div>

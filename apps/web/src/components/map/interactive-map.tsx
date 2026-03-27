@@ -11,7 +11,6 @@ import {
 	ArrowRight,
 	Briefcase,
 	Clock,
-	DollarSign,
 	Info,
 	MapPin,
 	Users,
@@ -301,7 +300,7 @@ export function InteractiveMap({
 						>
 							<div className="flex items-center justify-between mb-4">
 								<Badge className="bg-primary text-primary-foreground px-3 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-widest border-none">
-									{selectedProposal.status.toUpperCase()}
+									{formatStatus(selectedProposal.status).toUpperCase()}
 								</Badge>
 								<div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-tight bg-neutral-100 dark:bg-neutral-900 px-2 py-0.5 rounded-md">
 									<Clock className="w-3 h-3" />

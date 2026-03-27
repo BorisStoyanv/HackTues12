@@ -40,22 +40,19 @@ export function CategoryPicker({ value, onChange }: CategoryPickerProps) {
             className={cn(
               "group relative flex flex-col p-4 rounded-xl border-2 transition-all duration-300 cursor-pointer overflow-hidden",
               isActive 
-                ? "border-foreground bg-foreground text-background shadow-lg" 
+                ? "border-foreground bg-neutral-50 dark:bg-neutral-950 shadow-sm" 
                 : "border-border/40 bg-muted/5 hover:border-foreground/20 hover:bg-muted/10"
             )}
           >
             <div className={cn(
               "h-10 w-10 rounded-lg flex items-center justify-center mb-3 transition-colors",
-              isActive ? "bg-background text-foreground" : "bg-foreground/5 text-foreground group-hover:bg-foreground/10"
+              isActive ? "bg-foreground text-background" : "bg-foreground/5 text-foreground group-hover:bg-foreground/10"
             )}>
               <Icon className="h-5 w-5" />
             </div>
             <div className="space-y-0.5">
               <h4 className="font-bold text-sm tracking-tight">{cat.label}</h4>
-              <p className={cn(
-                "text-[10px] leading-tight",
-                isActive ? "text-background/60" : "text-muted-foreground"
-              )}>
+              <p className="text-[10px] leading-tight text-muted-foreground">
                 {cat.desc}
               </p>
             </div>

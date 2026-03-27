@@ -31,6 +31,7 @@ import {
 import { useProposalGovernance } from "@/hooks/use-proposal-governance";
 import { SerializedProposal, SerializedVote } from "@/lib/actions/proposals";
 import { getProposalVotingMetrics } from "@/lib/proposals/voting";
+import { formatCurrency } from "@/lib/utils";
 import { AIDebateLive } from "./ai-debate-live";
 import {
 	ProtocolRules,
@@ -111,7 +112,7 @@ export function ProposalView({
 								Capital Required
 							</p>
 							<p className="text-2xl font-semibold tracking-tight text-primary">
-								{proposal.budget_amount.toLocaleString()}{" "}
+								{formatCurrency(proposal.budget_amount, proposal.budget_currency)}{" "}
 								<span className="text-xs">
 									{proposal.budget_currency}
 								</span>

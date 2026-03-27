@@ -12,9 +12,19 @@ export function formatStatus(status: string): string {
 
 export function formatCurrency(amount: number, currency: string): string {
   if (!currency) return amount.toString();
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: currency,
-    maximumFractionDigits: 0,
-  }).format(amount);
+  
+  // Normalize common non-standard currency codes to ISO 4217
+  let isoCurrency = currency.toUpperCase();
+  if (isoCurrency === "EURO") isoCurrency = "EUR";
+  
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: isoCurrency,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  } catch (e) {
+    // Fallback if the currency code is still invalid
+    return `${amount.toLocaleString()} ${currency}`;
+  }
 }

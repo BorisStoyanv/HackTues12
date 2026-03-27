@@ -4,7 +4,7 @@ import { fetchAuditLogs, fetchAllProposals } from "@/lib/actions/proposals";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FileText, TrendingUp, DollarSign, ArrowUpRight, ArrowDownRight, Wallet, Landmark } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import type { SerializedAuditLog, SerializedProposal } from "@/lib/actions/proposals";
 
@@ -54,7 +54,7 @@ export default function LedgerPage() {
              <Card className="border-neutral-200 dark:border-neutral-800 shadow-sm rounded-2xl overflow-hidden">
                 <CardHeader className="pb-2">
                    <CardDescription className="text-[10px] font-semibold uppercase tracking-widest">Global Capital Pledged</CardDescription>
-                   <CardTitle className="text-3xl font-semibold">${totalBudget.toLocaleString()}</CardTitle>
+                   <CardTitle className="text-3xl font-semibold">{formatCurrency(totalBudget, "USD")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                    <div className="flex items-center gap-1.5 text-xs text-green-500 font-bold">
@@ -67,7 +67,7 @@ export default function LedgerPage() {
              <Card className="border-neutral-200 dark:border-neutral-800 shadow-sm rounded-2xl overflow-hidden">
                 <CardHeader className="pb-2">
                    <CardDescription className="text-[10px] font-semibold uppercase tracking-widest">Locked in Escrow</CardDescription>
-                   <CardTitle className="text-3xl font-semibold">${totalBacking.toLocaleString()}</CardTitle>
+                   <CardTitle className="text-3xl font-semibold">{formatCurrency(totalBacking, "USD")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
@@ -138,7 +138,7 @@ export default function LedgerPage() {
                       <div className="flex items-center justify-between">
                          <span className="text-xs font-bold">Sofia Urban</span>
                          <div className="flex items-center gap-1.5 text-[10px] font-semibold text-green-500">
-                            <ArrowUpRight className="h-3 w-3" /> $42k
+                            <ArrowUpRight className="h-3 w-3" /> {formatCurrency(42000, "USD")}
                          </div>
                       </div>
                       <div className="h-1.5 w-full bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
@@ -149,7 +149,7 @@ export default function LedgerPage() {
                       <div className="flex items-center justify-between">
                          <span className="text-xs font-bold">Plovdiv Tech Hub</span>
                          <div className="flex items-center gap-1.5 text-[10px] font-semibold text-amber-500">
-                            <ArrowDownRight className="h-3 w-3" /> $12k
+                            <ArrowDownRight className="h-3 w-3" /> {formatCurrency(12000, "USD")}
                          </div>
                       </div>
                       <div className="h-1.5 w-full bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
@@ -160,7 +160,7 @@ export default function LedgerPage() {
                       <div className="flex items-center justify-between">
                          <span className="text-xs font-bold">Varna Coastal</span>
                          <div className="flex items-center gap-1.5 text-[10px] font-semibold text-green-500">
-                            <ArrowUpRight className="h-3 w-3" /> $28k
+                            <ArrowUpRight className="h-3 w-3" /> {formatCurrency(28000, "USD")}
                          </div>
                       </div>
                       <div className="h-1.5 w-full bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">

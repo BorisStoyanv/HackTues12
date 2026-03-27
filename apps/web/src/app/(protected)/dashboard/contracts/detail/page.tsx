@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ContractSigningInterface } from "@/components/proposals/contract-signing-interface";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { useEffect, useState, Suspense } from "react";
 import type { SerializedContract, SerializedProposal } from "@/lib/actions/proposals";
 
@@ -157,7 +157,7 @@ function ContractDetailContent() {
                       <div className="p-6 flex items-center justify-between">
                          <div className="space-y-1">
                             <p className="text-lg font-bold group-hover:text-primary transition-colors">{proposal.title}</p>
-                            <p className="text-xs text-muted-foreground">{proposal.region_tag} Domain • ${proposal.budget_amount.toLocaleString()} Goal</p>
+                            <p className="text-xs text-muted-foreground">{proposal.region_tag} Domain • {formatCurrency(proposal.budget_amount, proposal.budget_currency)} Goal</p>
                          </div>
                          <ShieldCheck className="h-8 w-8 text-primary/20 group-hover:text-primary transition-colors" />
                       </div>
