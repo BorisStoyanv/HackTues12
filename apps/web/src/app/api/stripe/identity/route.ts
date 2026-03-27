@@ -1,21 +1,19 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
-function getStripeClient() {
-  const secretKey = process.env.STRIPE_SECRET_KEY;
-
-  if (!secretKey) {
-    throw new Error("Missing STRIPE_SECRET_KEY");
-  }
-
-  return new Stripe(secretKey, {
-    apiVersion: "2026-03-25.dahlia",
-  });
-}
-
 export async function POST(req: Request) {
   try {
-    const stripe = getStripeClient();
+    const secretKey = process.env.STRIPE_SECRET_KEY;
+    if (!secretKey) {
+      return NextResponse.json(
+        { error: "Stripe is not configured on the server." },
+        { status: 500 },
+      );
+    }
+
+    const stripe = new Stripe(secretKey, {
+      apiVersion: "2026-03-25.dahlia",
+    });
     const { role } = await req.json();
 
     const verificationSession =

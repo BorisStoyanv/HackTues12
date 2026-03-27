@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   ShieldCheck,
   MapPin,
@@ -27,6 +28,16 @@ import {
 import { createBackendActor } from "@/lib/api/icp";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import {
+  clearPendingVeriffSession,
+  readPendingVeriffSession,
+} from "@/lib/veriff-browser";
+import { getVeriffApiUrl } from "@/lib/veriff-api";
+import {
+  isApprovedVeriffStatus,
+  isRejectedVeriffStatus,
+  VeriffSessionRecord,
+} from "@/lib/veriff";
 
 type DashboardProfile = {
   reputation: number;
@@ -82,12 +93,18 @@ export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
   const identity = useAuthStore((state) => state.identity);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const setKycStatus = useAuthStore((state) => state.setKycStatus);
   const router = useRouter();
   const [realVP, setRealVP] = useState<number | null>(null);
   const [profile, setProfile] = useState<DashboardProfile | null>(null);
   const [proposals, setProposals] = useState<SerializedProposal[]>([]);
   const [recentVotes, setRecentVotes] = useState<RecentVoteActivity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [veriffSession, setVeriffSession] = useState<VeriffSessionRecord | null>(
+    null,
+  );
+  const [isCheckingVeriff, setIsCheckingVeriff] = useState(false);
+  const [hasPendingVeriffSession, setHasPendingVeriffSession] = useState(false);
 
   useEffect(() => {
     async function loadBackendData() {
@@ -203,6 +220,88 @@ export default function DashboardPage() {
     }
   }, [identity, isAuthenticated, user?.home_region, user?.id]);
 
+  useEffect(() => {
+    const pendingSession = readPendingVeriffSession();
+    setHasPendingVeriffSession(pendingSession !== null);
+
+    if (!pendingSession) {
+      return;
+    }
+
+    let cancelled = false;
+    let intervalId: ReturnType<typeof setInterval> | undefined;
+
+    const checkStatus = async () => {
+      setIsCheckingVeriff(true);
+
+      try {
+        const response = await fetch(
+          `${getVeriffApiUrl("/api/veriff/status")}?sessionId=${pendingSession.sessionId}`,
+          {
+            cache: "no-store",
+          },
+        );
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = await response.json();
+        if (cancelled) {
+          return;
+        }
+
+        const session = (data.session ?? null) as VeriffSessionRecord | null;
+        setVeriffSession(session);
+
+        if (!session?.status) {
+          return;
+        }
+
+        if (isApprovedVeriffStatus(session.status)) {
+          clearPendingVeriffSession();
+          setHasPendingVeriffSession(false);
+          setKycStatus("verified");
+          setProfile((currentProfile) =>
+            currentProfile ? { ...currentProfile, isVerified: true } : currentProfile,
+          );
+
+          if (intervalId) {
+            clearInterval(intervalId);
+          }
+        }
+
+        if (isRejectedVeriffStatus(session.status)) {
+          clearPendingVeriffSession();
+          setHasPendingVeriffSession(false);
+          setKycStatus("unverified");
+
+          if (intervalId) {
+            clearInterval(intervalId);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to check Veriff status:", error);
+      } finally {
+        if (!cancelled) {
+          setIsCheckingVeriff(false);
+        }
+      }
+    };
+
+    void checkStatus();
+    intervalId = setInterval(() => {
+      void checkStatus();
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [setKycStatus]);
+
   if (!user) {
     return (
       <div className="h-full flex flex-col items-center justify-center space-y-4 bg-background">
@@ -214,6 +313,13 @@ export default function DashboardPage() {
       </div>
     );
   }
+
+  const effectiveKycStatus =
+    profile?.isVerified || user.kyc_status === "verified"
+      ? "verified"
+      : user.kyc_status === "pending"
+        ? "pending"
+        : "unverified";
 
   const statCards = [
     {
@@ -264,16 +370,58 @@ export default function DashboardPage() {
       description: "Access level on the governance network",
       icon: ShieldCheck,
       trend:
-        profile?.isVerified || user.kyc_status === "verified"
-          ? "Verified"
-          : "Standard",
-      trendPositive: Boolean(profile?.isVerified || user.kyc_status === "verified"),
+        effectiveKycStatus === "verified"
+          ? "KYC Completed"
+          : effectiveKycStatus === "pending"
+            ? "KYC Pending"
+            : "Standard Tier",
+      trendPositive: effectiveKycStatus === "verified",
     },
   ];
 
   return (
     <div className="flex-1 overflow-y-auto bg-background p-6 md:p-10">
       <div className="max-w-6xl mx-auto space-y-10">
+        {(hasPendingVeriffSession || veriffSession) && (
+          <Card
+            className={cn(
+              "border shadow-sm",
+              isApprovedVeriffStatus(veriffSession?.status)
+                ? "border-green-200 bg-green-50/60 dark:border-green-900/40 dark:bg-green-950/10"
+                : isRejectedVeriffStatus(veriffSession?.status)
+                  ? "border-red-200 bg-red-50/60 dark:border-red-900/40 dark:bg-red-950/10"
+                  : "border-amber-200 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/10",
+            )}
+          >
+            <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
+              <div className="space-y-1">
+                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                  Veriff KYC
+                </p>
+                <p className="text-sm font-medium text-foreground">
+                  {isApprovedVeriffStatus(veriffSession?.status)
+                    ? "Your Veriff decision is approved. Verified access is now unlocked."
+                    : isRejectedVeriffStatus(veriffSession?.status)
+                      ? `Your Veriff decision came back as ${veriffSession?.status}.`
+                      : isCheckingVeriff
+                        ? "Checking Veriff for the latest KYC decision..."
+                        : "Your verification was started. We're waiting for Veriff's decision webhook."}
+                </p>
+                {veriffSession?.reason && (
+                  <p className="text-xs text-muted-foreground">
+                    Reason: {veriffSession.reason}
+                  </p>
+                )}
+              </div>
+
+              {!isApprovedVeriffStatus(veriffSession?.status) && (
+                <Button onClick={() => router.push("/onboarding/kyc")}>
+                  Review KYC Flow
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-neutral-200 dark:border-neutral-800">
           <div className="space-y-2">
             <h1 className="text-3xl font-bold tracking-tight text-foreground">

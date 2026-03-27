@@ -5,6 +5,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -21,6 +22,7 @@ export default function LoginPage() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isInitializing = useAuthStore((state) => state.isInitializing);
   const hasProfile = useAuthStore((state) => state.hasProfile);
+  const loginMock = useAuthStore((state) => state.loginMock);
 
   // Redirect when login is successful
   useEffect(() => {
@@ -94,6 +96,19 @@ export default function LoginPage() {
               .
             </div>
           </CardContent>
+          <CardFooter className="flex flex-col items-center justify-center gap-4">
+            <div className="pt-2 border-t w-full text-center">
+              <button
+                onClick={() => {
+                  loginMock();
+                  router.push("/onboarding/role");
+                }}
+                className="text-xs text-muted-foreground hover:text-primary transition-colors italic"
+              >
+                [Dev Mode] Skip authentication and start onboarding
+              </button>
+            </div>
+          </CardFooter>
         </Card>
       </div>
     </div>
