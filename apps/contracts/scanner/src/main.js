@@ -645,12 +645,11 @@ class ScannerApp {
     }
 
     return votes
-      .slice(0, 3)
       .map(
         (vote) => `
           <span class="vote-chip vote-chip--${vote.inFavor ? "yes" : "no"}">
-            ${vote.inFavor ? "Y" : "N"} ${vote.weight.toFixed(2)} · ${escapeHtml(
-              shorten(vote.voter, 7, 5),
+            ${vote.inFavor ? "YES" : "NO"} ${vote.weight.toFixed(2)} VP · ${escapeHtml(
+              shorten(vote.voter, 9, 6),
             )}
           </span>
         `,
@@ -666,6 +665,7 @@ class ScannerApp {
     const regionTotalVp = this.state.regionVp.get(proposal.region) ?? 0;
     const totalCastWeight = proposal.yesWeight + proposal.noWeight;
     const yesRatio = totalCastWeight > 0 ? proposal.yesWeight / totalCastWeight : 0;
+    const noRatio = totalCastWeight > 0 ? proposal.noWeight / totalCastWeight : 0;
     const participation = regionTotalVp > 0 ? totalCastWeight / regionTotalVp : 0;
     const anchorHash = contract?.documentHash ?? fingerprint;
 
@@ -727,13 +727,23 @@ class ScannerApp {
           </div>
         </div>
 
-        <div class="weight-bar" aria-hidden="true">
-          <span class="weight-bar__yes" style="width:${Math.max(yesRatio * 100, 8)}%"></span>
+        <div class="vote-meter" aria-hidden="true">
+          <div class="vote-meter__labels">
+            <span>Yes ${formatPercent(yesRatio)}</span>
+            <span>No ${formatPercent(noRatio)}</span>
+          </div>
+          <div class="vote-meter__bar">
+            <span class="vote-meter__yes" style="width:${yesRatio * 100}%"></span>
+            <span class="vote-meter__no" style="width:${noRatio * 100}%"></span>
+          </div>
         </div>
 
         <div class="proposal-card__footer">
-          <div class="proof-cluster vote-strip">
+          <div class="proposal-card__votes">
+            <span class="vote-strip-label">Voters</span>
+            <div class="proof-cluster vote-strip">
             ${this.renderVotePreview(votes)}
+            </div>
           </div>
           <span class="meta-inline">
             ${escapeHtml(formatPercent(participation))} / ${escapeHtml(
