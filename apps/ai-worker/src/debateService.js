@@ -40,6 +40,7 @@ function formatEvidence(evidence) {
           return [
             `${index + 1}. ${source.title}`,
             `   URL: ${source.url}`,
+            `   Matched query: ${source.matchedQuery || "n/a"}`,
             `   Snippet: ${source.snippet || "n/a"}`,
             `   Avg daily pageviews (30d): ${pageviews}`,
             `   Summary: ${summary}`,
@@ -48,8 +49,14 @@ function formatEvidence(evidence) {
         .join("\n")
     : "No reliable external sources found.";
 
+  const searchQueriesText = (evidence.searchQueries || []).length
+    ? evidence.searchQueries.map((query, index) => `${index + 1}. ${query}`).join("\n")
+    : "No search queries recorded.";
+
   return [
     `Search text: ${evidence.searchText}`,
+    "Search queries used:",
+    searchQueriesText,
     `Geo hint: ${
       evidence.geoHint
         ? `${evidence.geoHint.displayName} (lat ${evidence.geoHint.lat}, lon ${evidence.geoHint.lon})`
@@ -57,7 +64,95 @@ function formatEvidence(evidence) {
     }`,
     "Sources:",
     sourceLines,
+    "Country tourism/economic context:",
+    formatCountryEconomicContext(evidence.countryEconomicContext),
   ].join("\n");
+}
+
+function formatLargeNumber(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return "unknown";
+  }
+
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(Math.round(numeric));
+}
+
+function formatCountryEconomicContext(countryEconomicContext) {
+  if (!countryEconomicContext) {
+    return "No country-level indicators available.";
+  }
+
+  const lines = [`Country: ${countryEconomicContext.country} (${countryEconomicContext.countryCode})`];
+
+  if (countryEconomicContext.tourismArrivals) {
+    lines.push(
+      `Tourism arrivals (${countryEconomicContext.tourismArrivals.year}): ${formatLargeNumber(
+        countryEconomicContext.tourismArrivals.value
+      )} [${countryEconomicContext.tourismArrivals.sourceUrl}]`
+    );
+  }
+
+  if (countryEconomicContext.tourismReceiptsUsd) {
+    lines.push(
+      `Tourism receipts USD (${countryEconomicContext.tourismReceiptsUsd.year}): ${formatLargeNumber(
+        countryEconomicContext.tourismReceiptsUsd.value
+      )} [${countryEconomicContext.tourismReceiptsUsd.sourceUrl}]`
+    );
+  }
+
+  if (countryEconomicContext.gdpUsd) {
+    lines.push(
+      `GDP USD (${countryEconomicContext.gdpUsd.year}): ${formatLargeNumber(
+        countryEconomicContext.gdpUsd.value
+      )} [${countryEconomicContext.gdpUsd.sourceUrl}]`
+    );
+  }
+
+  return lines.join("\n");
+}
+
+function formatRealWorldDataPoints(evidence) {
+  const points = [];
+
+  for (const source of evidence.sources || []) {
+    if (source.avgDailyPageviews30d !== null) {
+      points.push(
+        `${source.title}: avg daily Wikipedia pageviews (30d) = ${source.avgDailyPageviews30d} [${source.url}]`
+      );
+    }
+  }
+
+  const context = evidence.countryEconomicContext;
+  if (context?.tourismArrivals) {
+    points.push(
+      `${context.country}: international tourism arrivals (${context.tourismArrivals.year}) = ${formatLargeNumber(
+        context.tourismArrivals.value
+      )} [${context.tourismArrivals.sourceUrl}]`
+    );
+  }
+
+  if (context?.tourismReceiptsUsd) {
+    points.push(
+      `${context.country}: tourism receipts USD (${context.tourismReceiptsUsd.year}) = ${formatLargeNumber(
+        context.tourismReceiptsUsd.value
+      )} [${context.tourismReceiptsUsd.sourceUrl}]`
+    );
+  }
+
+  if (context?.gdpUsd) {
+    points.push(
+      `${context.country}: GDP USD (${context.gdpUsd.year}) = ${formatLargeNumber(
+        context.gdpUsd.value
+      )} [${context.gdpUsd.sourceUrl}]`
+    );
+  }
+
+  if (!points.length) {
+    return "No strong numeric datapoints were found from web sources.";
+  }
+
+  return formatNumberedList(points, "No datapoints available.");
 }
 
 function formatHistory(rounds) {
@@ -363,6 +458,15 @@ function countConcreteSignals(text) {
   return splitSentences(text).reduce((sum, sentence) => sum + (looksConcreteClaim(sentence) ? 1 : 0), 0);
 }
 
+function containsUrl(text) {
+  return /https?:\/\/\S+/i.test(String(text || ""));
+}
+
+function extractFirstUrl(text) {
+  const match = String(text || "").match(/https?:\/\/\S+/i);
+  return match ? match[0].replace(/[),.;]+$/, "") : null;
+}
+
 function deriveWinnerFromScore(score) {
   if (score > 0.5 + ROUND_WINNER_TIE_BAND) {
     return "advocate";
@@ -403,6 +507,7 @@ async function generateDebaterStatement({
   proposalText,
   evidenceText,
   economicBriefText,
+  realWorldDataPointsText,
   historyText,
   responseLanguageName,
   round,
@@ -425,6 +530,9 @@ async function generateDebaterStatement({
     isAdvocate
       ? "Use the economic baseline to anchor at least one quantified argument (visitors, income, or payback), explicitly labeling assumptions where needed."
       : "Critique weak assumptions and overconfident projections from the economic baseline, but do not ignore credible quantified points.",
+    isAdvocate
+      ? "Use real-world internet datapoints and cite at least one source URL exactly as given."
+      : "Engage with concrete datapoints directly instead of dismissing them.",
     isAdvocate
       ? "Reasonable, clearly labeled assumptions are allowed when hard data is incomplete."
       : "Do not mention missing data, missing evidence, unknown information, unclear information, or lack of information.",
@@ -452,6 +560,9 @@ async function generateDebaterStatement({
     "Economic baseline (assumption-aware):",
     economicBriefText,
     "",
+    "Real-world datapoints pack (internet-derived):",
+    realWorldDataPointsText,
+    "",
     "Previous rounds:",
     historyText,
     "",
@@ -471,6 +582,9 @@ async function generateDebaterStatement({
     isAdvocate
       ? "Mandatory: include at least one quantified economic point (visitors, income, or payback) and clearly flag assumptions."
       : "Mandatory: challenge at least one concrete economic number or assumption.",
+    isAdvocate
+      ? "Mandatory: cite at least one source URL from the datapoints pack in parentheses."
+      : "Mandatory: reference at least one datapoint from the pack when rebutting.",
     isAdvocate
       ? "Mandatory: if evidence is incomplete, still provide a defendable range estimate with explicit assumptions."
       : "Mandatory: include at least two concrete risk arguments (execution, cost overrun, OPEX, demand volatility, governance, opportunity cost) and do not reference missing data/evidence.",
@@ -494,6 +608,7 @@ async function generateDebaterStatementWithRetry({
   proposalText,
   evidenceText,
   economicBriefText,
+  realWorldDataPointsText,
   historyText,
   responseLanguageName,
   round,
@@ -512,6 +627,7 @@ async function generateDebaterStatementWithRetry({
       proposalText,
       evidenceText,
       economicBriefText,
+      realWorldDataPointsText,
       historyText,
       responseLanguageName,
       round,
@@ -524,13 +640,14 @@ async function generateDebaterStatementWithRetry({
 
   const isSkeptic = speaker === "skeptic";
   const missingInfoMentioned = isSkeptic && countMissingInfoSignals(firstAttempt) > 0;
+  const advocateMissingCitation = speaker === "advocate" && !containsUrl(firstAttempt);
 
-  if (!previousStatements.length && !missingInfoMentioned) {
+  if (!previousStatements.length && !missingInfoMentioned && !advocateMissingCitation) {
     return isSkeptic ? sanitizeSkepticMissingDataPhrases(firstAttempt) : firstAttempt;
   }
 
   const firstSimilarity = maxSimilarityWithHistory(firstAttempt, previousStatements);
-  if (firstSimilarity < REPETITION_SIMILARITY_THRESHOLD && !missingInfoMentioned) {
+  if (firstSimilarity < REPETITION_SIMILARITY_THRESHOLD && !missingInfoMentioned && !advocateMissingCitation) {
     return isSkeptic ? sanitizeSkepticMissingDataPhrases(firstAttempt) : firstAttempt;
   }
 
@@ -540,14 +657,17 @@ async function generateDebaterStatementWithRetry({
       proposalText,
       evidenceText,
       economicBriefText,
+      realWorldDataPointsText,
       historyText,
       responseLanguageName,
       round,
       concreteClaims,
       unresolvedJudgePoints,
       opponentCurrentRoundStatement,
-      retryInstruction: missingInfoMentioned
-        ? "Your previous draft mentioned missing data/evidence. Remove that theme entirely. Argue only via concrete non-data risks and trade-offs."
+      retryInstruction: advocateMissingCitation
+        ? "Your previous draft missed citation. Include at least one concrete numeric datapoint and one source URL exactly as given in the datapoints pack."
+        : missingInfoMentioned
+          ? "Your previous draft mentioned missing data/evidence. Remove that theme entirely. Argue only via concrete non-data risks and trade-offs."
         : opponentCurrentRoundStatement
           ? "Your previous draft repeated prior phrasing. Use a clearly different angle and directly rebut one specific claim from the current-round opponent statement."
           : "Your previous draft repeated prior phrasing. Use a clearly different angle and pre-empt a likely counterargument without reusing prior sentence structures.",
@@ -556,7 +676,19 @@ async function generateDebaterStatementWithRetry({
 
   const secondSimilarity = maxSimilarityWithHistory(secondAttempt, previousStatements);
   const selected = secondSimilarity <= firstSimilarity ? secondAttempt : firstAttempt;
-  return isSkeptic ? sanitizeSkepticMissingDataPhrases(selected) : selected;
+
+  if (isSkeptic) {
+    return sanitizeSkepticMissingDataPhrases(selected);
+  }
+
+  if (speaker === "advocate" && !containsUrl(selected)) {
+    const fallbackUrl = extractFirstUrl(realWorldDataPointsText) || extractFirstUrl(evidenceText);
+    if (fallbackUrl) {
+      return `${selected} (Source: ${fallbackUrl})`;
+    }
+  }
+
+  return selected;
 }
 
 const roundJudgmentSchema = z.object({
@@ -789,6 +921,7 @@ export async function runProposalDebate(proposal, hooks = {}) {
   const proposalText = formatProposal(proposal);
   const evidence = await collectInternetEvidence(proposal);
   const evidenceText = formatEvidence(evidence);
+  const realWorldDataPointsText = formatRealWorldDataPoints(evidence);
   await onProgress({
     type: "internet_evidence",
     internetEvidence: evidence,
@@ -832,6 +965,7 @@ export async function runProposalDebate(proposal, hooks = {}) {
         proposalText,
         evidenceText,
         economicBriefText,
+        realWorldDataPointsText,
         historyText,
         responseLanguageName: responseLanguage.name,
         round,
@@ -847,6 +981,7 @@ export async function runProposalDebate(proposal, hooks = {}) {
         proposalText,
         evidenceText,
         economicBriefText,
+        realWorldDataPointsText,
         historyText,
         responseLanguageName: responseLanguage.name,
         round,
@@ -861,6 +996,7 @@ export async function runProposalDebate(proposal, hooks = {}) {
         proposalText,
         evidenceText,
         economicBriefText,
+        realWorldDataPointsText,
         historyText,
         responseLanguageName: responseLanguage.name,
         round,
@@ -876,6 +1012,7 @@ export async function runProposalDebate(proposal, hooks = {}) {
         proposalText,
         evidenceText,
         economicBriefText,
+        realWorldDataPointsText,
         historyText,
         responseLanguageName: responseLanguage.name,
         round,
