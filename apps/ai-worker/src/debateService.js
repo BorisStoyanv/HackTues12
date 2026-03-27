@@ -12,6 +12,7 @@ const MODELS = {
 const ROUND_COUNT = 3;
 const REPETITION_SIMILARITY_THRESHOLD = 0.68;
 const MAX_CARRYOVER_ITEMS = 6;
+const ROUND_WINNER_TIE_BAND = 0.06;
 export const DEBATE_MODELS = MODELS;
 export const DEBATE_ROUND_COUNT = ROUND_COUNT;
 
@@ -324,6 +325,8 @@ function countMissingInfoSignals(text) {
   const normalized = String(text || "").toLowerCase();
   const patterns = [
     /missing information/g,
+    /insufficient information/g,
+    /not enough information/g,
     /missing data/g,
     /lack of data/g,
     /insufficient data/g,
@@ -336,6 +339,63 @@ function countMissingInfoSignals(text) {
   ];
 
   return patterns.reduce((sum, pattern) => sum + (normalized.match(pattern) || []).length, 0);
+}
+
+function sanitizeSkepticMissingDataPhrases(text) {
+  return cleanStatement(
+    String(text || "")
+      .replace(/missing information/gi, "fragile assumptions")
+      .replace(/insufficient information/gi, "fragile assumptions")
+      .replace(/not enough information/gi, "fragile assumptions")
+      .replace(/missing data/gi, "fragile assumptions")
+      .replace(/lack of data/gi, "fragile assumptions")
+      .replace(/insufficient data/gi, "fragile assumptions")
+      .replace(/no data/gi, "fragile assumptions")
+      .replace(/no evidence/gi, "fragile support")
+      .replace(/\bunknown\b/gi, "uncertain")
+      .replace(/\bunclear\b/gi, "ambiguous")
+      .replace(/missing (visitor|income|revenue|economic impact)/gi, "fragile $1 assumptions")
+      .replace(/no (clear )?(visitor|visitors|income|revenue|economic impact)/gi, "fragile $2 assumptions")
+  );
+}
+
+function countConcreteSignals(text) {
+  return splitSentences(text).reduce((sum, sentence) => sum + (looksConcreteClaim(sentence) ? 1 : 0), 0);
+}
+
+function deriveWinnerFromScore(score) {
+  if (score > 0.5 + ROUND_WINNER_TIE_BAND) {
+    return "advocate";
+  }
+  if (score < 0.5 - ROUND_WINNER_TIE_BAND) {
+    return "skeptic";
+  }
+
+  return "tie";
+}
+
+function calibrateRoundScore({
+  score,
+  rationale,
+  advocateStatement,
+  skepticStatement,
+}) {
+  let adjusted = score;
+  const advocateConcreteSignals = countConcreteSignals(advocateStatement);
+  const skepticConcreteSignals = countConcreteSignals(skepticStatement);
+
+  // Prevent automatic skeptic edge when advocate provides at least as many concrete claims.
+  if (adjusted < 0.5 && advocateConcreteSignals >= skepticConcreteSignals) {
+    const concreteDelta = advocateConcreteSignals - skepticConcreteSignals;
+    adjusted += concreteDelta > 0 ? Math.min(0.08, 0.02 * concreteDelta) : 0.03;
+  }
+
+  // Missing-info framing should not dominate round scoring.
+  if (adjusted < 0.5 && countMissingInfoSignals(rationale) > 0) {
+    adjusted = Math.min(0.5, adjusted + 0.06);
+  }
+
+  return Number(clamp(adjusted, 0, 1).toFixed(3));
 }
 
 async function generateDebaterStatement({
@@ -367,7 +427,7 @@ async function generateDebaterStatement({
       : "Critique weak assumptions and overconfident projections from the economic baseline, but do not ignore credible quantified points.",
     isAdvocate
       ? "Reasonable, clearly labeled assumptions are allowed when hard data is incomplete."
-      : "You may mention missing information only once; the rest must focus on concrete risks/trade-offs (execution, cost overruns, operating cost, demand volatility, governance, opportunity cost).",
+      : "Do not mention missing data, missing evidence, unknown information, unclear information, or lack of information.",
     round > 1
       ? "For rounds 2 and 3, you must explicitly reference one concrete prior-round claim and one unresolved judge concern."
       : "For round 1, establish at least one concrete claim that can be challenged later.",
@@ -413,7 +473,7 @@ async function generateDebaterStatement({
       : "Mandatory: challenge at least one concrete economic number or assumption.",
     isAdvocate
       ? "Mandatory: if evidence is incomplete, still provide a defendable range estimate with explicit assumptions."
-      : "Mandatory: limit missing-data criticism to one short sentence and include at least two non-data risk arguments.",
+      : "Mandatory: include at least two concrete risk arguments (execution, cost overrun, OPEX, demand volatility, governance, opportunity cost) and do not reference missing data/evidence.",
     `Write exactly one strong statement ${finalAction}.`,
     retryInstruction ? `Revision requirement: ${retryInstruction}` : "",
   ]
@@ -463,15 +523,15 @@ async function generateDebaterStatementWithRetry({
   );
 
   const isSkeptic = speaker === "skeptic";
-  const missingInfoOverfocus = isSkeptic && countMissingInfoSignals(firstAttempt) > 1;
+  const missingInfoMentioned = isSkeptic && countMissingInfoSignals(firstAttempt) > 0;
 
-  if (!previousStatements.length && !missingInfoOverfocus) {
-    return firstAttempt;
+  if (!previousStatements.length && !missingInfoMentioned) {
+    return isSkeptic ? sanitizeSkepticMissingDataPhrases(firstAttempt) : firstAttempt;
   }
 
   const firstSimilarity = maxSimilarityWithHistory(firstAttempt, previousStatements);
-  if (firstSimilarity < REPETITION_SIMILARITY_THRESHOLD && !missingInfoOverfocus) {
-    return firstAttempt;
+  if (firstSimilarity < REPETITION_SIMILARITY_THRESHOLD && !missingInfoMentioned) {
+    return isSkeptic ? sanitizeSkepticMissingDataPhrases(firstAttempt) : firstAttempt;
   }
 
   const secondAttempt = cleanStatement(
@@ -486,8 +546,8 @@ async function generateDebaterStatementWithRetry({
       concreteClaims,
       unresolvedJudgePoints,
       opponentCurrentRoundStatement,
-      retryInstruction: missingInfoOverfocus
-        ? "Your previous draft over-focused on missing information. Keep missing-data criticism to one short sentence and build the rest around concrete non-data risks and trade-offs."
+      retryInstruction: missingInfoMentioned
+        ? "Your previous draft mentioned missing data/evidence. Remove that theme entirely. Argue only via concrete non-data risks and trade-offs."
         : opponentCurrentRoundStatement
           ? "Your previous draft repeated prior phrasing. Use a clearly different angle and directly rebut one specific claim from the current-round opponent statement."
           : "Your previous draft repeated prior phrasing. Use a clearly different angle and pre-empt a likely counterargument without reusing prior sentence structures.",
@@ -495,7 +555,8 @@ async function generateDebaterStatementWithRetry({
   );
 
   const secondSimilarity = maxSimilarityWithHistory(secondAttempt, previousStatements);
-  return secondSimilarity <= firstSimilarity ? secondAttempt : firstAttempt;
+  const selected = secondSimilarity <= firstSimilarity ? secondAttempt : firstAttempt;
+  return isSkeptic ? sanitizeSkepticMissingDataPhrases(selected) : selected;
 }
 
 const roundJudgmentSchema = z.object({
@@ -519,6 +580,9 @@ async function judgeRound({
     "You are the neutral JUDGE in a funding debate.",
     "Evaluate only argument quality and evidence use.",
     "Scoring rule: 0.5 is neutral/tie, >0.5 means advocate stronger, <0.5 means skeptic stronger.",
+    "Apply equal skepticism to BOTH sides. Unsupported skeptical claims are penalized just like unsupported advocate claims.",
+    "Start from 0.5 and move only when there is a clear argument-quality advantage.",
+    "Default to tie when both sides are similarly plausible.",
     "Do not automatically favor the skeptic just because some evidence is missing.",
     "Reasonable, explicitly labeled assumptions and ranges are valid argumentation when hard data is limited.",
     "Penalize generic or repetitive 'missing information' claims if they are not paired with substantive alternative risk analysis.",
@@ -550,6 +614,11 @@ async function judgeRound({
     `Advocate statement: ${advocateStatement}`,
     `Skeptic statement: ${skepticStatement}`,
     "",
+    "Scoring guidance:",
+    "- Start from 0.5 and move only for clear quality differences.",
+    "- Missing-evidence concerns alone should not dominate the score shift.",
+    "- Penalize unsupported assertions from either side equally.",
+    "",
     "Return exactly this JSON schema:",
     '{"winner":"advocate|skeptic|tie","score":0.5,"rationale":"short explanation"}',
   ].join("\n");
@@ -566,10 +635,16 @@ async function judgeRound({
     })
   );
 
-  const score = normalizeScore(parsed.score);
+  const rawScore = normalizeScore(parsed.score);
+  const score = calibrateRoundScore({
+    score: rawScore,
+    rationale: parsed.rationale,
+    advocateStatement,
+    skepticStatement,
+  });
 
   return {
-    winner: parsed.winner,
+    winner: deriveWinnerFromScore(score),
     score,
     rationale: parsed.rationale.trim(),
   };
@@ -630,6 +705,7 @@ async function judgeFinal({ proposalText, evidenceText, economicBriefText, respo
     "Criteria rating scale is 0..1 where higher means more of that metric itself.",
     "For popularity and tourism_attendance, high values imply lower funding priority.",
     "For neglect_and_age and potential_tourism_benefit, high values imply higher funding priority.",
+    "Apply equal skepticism to both sides in the round summaries; do not treat skeptical claims as true by default.",
     "Do not automatically penalize the advocate for every evidence gap if assumptions were explicit and reasonable.",
     "Do not over-reward repetitive generic skepticism focused only on missing information.",
     "Treat evidence-gap downside as already accounted for at most once in round scoring; do not repeatedly penalize the same gap in the final view.",
