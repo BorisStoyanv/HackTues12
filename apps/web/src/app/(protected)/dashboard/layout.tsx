@@ -25,7 +25,10 @@ export default function DashboardLayout({
     if (pathname === "/dashboard") return "Overview";
     if (pathname === "/dashboard/explore") return "Map Explorer";
     if (pathname === "/dashboard/proposals/new") return "Submit Proposal";
-    if (pathname?.startsWith("/dashboard/proposals/")) return "Proposal Detail";
+    if (pathname === "/dashboard/proposals/detail") return "Proposal Detail";
+    if (pathname === "/dashboard/proposals/fund") return "Back Project";
+    if (pathname === "/dashboard/proposals/vote") return "Sign Consensus";
+    if (pathname === "/dashboard/contracts/detail") return "Contract Detail";
     return "Dashboard";
   };
 

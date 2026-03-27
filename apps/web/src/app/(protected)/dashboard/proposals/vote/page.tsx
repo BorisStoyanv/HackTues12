@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { ProposalView } from "@/components/proposals/proposal-view";
 import {
   fetchProposalById,
@@ -8,10 +8,11 @@ import {
   SerializedProposal,
   SerializedVote,
 } from "@/lib/actions/proposals";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 
-export default function DashboardVotePage() {
-  const { id } = useParams();
+function VoteContent() {
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id");
   const [proposal, setProposal] = useState<SerializedProposal | undefined>(
     undefined,
   );
@@ -19,7 +20,7 @@ export default function DashboardVotePage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (typeof id === "string") {
+    if (id) {
       Promise.all([fetchProposalById(id), fetchProposalVotes(id)]).then(
         ([proposalResult, votesResult]) => {
           if (proposalResult.success) setProposal(proposalResult.proposal);
@@ -30,7 +31,7 @@ export default function DashboardVotePage() {
     }
   }, [id]);
 
-  if (typeof id !== "string") return null;
+  if (!id) return null;
 
   return (
     <div className="h-full overflow-auto">
@@ -47,5 +48,17 @@ export default function DashboardVotePage() {
         />
       )}
     </div>
+  );
+}
+
+export default function DashboardVotePage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-full items-center justify-center min-h-[50vh]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    }>
+      <VoteContent />
+    </Suspense>
   );
 }

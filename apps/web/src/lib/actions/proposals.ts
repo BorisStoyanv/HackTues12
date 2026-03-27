@@ -1,5 +1,3 @@
-"use server";
-
 import { createBackendActor } from "../api/icp";
 import { MAPBOX_API_KEY } from "../env";
 import { AuditLog, ContractRecord, Proposal } from "../types/api";

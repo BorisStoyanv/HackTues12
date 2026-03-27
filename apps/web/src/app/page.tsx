@@ -18,6 +18,9 @@ import {
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
+import { useAuthStore } from "@/lib/auth-store";
+import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 
 const DEFAULT_STATS = {
   total_funded: 1250000,
@@ -27,8 +30,16 @@ const DEFAULT_STATS = {
 };
 
 export default function LandingPage() {
+  const router = useRouter();
+  const { isAuthenticated, isInitializing } = useAuthStore();
   const [stats, setStats] = useState(DEFAULT_STATS);
   const [featuredProposals, setFeaturedProposals] = useState<SerializedProposal[]>([]);
+
+  useEffect(() => {
+    if (!isInitializing && isAuthenticated) {
+      router.replace("/dashboard");
+    }
+  }, [isAuthenticated, isInitializing, router]);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,6 +65,14 @@ export default function LandingPage() {
       cancelled = true;
     };
   }, []);
+
+  if (isInitializing || isAuthenticated) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   const resolvedStats = stats ?? {
     total_funded: 1250000,
