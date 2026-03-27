@@ -69,12 +69,14 @@ Request body:
     "category": "monument",
     "info": "Needs restoration of visitor pathways and multilingual signage",
     "neededFunds": 250000,
-    "currency": "EUR"
+    "currency": "EUR",
+    "responseLanguage": "en"
   }
 }
 ```
 
 Successful response contains full debate transcript, per-round scores, internet evidence, and final scoring fields.
+If `responseLanguage` is omitted or `"auto"`, English is now preferred unless Cyrillic text clearly dominates.
 
 ### Stream live debate rounds (SSE)
 
@@ -91,12 +93,13 @@ curl -N -X POST http://localhost:8080/api/v1/debate/proposals/evaluate/stream \
     "proposal": {
       "name": "Roman Amphitheatre of Serdica",
       "location": "Sofia, Bulgaria",
-      "category": "monument",
-      "info": "Needs restoration of visitor pathways and multilingual signage",
-      "neededFunds": 250000,
-      "currency": "EUR"
-    }
-  }'
+    "category": "monument",
+    "info": "Needs restoration of visitor pathways and multilingual signage",
+    "neededFunds": 250000,
+    "currency": "EUR",
+    "responseLanguage": "en"
+  }
+}'
 ```
 
 Stream events:
@@ -104,6 +107,7 @@ Stream events:
 - `connected`
 - `debate_started`
 - `internet_evidence`
+- `economic_brief`
 - `round_started`
 - `round_statements`
 - `round_completed`
