@@ -143,6 +143,55 @@ export interface Config {
 
 export type Result<T> = { Ok: T } | { Err: string };
 
+export interface ProposalAIDebateModels {
+  advocate: string;
+  skeptic: string;
+  judge: string;
+}
+
+export interface ProposalAIDebateCriteriaRatings {
+  popularity: number;
+  tourism_attendance: number;
+  neglect_and_age: number;
+  potential_tourism_benefit: number;
+}
+
+export interface ProposalAIDebateRound {
+  round: number;
+  advocate_statement: string;
+  skeptic_statement: string;
+  winner: string;
+  score: number;
+  rationale: string;
+}
+
+export interface ProposalAIDebate {
+  models: ProposalAIDebateModels;
+  search_text: string;
+  geo_hint_display_name: [] | [string];
+  rounds: ProposalAIDebateRound[];
+  aggregate_score: number;
+  judge_reported_aggregate_score: number;
+  funding_priority_score: number;
+  funding_recommendation: string;
+  rationale: string;
+  criteria_ratings: ProposalAIDebateCriteriaRatings;
+  saved_at: bigint;
+}
+
+export interface SaveProposalAIDebateInput {
+  models: ProposalAIDebateModels;
+  search_text: string;
+  geo_hint_display_name: [] | [string];
+  rounds: ProposalAIDebateRound[];
+  aggregate_score: number;
+  judge_reported_aggregate_score: number;
+  funding_priority_score: number;
+  funding_recommendation: string;
+  rationale: string;
+  criteria_ratings: ProposalAIDebateCriteriaRatings;
+}
+
 export interface AIIntegrityReport {
   fairness_score: number;
   efficiency_score: number;
@@ -230,7 +279,12 @@ export interface BackendService {
 
   submit_proposal(input: SubmitProposalInput): Promise<Result<Proposal>>;
   get_proposal(id: bigint): Promise<[] | [Proposal]>;
+  get_proposal_ai_debate(id: bigint): Promise<[] | [ProposalAIDebate]>;
   list_proposals(status_filter: [] | [ProposalStatus]): Promise<Proposal[]>;
+  save_proposal_ai_debate(
+    id: bigint,
+    input: SaveProposalAIDebateInput,
+  ): Promise<Result<Proposal>>;
 
   cast_vote(proposal_id: bigint, in_favor: boolean): Promise<Result<Vote>>;
   get_my_vote(id: bigint): Promise<[] | [Vote]>;

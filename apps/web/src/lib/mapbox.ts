@@ -43,16 +43,10 @@ function parseContext(feature: MapboxFeature) {
   };
 }
 
-export async function geocodeAddress(address: string) {
-  if (!MAPBOX_API_KEY) {
-    throw new Error("Mapbox token is missing.");
-  }
-
+async function fetchMapboxFeature(url: string) {
   let response: Response;
   try {
-    response = await fetch(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${MAPBOX_API_KEY}&types=locality,place,address,poi,neighborhood&limit=1`,
-    );
+    response = await fetch(url);
   } catch (error) {
     throw new Error(
       "Unable to reach the location service. Check your connection and try again.",
@@ -66,18 +60,48 @@ export async function geocodeAddress(address: string) {
     throw new Error("Location service returned an invalid response.");
   }
 
-  const feature = (data.features?.[0] ?? null) as MapboxFeature | null;
-
   if (!response.ok) {
     throw new Error(data.message || "Location lookup failed. Please try again.");
   }
 
+  const feature = (data.features?.[0] ?? null) as MapboxFeature | null;
   if (!feature) {
     throw new Error("No matching location found.");
   }
 
+  return feature;
+}
+
+export async function geocodeAddress(address: string) {
+  if (!MAPBOX_API_KEY) {
+    throw new Error("Mapbox token is missing.");
+  }
+
+  const feature = await fetchMapboxFeature(
+    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${MAPBOX_API_KEY}&types=locality,place,address,poi,neighborhood&limit=1`,
+  );
+
   const { city, country } = parseContext(feature);
   const [lng, lat] = feature.center;
+
+  return {
+    city,
+    country,
+    formatted_address: feature.place_name,
+    lat,
+    lng,
+  };
+}
+
+export async function reverseGeocodeCoordinates(lng: number, lat: number) {
+  if (!MAPBOX_API_KEY) {
+    throw new Error("Mapbox token is missing.");
+  }
+
+  const feature = await fetchMapboxFeature(
+    `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_API_KEY}&types=locality,place,address,poi,neighborhood&limit=1`,
+  );
+  const { city, country } = parseContext(feature);
 
   return {
     city,

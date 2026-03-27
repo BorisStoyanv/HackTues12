@@ -16,10 +16,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CheckCircle2, ChevronRight, ChevronLeft, Building2, MapPin, FileText, Landmark, ShieldCheck, Globe, Loader2, Zap, Info, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LocationPicker } from "./location-picker";
-import { submitProposalClient } from "@/lib/api/client-mutations";
+import {
+  saveProposalAIDebateClient,
+  submitProposalClient,
+} from "@/lib/api/client-mutations";
 import { useAuthStore } from "@/lib/auth-store";
 import { Location, ProposalCategory } from "@/lib/types/api";
 import { normalizeRegionTag } from "@/lib/profile-utils";
+import { runProposalDebateEvaluation } from "@/lib/ai/debate";
 
 const STEPS = [
   { id: "basic", title: "Basic Information", description: "Identity & Type", icon: Building2 },
@@ -35,6 +39,7 @@ export function ProposalWizard() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [direction, setDirection] = useState(1);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitPhase, setSubmitPhase] = useState<string | null>(null);
   
   const identity = useAuthStore((state) => state.identity);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -147,6 +152,7 @@ export function ProposalWizard() {
 
     setIsSubmitting(true);
     setSubmitError(null);
+    setSubmitPhase("Committing proposal");
     try {
       const category: ProposalCategory = { [data.category]: null } as any;
       const location: [] | [Location] = data.location
@@ -168,10 +174,36 @@ export function ProposalWizard() {
         approved_company: [],
         location,
       });
+
+      const createdProposalId = result.id.toString();
+
+      try {
+        setSubmitPhase("Running AI debate");
+        const savedDebate = await runProposalDebateEvaluation({
+          title: data.title,
+          description: data.description,
+          category: data.category,
+          budget_amount: data.budget_amount,
+          budget_currency: data.budget_currency,
+          region_tag: data.region_tag,
+          location: {
+            formatted_address:
+              data.location?.formatted_address || data.region_tag,
+            city: data.location?.city || data.region_tag,
+            country: data.location?.country || "Unknown Country",
+            lat: data.location?.lat ?? 0,
+            lng: data.location?.lng ?? 0,
+          },
+        });
+        setSubmitPhase("Saving AI debate");
+        await saveProposalAIDebateClient(identity, createdProposalId, savedDebate);
+      } catch (aiError) {
+        console.error("Proposal created but AI debate could not be saved", aiError);
+      }
       
       console.log("Broadcasting successful:", result);
       localStorage.removeItem("proposal_draft_v3");
-      router.push(`/dashboard/proposals/${result.id.toString()}`);
+      router.push(`/dashboard/proposals/${createdProposalId}`);
     } catch (error) {
       console.error(error);
       const message =
@@ -179,6 +211,7 @@ export function ProposalWizard() {
           ? error.message
           : "Blockchain communication failed. Please check the console.";
       setSubmitError(message);
+      setSubmitPhase(null);
 
       if (
         message.includes("Register before submitting proposals") ||
@@ -633,7 +666,7 @@ export function ProposalWizard() {
                     {isSubmitting ? (
                       <div className="flex items-center gap-2">
                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                         Broadcasting...
+                         {submitPhase ?? "Broadcasting..."}
                       </div>
                     ) : (
                       <>
