@@ -32,6 +32,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 type GovernanceConfig = Omit<Config, "voting_period_ns"> & {
@@ -41,6 +42,7 @@ type GovernanceConfig = Omit<Config, "voting_period_ns"> & {
 export default function GovernancePage() {
   const [proposals, setProposals] = useState<SerializedProposal[]>([]);
   const [config, setConfig] = useState<GovernanceConfig | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +59,7 @@ export default function GovernancePage() {
             ? configResult.config
             : null,
         );
+        setIsLoading(false);
       },
     );
 
@@ -106,7 +109,39 @@ export default function GovernancePage() {
       <div className="px-6 py-10 md:px-12">
         <div className="max-w-7xl mx-auto space-y-12">
           <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {proposals.length > 0 ? (
+            {isLoading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <Card key={i} className="border-neutral-200 dark:border-neutral-800 shadow-sm rounded-2xl overflow-hidden flex flex-col">
+                  <CardHeader className="p-6 pb-4 space-y-3">
+                    <div className="flex justify-between items-start">
+                      <Skeleton className="h-4 w-16" />
+                      <Skeleton className="h-3 w-20" />
+                    </div>
+                    <Skeleton className="h-6 w-full" />
+                    <Skeleton className="h-6 w-4/5" />
+                    <Skeleton className="h-3 w-24" />
+                  </CardHeader>
+                  <CardContent className="px-6 pb-6 flex-1 flex flex-col justify-between space-y-6">
+                    <div className="space-y-2">
+                       <Skeleton className="h-4 w-full" />
+                       <Skeleton className="h-4 w-full" />
+                       <Skeleton className="h-4 w-2/3" />
+                    </div>
+                    <div className="space-y-4">
+                       <div className="flex justify-between">
+                         <Skeleton className="h-3 w-20" />
+                         <Skeleton className="h-3 w-20" />
+                       </div>
+                       <div className="grid grid-cols-2 gap-3">
+                         <Skeleton className="h-16 w-full rounded-xl" />
+                         <Skeleton className="h-16 w-full rounded-xl" />
+                       </div>
+                       <Skeleton className="h-10 w-full rounded-xl" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            ) : proposals.length > 0 ? (
               proposals.map((proposal) => {
                 const endsAt = new Date(proposal.voting_ends_at / 1_000_000);
                 const isExpired = endsAt < new Date();

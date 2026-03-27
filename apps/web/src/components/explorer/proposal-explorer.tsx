@@ -7,7 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Globe, ShieldCheck, Users } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 
 import { SerializedProposal } from "@/lib/actions/proposals";
 import {
@@ -19,17 +19,26 @@ interface ProposalExplorerProps {
   proposals: SerializedProposal[];
   mode: "public" | "authenticated";
   searchQuery?: string;
+  initialSelectedId?: string | null;
 }
 
 export function ProposalExplorer({
   proposals = [],
   mode,
   searchQuery = "",
+  initialSelectedId = null,
 }: ProposalExplorerProps) {
   const safeProposals = Array.isArray(proposals) ? proposals : [];
   const [selectedProposalId, setSelectedProposalId] = useState<string | null>(
-    null,
+    initialSelectedId,
   );
+
+  // Sync initial selection
+  useEffect(() => {
+    if (initialSelectedId) {
+      setSelectedProposalId(initialSelectedId);
+    }
+  }, [initialSelectedId]);
   const [boundingBox, setBoundingBox] = useState<
     [number, number, number, number] | null
   >(null);

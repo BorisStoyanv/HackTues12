@@ -1,0 +1,29 @@
+[project]
+name = "hacktues-ocr-service"
+version = "0.1.0"
+description = "Stateless OCR and document extraction API for HackTues12"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115.0",
+  "httpx>=0.28.0",
+  "pydantic-settings>=2.6.0",
+  "pymupdf>=1.25.0",
+  "pillow>=11.0.0",
+  "python-docx>=1.1.2",
+  "pytesseract>=0.3.13",
+  "python-multipart>=0.0.9",
+  "uvicorn[standard]>=0.32.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

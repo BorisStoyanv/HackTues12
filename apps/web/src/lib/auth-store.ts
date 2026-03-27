@@ -40,7 +40,7 @@ interface AuthState {
     isAuthenticated: boolean,
     isBypass?: boolean,
   ) => void;
-  loginAsDev: (isNew?: boolean) => Promise<void>;
+  loginAsDev: (isNew?: boolean, forceProfile?: boolean) => Promise<void>;
 }
 
 let globalAuthClient: AuthClient | null = null;
@@ -237,7 +237,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     void get().initialize();
   },
 
-  loginAsDev: async (isNew = false) => {
+  loginAsDev: async (isNew = false, forceProfile = false) => {
     // Only allow on localhost
     if (typeof window !== "undefined" && !window.location.hostname.includes("localhost") && !window.location.hostname.includes("127.0.0.1")) {
       return;
@@ -257,9 +257,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         identity = Ed25519KeyIdentity.fromSecretKey(seed);
       }
       
-      get().syncIdentity(identity as any, true, true);
+      const principal = identity.getPrincipal().toString();
+
+      if (forceProfile) {
+        set({
+          identity: identity as any,
+          principal,
+          isAuthenticated: true,
+          isDevBypass: true,
+          hasProfile: true,
+          isInitializing: false,
+          user: {
+            id: principal,
+            role: "regional",
+            reputation: 100,
+            display_name: `Dev User (${principal.slice(0, 5)})`,
+            kyc_status: "verified",
+            geo_verified: true,
+            detected_location: { city: "Sofia", country: "Bulgaria" }
+          }
+        });
+      } else {
+        get().syncIdentity(identity as any, true, true);
+      }
       
-      console.log(`[Auth] Dev bypass active (${isNew ? 'New User' : 'Existing User'}). Principal:`, identity.getPrincipal().toString());
+      console.log(`[Auth] Dev bypass active (${isNew ? 'New' : 'Stored'}, Profile: ${forceProfile}). Principal:`, principal);
     } catch (error) {
       console.error("[Auth] Dev bypass failed:", error);
     }
