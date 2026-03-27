@@ -8,3 +8,14 @@ export function getVeriffApiUrl(path: string) {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${getVeriffBackendUrl()}${normalizedPath}`;
 }
+
+export async function fetchVeriffSessionStatus(sessionId: string) {
+  const url = getVeriffApiUrl(`/api/veriff/sessions/${sessionId}/decision`);
+  const response = await fetch(url);
+  
+  if (!response.ok) {
+    throw new Error(`Failed to fetch session status: ${response.statusText}`);
+  }
+
+  return response.json();
+}

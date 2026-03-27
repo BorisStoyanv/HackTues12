@@ -115,6 +115,55 @@ export const idlFactory: IDL.InterfaceFactory = ({
     location: idl.Opt(ProposalLocation),
   });
 
+  const ProposalAIDebateModels = idl.Record({
+    advocate: idl.Text,
+    skeptic: idl.Text,
+    judge: idl.Text,
+  });
+
+  const ProposalAIDebateCriteriaRatings = idl.Record({
+    popularity: idl.Float64,
+    tourism_attendance: idl.Float64,
+    neglect_and_age: idl.Float64,
+    potential_tourism_benefit: idl.Float64,
+  });
+
+  const ProposalAIDebateRound = idl.Record({
+    round: idl.Nat32,
+    advocate_statement: idl.Text,
+    skeptic_statement: idl.Text,
+    winner: idl.Text,
+    score: idl.Float64,
+    rationale: idl.Text,
+  });
+
+  const ProposalAIDebate = idl.Record({
+    models: ProposalAIDebateModels,
+    search_text: idl.Text,
+    geo_hint_display_name: idl.Opt(idl.Text),
+    rounds: idl.Vec(ProposalAIDebateRound),
+    aggregate_score: idl.Float64,
+    judge_reported_aggregate_score: idl.Float64,
+    funding_priority_score: idl.Float64,
+    funding_recommendation: idl.Text,
+    rationale: idl.Text,
+    criteria_ratings: ProposalAIDebateCriteriaRatings,
+    saved_at: idl.Nat64,
+  });
+
+  const SaveProposalAIDebateInput = idl.Record({
+    models: ProposalAIDebateModels,
+    search_text: idl.Text,
+    geo_hint_display_name: idl.Opt(idl.Text),
+    rounds: idl.Vec(ProposalAIDebateRound),
+    aggregate_score: idl.Float64,
+    judge_reported_aggregate_score: idl.Float64,
+    funding_priority_score: idl.Float64,
+    funding_recommendation: idl.Text,
+    rationale: idl.Text,
+    criteria_ratings: ProposalAIDebateCriteriaRatings,
+  });
+
   const Vote = idl.Record({
     weight: idl.Float64,
     voter: idl.Principal,
@@ -171,6 +220,10 @@ export const idlFactory: IDL.InterfaceFactory = ({
   });
 
   const CreateContractInput = idl.Record({
+    company_legal_name: idl.Text,
+    company_registration_id: idl.Text,
+    company_representative_name: idl.Text,
+    company_representative_principal: idl.Opt(idl.Principal),
     document_hash: idl.Text,
     document_uri: idl.Text,
     milestone_hash: idl.Opt(idl.Text),
@@ -254,6 +307,11 @@ export const idlFactory: IDL.InterfaceFactory = ({
     get_my_vote: idl.Func([idl.Nat64], [idl.Opt(Vote)], ["query"]),
     get_my_vp: idl.Func([idl.Text], [Result_Number], ["query"]),
     get_proposal: idl.Func([idl.Nat64], [idl.Opt(Proposal)], ["query"]),
+    get_proposal_ai_debate: idl.Func(
+      [idl.Nat64],
+      [idl.Opt(ProposalAIDebate)],
+      ["query"],
+    ),
     get_proposal_phase: idl.Func(
       [idl.Nat64],
       [Result_ProposalPhase],
@@ -279,6 +337,11 @@ export const idlFactory: IDL.InterfaceFactory = ({
       [],
     ),
     request_verification: idl.Func([], [Result_Null], []),
+    save_proposal_ai_debate: idl.Func(
+      [idl.Nat64, SaveProposalAIDebateInput],
+      [Result_Proposal],
+      [],
+    ),
     submit_proposal: idl.Func([SubmitProposalInput], [Result_Proposal], []),
     update_my_profile: idl.Func([UpdateProfileInput], [Result_UserProfile], []),
     whoami: idl.Func([], [idl.Principal], ["query"]),

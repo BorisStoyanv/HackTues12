@@ -9,6 +9,7 @@ import {
   UserType,
   ProposalCategory,
   ProposalCompany,
+  SaveProposalAIDebateInput,
 } from "../types/api";
 
 /**
@@ -81,6 +82,16 @@ export async function submitProposalClient(
 ): Promise<Proposal> {
   const actor = await createBackendActor(identity);
   const result = await actor.submit_proposal(data);
+  return handleResult(result);
+}
+
+export async function saveProposalAIDebateClient(
+  identity: Identity,
+  proposalId: string,
+  input: SaveProposalAIDebateInput
+): Promise<Proposal> {
+  const actor = await createBackendActor(identity);
+  const result = await actor.save_proposal_ai_debate(BigInt(proposalId), input);
   return handleResult(result);
 }
 

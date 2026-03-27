@@ -23,6 +23,7 @@ interface AuthState {
   principal: string | null;
   isAuthenticated: boolean;
   isInitializing: boolean;
+  isDevBypass: boolean;
   hasProfile: boolean;
   user: AuthUser | null;
   initialize: () => Promise<void>;
@@ -34,9 +35,12 @@ interface AuthState {
     verified: boolean,
     location?: { city: string; country: string },
   ) => void;
-  syncIdentity: (identity: Identity | null, isAuthenticated: boolean) => void;
+  syncIdentity: (
+    identity: Identity | null,
+    isAuthenticated: boolean,
+    isBypass?: boolean,
+  ) => void;
   loginAsDev: (isNew?: boolean) => Promise<void>;
-  loginMock: () => void;
 }
 
 let globalAuthClient: AuthClient | null = null;
@@ -103,6 +107,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   principal: null,
   isAuthenticated: false,
   isInitializing: false,
+  isDevBypass: false,
   hasProfile: false,
   user: null,
 
@@ -161,36 +166,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   login: async () => {
-    // This function is kept for backwards compatibility
-    // but the actual login is triggered via useInternetIdentity() hook directly
+    // Triggered via useInternetIdentity hook
     console.warn(
       "[Auth] Store login called directly, please use useInternetIdentity hook instead",
     );
     return Promise.resolve();
   },
 
-  loginMock: () => {
-    const mockPrincipal = "aaaaa-aa-mock-user";
-    set({
-      identity: new AnonymousIdentity(),
-      principal: mockPrincipal,
-      isAuthenticated: true,
-      user: {
-        id: mockPrincipal,
-        role: null,
-        reputation: 0,
-        kyc_status: 'unverified',
-        geo_verified: false,
-      },
-    });
-  },
-
   logout: async () => {
-    // Similarly, actual logout should happen via useInternetIdentity
     set({
       identity: null,
       principal: null,
       isAuthenticated: false,
+      isDevBypass: false,
       hasProfile: false,
       user: null,
     });
@@ -213,13 +201,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         : null,
     })),
 
-  syncIdentity: (identity, isAuthenticated) => {
+  syncIdentity: (identity, isAuthenticated, isBypass = false) => {
     const principal = identity?.getPrincipal().toString() || null;
     const isActuallyAuthenticated =
       isAuthenticated && principal !== null && principal !== "2vxsx-fae";
 
     // Prevent redundant syncs if the principal is already the same
-    if (get().principal === principal && get().isAuthenticated === isActuallyAuthenticated) {
+    if (get().principal === principal && get().isAuthenticated === isActuallyAuthenticated && get().isDevBypass === isBypass) {
       return;
     }
 
@@ -228,6 +216,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         identity: null,
         principal: null,
         isAuthenticated: false,
+        isDevBypass: false,
         hasProfile: false,
         user: null,
         isInitializing: false,
@@ -239,6 +228,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       identity,
       principal,
       isAuthenticated: true,
+      isDevBypass: isBypass,
       hasProfile: false,
       user: buildPlaceholderUser(principal, state.user),
       isInitializing: true,
@@ -267,7 +257,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         identity = Ed25519KeyIdentity.fromSecretKey(seed);
       }
       
-      get().syncIdentity(identity as any, true);
+      get().syncIdentity(identity as any, true, true);
       
       console.log(`[Auth] Dev bypass active (${isNew ? 'New User' : 'Existing User'}). Principal:`, identity.getPrincipal().toString());
     } catch (error) {
