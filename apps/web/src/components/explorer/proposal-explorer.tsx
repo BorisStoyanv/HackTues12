@@ -4,16 +4,23 @@ import { InteractiveMap } from "@/components/map/interactive-map";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, ChevronRight, Globe, ShieldCheck, Users } from "lucide-react";
+import {
+	ChevronLeft,
+	ChevronRight,
+	Globe,
+	ShieldCheck,
+	Users,
+} from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import { SerializedProposal } from "@/lib/actions/proposals";
 import {
 	formatPercent,
 	getProposalVotingMetrics,
 } from "@/lib/proposals/voting";
-import { Button } from "@/components/ui/button";
+import { ScrollArea } from "../ui/scroll-area";
 
 const ITEMS_PER_PAGE = 6;
 
@@ -90,8 +97,11 @@ export function ProposalExplorer({
 		setCurrentPage(1);
 	}, [searchQuery, boundingBox]);
 
-	const totalPages = Math.max(1, Math.ceil(visibleProposals.length / ITEMS_PER_PAGE));
-	
+	const totalPages = Math.max(
+		1,
+		Math.ceil(visibleProposals.length / ITEMS_PER_PAGE),
+	);
+
 	const paginatedProposals = useMemo(() => {
 		const start = (currentPage - 1) * ITEMS_PER_PAGE;
 		return visibleProposals.slice(start, start + ITEMS_PER_PAGE);
@@ -256,7 +266,9 @@ export function ProposalExplorer({
 								size="icon"
 								className="h-8 w-8 rounded-lg border-neutral-200 dark:border-neutral-800"
 								disabled={currentPage === 1}
-								onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+								onClick={() =>
+									setCurrentPage((p) => Math.max(1, p - 1))
+								}
 							>
 								<ChevronLeft className="h-4 w-4" />
 							</Button>
@@ -265,7 +277,11 @@ export function ProposalExplorer({
 								size="icon"
 								className="h-8 w-8 rounded-lg border-neutral-200 dark:border-neutral-800"
 								disabled={currentPage === totalPages}
-								onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+								onClick={() =>
+									setCurrentPage((p) =>
+										Math.min(totalPages, p + 1),
+									)
+								}
 							>
 								<ChevronRight className="h-4 w-4" />
 							</Button>
