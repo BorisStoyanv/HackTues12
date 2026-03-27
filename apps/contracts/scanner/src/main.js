@@ -666,8 +666,12 @@ class ScannerApp {
     const totalCastWeight = proposal.yesWeight + proposal.noWeight;
     const yesRatio = totalCastWeight > 0 ? proposal.yesWeight / totalCastWeight : 0;
     const noRatio = totalCastWeight > 0 ? proposal.noWeight / totalCastWeight : 0;
+    const yesRegionRatio = regionTotalVp > 0 ? proposal.yesWeight / regionTotalVp : 0;
+    const noRegionRatio = regionTotalVp > 0 ? proposal.noWeight / regionTotalVp : 0;
     const participation = regionTotalVp > 0 ? totalCastWeight / regionTotalVp : 0;
     const anchorHash = contract?.documentHash ?? fingerprint;
+    const quorumMarker = (this.state.config?.quorum_percent ?? 0.05) * 100;
+    const majorityMarker = (this.state.config?.absolute_majority ?? 0.5) * 100;
 
     return `
       <article class="proposal-card" data-open-proposal="${proposal.idText}">
@@ -729,12 +733,31 @@ class ScannerApp {
 
         <div class="vote-meter" aria-hidden="true">
           <div class="vote-meter__labels">
-            <span>Yes ${formatPercent(yesRatio)}</span>
-            <span>No ${formatPercent(noRatio)}</span>
+            <span class="vote-meter__label vote-meter__label--yes">
+              Yes ${formatPercent(yesRatio)}
+            </span>
+            <span class="vote-meter__label vote-meter__label--turnout">
+              Turnout ${formatPercent(participation)}
+            </span>
+            <span class="vote-meter__label vote-meter__label--no">
+              No ${formatPercent(noRatio)}
+            </span>
           </div>
           <div class="vote-meter__bar">
-            <span class="vote-meter__yes" style="width:${yesRatio * 100}%"></span>
-            <span class="vote-meter__no" style="width:${noRatio * 100}%"></span>
+            <div class="vote-meter__fill">
+              <span class="vote-meter__yes" style="width:${yesRegionRatio * 100}%"></span>
+              <span class="vote-meter__no" style="width:${noRegionRatio * 100}%"></span>
+            </div>
+            <span class="vote-meter__marker vote-meter__marker--quorum" style="left:${quorumMarker}%">
+              <span>${formatPercent(this.state.config?.quorum_percent ?? 0.05)}</span>
+            </span>
+            <span class="vote-meter__marker vote-meter__marker--majority" style="left:${majorityMarker}%">
+              <span>${formatPercent(this.state.config?.absolute_majority ?? 0.5)}</span>
+            </span>
+          </div>
+          <div class="vote-meter__legend">
+            <span>Green/Red against total regional VP</span>
+            <span>${proposal.yesWeight.toFixed(2)} / ${proposal.noWeight.toFixed(2)} VP</span>
           </div>
         </div>
 

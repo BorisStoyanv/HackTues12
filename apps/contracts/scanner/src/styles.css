@@ -677,6 +677,7 @@ code {
 .vote-meter__labels {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 12px;
   font-size: 0.68rem;
   font-weight: 900;
@@ -685,13 +686,33 @@ code {
   letter-spacing: 0.15em;
 }
 
+.vote-meter__label--yes {
+  color: #15803d;
+}
+
+.vote-meter__label--turnout {
+  color: var(--muted);
+}
+
+.vote-meter__label--no {
+  color: #dc2626;
+}
+
 .vote-meter__bar {
-  display: flex;
+  position: relative;
   height: 10px;
   margin-top: 8px;
-  overflow: hidden;
   border-radius: 999px;
   background: var(--accent-soft);
+  overflow: visible;
+}
+
+.vote-meter__fill {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: inherit;
 }
 
 .vote-meter__yes,
@@ -702,11 +723,56 @@ code {
 }
 
 .vote-meter__yes {
-  background: var(--accent);
+  background: linear-gradient(90deg, #22c55e, #16a34a);
 }
 
 .vote-meter__no {
-  background: #d4d4d8;
+  background: linear-gradient(90deg, #f87171, #dc2626);
+}
+
+.vote-meter__marker {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  width: 0;
+  border-left: 2px dashed rgba(23, 23, 23, 0.5);
+  pointer-events: none;
+}
+
+.vote-meter__marker span {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  min-height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: white;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.vote-meter__marker--quorum {
+  border-left-color: rgba(21, 128, 61, 0.6);
+}
+
+.vote-meter__marker--majority {
+  border-left-color: rgba(220, 38, 38, 0.55);
+}
+
+.vote-meter__legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
 }
 
 .proposal-card__footer {
