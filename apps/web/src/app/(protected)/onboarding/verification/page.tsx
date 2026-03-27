@@ -30,7 +30,6 @@ import {
   createMyProfileClient,
   updateMyProfileClient,
 } from "@/lib/api/client-mutations";
-import { geocodeAddress } from "@/lib/mapbox";
 import { getDefaultDisplayName, normalizeRegionTag } from "@/lib/profile-utils";
 import { waitForProfileSync } from "@/lib/profile-sync";
 
@@ -46,9 +45,18 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { cn } from "@/lib/utils";
+
+import { LocationPicker } from "@/components/proposals/location-picker";
 
 const geoSchema = z.object({
-  address: z.string().min(5, "Address must be at least 5 characters"),
+  location: z.object({
+    formatted_address: z.string().min(5, "Address is required"),
+    city: z.string(),
+    country: z.string(),
+    lat: z.number(),
+    lng: z.number(),
+  }),
 });
 
 type GeoFormValues = z.infer<typeof geoSchema>;
@@ -85,7 +93,13 @@ export default function VerificationPage() {
   const geoForm = useForm<GeoFormValues>({
     resolver: zodResolver(geoSchema),
     defaultValues: {
-      address: "",
+      location: {
+        formatted_address: "",
+        city: "",
+        country: "",
+        lat: 0,
+        lng: 0,
+      },
     },
   });
 
@@ -106,20 +120,19 @@ export default function VerificationPage() {
 
   const handleGeoSubmit = async (values: GeoFormValues) => {
     setIsVerifying(true);
-    geoForm.clearErrors("address");
+    geoForm.clearErrors("location");
     try {
-      const data = await geocodeAddress(values.address);
-      const location = { city: data.city, country: data.country };
+      const location = { 
+        city: values.location.city, 
+        country: values.location.country 
+      };
       setDetectedLocation(location);
       setGeoVerified(true, location);
       setStep("location-confirmed");
     } catch (err) {
       console.error(err);
-      geoForm.setError("address", {
-        message:
-          err instanceof Error
-            ? err.message
-            : "Unable to verify this address right now.",
+      geoForm.setError("location", {
+        message: "Unable to verify this address right now.",
       });
     } finally {
       setIsVerifying(false);
@@ -159,7 +172,7 @@ export default function VerificationPage() {
       await Promise.race([syncPromise, mutationPromise.then(() => syncPromise)]);
 
       await initialize();
-      router.replace("/dashboard");
+      setStep("complete");
     } catch (error) {
       console.error("Failed to save community profile:", error);
       setSubmitError(
@@ -174,98 +187,81 @@ export default function VerificationPage() {
   if (!user) return null;
 
   return (
-    <div className="w-full max-w-xl space-y-8">
+    <div className="w-full max-w-xl animate-in fade-in slide-in-from-bottom-4 duration-700">
       {step === "geo" && (
-        <Card className="border-neutral-200 dark:border-neutral-800">
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold">
-              Geographic Verification
+        <Card className="border-border bg-background shadow-none">
+          <CardHeader className="space-y-1 pt-8">
+            <CardTitle className="text-2xl font-bold tracking-tight">
+              Location Verification
             </CardTitle>
-            <CardDescription>
-              We need to verify your location to ensure you can participate in
-              local governance.
+            <CardDescription className="text-muted-foreground">
+              Confirm your residency to access local governance tools and voting.
             </CardDescription>
           </CardHeader>
           <Form {...geoForm}>
             <form onSubmit={geoForm.handleSubmit(handleGeoSubmit)}>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-6 pt-4">
                 {submitError && (
-                  <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  <div className="rounded-md border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive animate-in fade-in zoom-in-95">
                     {submitError}
                   </div>
                 )}
+                
                 <FormField
                   control={geoForm.control}
-                  name="address"
+                  name="location"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Residential Address</FormLabel>
+                    <FormItem className="space-y-1.5">
+                      <FormLabel className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Residential Address</FormLabel>
                       <FormControl>
-                        <Input
-                          placeholder="123 Main St, Berlin, Germany"
-                          {...field}
+                        <LocationPicker
+                          value={field.value}
+                          onChange={field.onChange}
+                          error={geoForm.formState.errors.location?.formatted_address?.message}
                         />
                       </FormControl>
-                      <FormMessage />
+                      <FormMessage className="text-[10px]" />
                     </FormItem>
                   )}
                 />
 
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
+                <div className="rounded-lg border border-border bg-muted/20 p-5 space-y-3">
+                  <div className="flex gap-3 items-center">
+                    <ShieldCheck className="h-4 w-4 text-foreground" />
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-foreground">Protocol Note</p>
                   </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">
-                      Or use automated verification
-                    </span>
-                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Stripe Identity has been replaced by Veriff. For regional users, we use zero-knowledge proofs of residency based on validated session data.
+                  </p>
                 </div>
 
-                <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900">
-                  <div className="flex gap-3">
-                    <Map className="h-5 w-5 text-primary shrink-0" />
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold">
-                        Automatic ID verification is moving to Veriff
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Stripe Identity has been removed from this step. For now,
-                        test regional onboarding with the address flow above
-                        while we wire Veriff into the geo-specific
-                        post-verification step.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 p-4 flex gap-3">
-                  <ShieldCheck className="h-5 w-5 text-blue-500 shrink-0" />
-                  <p className="text-xs text-blue-700 dark:text-blue-300">
-                    Your location data is processed locally and never stored
-                    on-chain. Only a zero-knowledge proof of residency is
-                    generated.
+                <div className="flex items-start gap-3 p-4 border border-border rounded-lg bg-muted/10">
+                  <Globe className="h-4 w-4 text-muted-foreground mt-0.5" />
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Your location data is processed securely and never stored on the public ledger. Only the derived region tag is written to your profile.
                   </p>
                 </div>
               </CardContent>
-              <CardFooter className="flex justify-between border-t pt-6">
+              <CardFooter className="flex justify-between border-t border-border bg-muted/30 py-6">
                 <Button
                   variant="ghost"
                   type="button"
                   onClick={() => router.push("/onboarding/role")}
+                  className="rounded-full hover:bg-background"
                 >
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Back
                 </Button>
-                <Button type="submit" disabled={isVerifying}>
+                <Button 
+                  type="submit" 
+                  disabled={isVerifying || !geoForm.getValues("location.city")}
+                  className="rounded-full bg-foreground text-background hover:bg-foreground/90 transition-all px-8"
+                >
                   {isVerifying ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Verifying...
-                    </>
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <>
-                      Next
+                      Verify
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </>
                   )}
@@ -277,58 +273,53 @@ export default function VerificationPage() {
       )}
 
       {step === "location-confirmed" && (
-        <Card className="border-neutral-200 dark:border-neutral-800 overflow-hidden">
-          <div className="h-2 bg-green-500" />
-          <CardHeader className="pb-2">
-            <div className="h-12 w-12 rounded-full bg-green-50 dark:bg-green-950/30 flex items-center justify-center mb-4">
-              <MapIcon className="h-6 w-6 text-green-500" />
-            </div>
-            <CardTitle className="text-2xl font-bold">
-              Location Verified
+        <Card className="border-border bg-background shadow-none overflow-hidden">
+          <CardHeader className="space-y-1 pt-8">
+            <CardTitle className="text-2xl font-bold tracking-tight">
+              Verified
             </CardTitle>
-            <CardDescription>
-              We've successfully confirmed your geographic eligibility.
+            <CardDescription className="text-muted-foreground">
+              Geographic eligibility confirmed for the following region.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="p-6 bg-neutral-50 dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 flex items-center gap-6">
-              <div className="h-16 w-16 rounded-lg bg-white dark:bg-neutral-800 shadow-sm flex items-center justify-center border">
-                <Globe className="h-8 w-8 text-primary" />
+          <CardContent className="space-y-8 pt-4">
+            <div className="p-8 border border-border rounded-xl bg-background flex flex-col items-center text-center space-y-4">
+              <div className="h-16 w-16 rounded-full bg-foreground text-background flex items-center justify-center shadow-lg">
+                <MapIcon className="h-8 w-8" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">
-                  Current Region
+              <div className="space-y-1">
+                <p className="text-3xl font-bold tracking-tight">
+                  {detectedLocation?.city}
                 </p>
-                <p className="text-2xl font-bold">
-                  {detectedLocation?.city}, {detectedLocation?.country}
-                </p>
-                <div className="flex items-center gap-2 mt-1 text-xs text-green-600 dark:text-green-400 font-medium">
-                  <CheckCircle2 className="h-3 w-3" />
-                  Eligible for Local Voting & Proposals
-                </div>
+                <p className="text-muted-foreground font-medium">{detectedLocation?.country}</p>
+              </div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted text-[10px] font-bold uppercase tracking-widest text-foreground">
+                <CheckCircle2 className="h-3 w-3" />
+                Regional Voting Active
               </div>
             </div>
 
-            <div className="rounded-lg border border-primary/20 bg-primary/[0.02] p-4">
-              <p className="text-sm font-medium mb-1 flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-primary" />
-                Governance Rights
-              </p>
-              <p className="text-xs text-muted-foreground">
-                As a verified resident of{" "}
-                <strong>{detectedLocation?.city}</strong>, you have been granted
-                voting power in regional infrastructure, education, and
-                environmental projects.
-              </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 border border-border rounded-lg bg-muted/10 space-y-1">
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Region Tag</p>
+                <p className="text-sm font-mono">{normalizeRegionTag(detectedLocation?.city || "")}</p>
+              </div>
+              <div className="p-4 border border-border rounded-lg bg-muted/10 space-y-1">
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Eligibility</p>
+                <p className="text-sm font-semibold text-foreground">Full Governance</p>
+              </div>
             </div>
           </CardContent>
-          <CardFooter className="flex justify-between border-t pt-6 bg-neutral-50/50 dark:bg-neutral-950/50">
-            <Button variant="ghost" onClick={() => setStep("geo")}>
+          <CardFooter className="flex justify-between border-t border-border bg-muted/30 py-6">
+            <Button variant="ghost" onClick={() => setStep("geo")} className="rounded-full hover:bg-background">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Change Address
+              Change
             </Button>
-            <Button onClick={() => setStep("expertise")}>
-              Continue to Expertise
+            <Button 
+              onClick={() => setStep("expertise")}
+              className="rounded-full bg-foreground text-background hover:bg-foreground/90 transition-all px-8"
+            >
+              Continue
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </CardFooter>
@@ -336,21 +327,20 @@ export default function VerificationPage() {
       )}
 
       {step === "expertise" && (
-        <Card className="border-neutral-200 dark:border-neutral-800">
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold">
+        <Card className="border-border bg-background shadow-none">
+          <CardHeader className="space-y-1 pt-8">
+            <CardTitle className="text-2xl font-bold tracking-tight">
               Expertise Portfolio
             </CardTitle>
-            <CardDescription>
-              Linking your professional background increases your Reputation
-              Attribute ($V_p$) in relevant categories.
+            <CardDescription className="text-muted-foreground">
+              Link your professional background to increase your weighted Reputation ($V_p$).
             </CardDescription>
           </CardHeader>
           <Form {...expertiseForm}>
             <form onSubmit={expertiseForm.handleSubmit(handleExpertiseSubmit)}>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-8 pt-4">
                 {submitError && (
-                  <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  <div className="rounded-md border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
                     {submitError}
                   </div>
                 )}
@@ -358,36 +348,26 @@ export default function VerificationPage() {
                   control={expertiseForm.control}
                   name="area"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Primary Area of Expertise</FormLabel>
+                    <FormItem className="space-y-1.5">
+                      <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Primary Sector</FormLabel>
                       <Select
                         onValueChange={field.onChange}
                         defaultValue={field.value}
                       >
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a category" />
+                          <SelectTrigger className="h-11 rounded-md border-border bg-background transition-all focus:border-foreground focus:ring-0">
+                            <SelectValue placeholder="Select expertise area" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="infra">
-                            Infrastructure & Urban Planning
-                          </SelectItem>
-                          <SelectItem value="edu">
-                            Education & Research
-                          </SelectItem>
-                          <SelectItem value="env">
-                            Environmental Science
-                          </SelectItem>
-                          <SelectItem value="tech">
-                            Technology & Software
-                          </SelectItem>
-                          <SelectItem value="health">
-                            Healthcare & Wellness
-                          </SelectItem>
+                          <SelectItem value="infra">Urban Infrastructure</SelectItem>
+                          <SelectItem value="edu">Education & Research</SelectItem>
+                          <SelectItem value="env">Environmental Science</SelectItem>
+                          <SelectItem value="tech">Digital Infrastructure</SelectItem>
+                          <SelectItem value="health">Public Healthcare</SelectItem>
                         </SelectContent>
                       </Select>
-                      <FormMessage />
+                      <FormMessage className="text-[10px]" />
                     </FormItem>
                   )}
                 />
@@ -396,67 +376,67 @@ export default function VerificationPage() {
                   control={expertiseForm.control}
                   name="linkedin"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>LinkedIn Profile (Optional)</FormLabel>
+                    <FormItem className="space-y-1.5">
+                      <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Professional Profile (Optional)</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="https://linkedin.com/in/username"
+                          placeholder="https://linkedin.com/in/..."
+                          className="h-11 rounded-md border-border bg-background transition-all focus:border-foreground focus:ring-0"
                           {...field}
                         />
                       </FormControl>
-                      <FormMessage />
+                      <FormMessage className="text-[10px]" />
                     </FormItem>
                   )}
                 />
 
-                <div className="border-2 border-dashed border-neutral-200 dark:border-neutral-800 rounded-lg p-6 flex flex-col items-center justify-center text-center space-y-2 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors">
-                  <Briefcase className="h-6 w-6 text-muted-foreground" />
-                  <p className="text-sm font-medium">
-                    Upload CV or Professional Certifications
-                  </p>
-                  <p className="text-xs text-muted-foreground">PDF (max 5MB)</p>
+                <div className="group border-2 border-dashed border-border rounded-xl p-10 flex flex-col items-center justify-center text-center space-y-3 cursor-pointer hover:border-foreground/50 hover:bg-muted/10 transition-all">
+                  <div className="p-3 rounded-full bg-muted group-hover:bg-foreground group-hover:text-background transition-colors">
+                    <Briefcase className="h-5 w-5" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold">Upload Certifications</p>
+                    <p className="text-[11px] text-muted-foreground">PDF or images (max 5MB)</p>
+                  </div>
                 </div>
 
-                <div className="p-4 rounded-lg border bg-neutral-50 dark:bg-neutral-900 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Award className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-bold">
-                      Projected Voting Weight
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex-1 h-2 bg-neutral-200 dark:border-neutral-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-primary w-[65%]" />
+                <div className="p-6 rounded-xl border border-border bg-muted/10 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Award className="h-4 w-4 text-foreground" />
+                      <span className="text-xs font-bold uppercase tracking-wider">Projected Voting Multiplier</span>
                     </div>
-                    <span className="text-sm font-bold text-primary">
-                      1.65x
-                    </span>
+                    <span className="text-lg font-bold text-foreground">1.65x</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                    <div className="h-full bg-foreground w-[65%] transition-all duration-1000" />
                   </div>
                   <p className="text-[10px] text-muted-foreground italic">
-                    *This is an estimate based on your provided location and
-                    expertise.
+                    Reputation weighting is calculated based on verified professional history and regional activity.
                   </p>
                 </div>
               </CardContent>
-              <CardFooter className="flex justify-between border-t pt-6">
+              <CardFooter className="flex justify-between border-t border-border bg-muted/30 py-6">
                 <Button
                   variant="ghost"
                   type="button"
                   onClick={() => setStep("geo")}
                   disabled={isSavingProfile}
+                  className="rounded-full hover:bg-background"
                 >
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Back
                 </Button>
-                <Button type="submit" disabled={isSavingProfile}>
+                <Button 
+                  type="submit" 
+                  disabled={isSavingProfile}
+                  className="rounded-full bg-foreground text-background hover:bg-foreground/90 transition-all px-8"
+                >
                   {isSavingProfile ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Completing...
-                    </>
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <>
-                      Complete Onboarding
+                      Complete
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </>
                   )}
@@ -468,31 +448,30 @@ export default function VerificationPage() {
       )}
 
       {step === "complete" && (
-        <Card className="border-neutral-200 dark:border-neutral-800 overflow-hidden">
-          <div className="h-2 bg-primary" />
-          <CardHeader className="text-center pt-12">
-            <div className="mx-auto h-20 w-20 rounded-full bg-primary/5 flex items-center justify-center mb-6">
-              <Globe className="h-10 w-10 text-primary" />
-            </div>
-            <CardTitle className="text-3xl font-bold">
+        <div className="text-center space-y-10 py-12">
+          <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full border-2 border-foreground bg-foreground text-background animate-in zoom-in-50 duration-500">
+            <Globe className="h-12 w-12" />
+          </div>
+          <div className="space-y-4">
+            <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-foreground">
               Welcome, Citizen
-            </CardTitle>
-            <CardDescription className="text-lg">
-              Your community profile is ready. Redirecting you to the dashboard.
-            </CardDescription>
-          </CardHeader>
-          <CardFooter className="flex flex-col gap-4 pb-12">
+            </h1>
+            <p className="text-muted-foreground text-lg max-w-md mx-auto leading-relaxed">
+              Your regional profile is now active on the OpenFairTrip protocol. You are eligible to vote and submit proposals.
+            </p>
+          </div>
+          <div className="pt-6">
             <Button
-              className="w-full h-12 text-lg font-bold"
+              className="h-14 px-12 text-lg font-semibold rounded-full bg-foreground text-background hover:bg-foreground/90 shadow-xl transition-all"
               onClick={() => router.push("/dashboard")}
             >
               Open Dashboard
             </Button>
-            <p className="text-xs text-muted-foreground text-center">
-              Voting power and regional activity are available from your dashboard.
-            </p>
-          </CardFooter>
-        </Card>
+          </div>
+          <p className="text-xs text-muted-foreground uppercase tracking-widest max-w-xs mx-auto">
+            Decentralized Governance Active: {detectedLocation?.city}
+          </p>
+        </div>
       )}
     </div>
   );

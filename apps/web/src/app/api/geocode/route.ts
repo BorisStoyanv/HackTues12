@@ -1,5 +1,22 @@
 import { NextResponse } from "next/server";
 
+interface GoogleMapsAddressComponent {
+  long_name: string;
+  short_name: string;
+  types: string[];
+}
+
+interface GoogleMapsResult {
+  address_components: GoogleMapsAddressComponent[];
+  formatted_address: string;
+  geometry: {
+    location: {
+      lat: number;
+      lng: number;
+    };
+  };
+}
+
 export async function POST(req: Request) {
   try {
     const { address } = await req.json();
@@ -24,39 +41,46 @@ export async function POST(req: Request) {
     const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedAddress}&key=${apiKey}`;
 
     const res = await fetch(geocodeUrl);
-    const data = await res.json();
+    const data: { status: string; results?: GoogleMapsResult[]; error_message?: string } = await res.json();
 
     if (data.status !== "OK" || !data.results || data.results.length === 0) {
       return NextResponse.json(
-        { error: "Could not resolve address. Please check and try again." },
+        { error: data.error_message || "Could not resolve address. Please check and try again." },
         { status: 404 }
       );
     }
 
-    const addressComponents = data.results[0].address_components;
-    const { lat, lng } = data.results[0].geometry.location;
-    
-    let city = "Unknown City";
-    let country = "Unknown Country";
+    const results = data.results.map((result: GoogleMapsResult) => {
+      const addressComponents = result.address_components;
+      const { lat, lng } = result.geometry.location;
 
-    for (const component of addressComponents) {
-      if (component.types.includes("locality")) {
-        city = component.long_name;
-      } else if (component.types.includes("administrative_area_level_1") && city === "Unknown City") {
-         // Fallback to state/region if locality isn't present
-         city = component.long_name;
+      let city = "Unknown City";
+      let country = "Unknown Country";
+
+      for (const component of addressComponents) {
+        if (component.types.includes("locality")) {
+          city = component.long_name;
+        } else if (component.types.includes("administrative_area_level_1") && city === "Unknown City") {
+           city = component.long_name;
+        }
+        if (component.types.includes("country")) {
+          country = component.long_name;
+        }
       }
-      if (component.types.includes("country")) {
-        country = component.long_name;
-      }
-    }
+
+      return {
+        city,
+        country,
+        lat,
+        lng,
+        formattedAddress: result.formatted_address
+      };
+    });
 
     return NextResponse.json({
-      city,
-      country,
-      lat,
-      lng,
-      formattedAddress: data.results[0].formatted_address
+      results,
+      // Keep backward compatibility for single-result callers
+      ...results[0]
     });
   } catch (error) {
     console.error("Geocoding Error:", error);
