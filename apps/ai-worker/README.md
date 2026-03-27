@@ -48,6 +48,10 @@ Optional:
 - `OPENROUTER_HTTP_REFERER`
 - `OPENROUTER_APP_NAME`
 - `PORT` (default `8080`)
+- `HTTPS_PORT` (default `443`)
+- `TLS_KEY_PATH` and `TLS_CERT_PATH` to enable native HTTPS without nginx
+- `TLS_CA_PATH` if your certificate chain needs an extra CA file
+- `HTTPS_ONLY=true` to disable the plain HTTP listener
 
 ## Endpoints
 
@@ -110,3 +114,29 @@ Stream events:
 - `debate_completed`
 - `stream_end`
 - `error`
+
+## Production without nginx
+
+If you do not want a reverse proxy, the service can terminate TLS directly.
+
+Example:
+
+```bash
+PORT=8080 \
+HTTPS_PORT=443 \
+TLS_CERT_PATH=/etc/letsencrypt/live/ai.open-ft.app/fullchain.pem \
+TLS_KEY_PATH=/etc/letsencrypt/live/ai.open-ft.app/privkey.pem \
+CORS_ALLOW_ORIGIN=https://open-ft.app \
+npm run start
+```
+
+Then verify:
+
+```bash
+curl https://ai.open-ft.app/health
+curl -N -X POST https://ai.open-ft.app/api/v1/debate/proposals/evaluate/stream \
+  -H "Content-Type: application/json" \
+  -d '{"proposal":{"name":"test","location":"Sofia, Bulgaria","category":"monument","info":"test","neededFunds":1,"currency":"EUR"}}'
+```
+
+Note: binding to port `443` usually requires root or `CAP_NET_BIND_SERVICE`.

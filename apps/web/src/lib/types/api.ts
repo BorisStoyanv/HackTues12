@@ -1,4 +1,4 @@
-import { Principal } from '@icp-sdk/core/principal';
+import { Principal } from "@icp-sdk/core/principal";
 
 export interface Location {
   lat: number;
@@ -8,7 +8,7 @@ export interface Location {
   formatted_address: string;
 }
 
-export type UserType = { 'User' : null } | { 'InvestorUser' : null };
+export type UserType = { User: null } | { InvestorUser: null };
 
 export interface UserProfile {
   display_name: string;
@@ -27,21 +27,28 @@ export interface UserProfile {
   is_verified: [] | [boolean];
 }
 
-export type ProposalStatus = 
-  | { 'Active' : null } 
-  | { 'QuorumNotMet' : null } 
-  | { 'Rejected' : null } 
-  | { 'AwaitingFunding' : null } 
-  | { 'Backed' : null };
+export type ProposalStatus =
+  | { Active: null }
+  | { QuorumNotMet: null }
+  | { Rejected: null }
+  | { AwaitingFunding: null }
+  | { Backed: null };
 
-export type ProposalCategory = 
-  | { 'Infrastructure' : null }
-  | { 'Marketing' : null }
-  | { 'Events' : null }
-  | { 'Conservation' : null }
-  | { 'Education' : null }
-  | { 'Technology' : null }
-  | { 'Other' : null };
+export type ProposalCategory =
+  | { Infrastructure: null }
+  | { Marketing: null }
+  | { Events: null }
+  | { Conservation: null }
+  | { Education: null }
+  | { Technology: null }
+  | { Other: null };
+
+export interface ProposalCompany {
+  legal_name: string;
+  registration_id: string;
+  representative_name: string;
+  representative_principal: [] | [Principal];
+}
 
 export interface Proposal {
   id: bigint;
@@ -57,10 +64,13 @@ export interface Proposal {
   execution_plan: [] | [string];
   timeline: [] | [string];
   expected_impact: [] | [string];
+  approved_company: [] | [ProposalCompany];
+  location: [] | [Location];
   fairness_score: [] | [number];
   risk_flags: string[];
   backed_by: [] | [Principal];
   backed_at: [] | [bigint];
+  resolved_total_vp: [] | [number];
   status: ProposalStatus;
   created_at: bigint;
   voting_ends_at: bigint;
@@ -77,16 +87,16 @@ export interface Vote {
   timestamp: bigint;
 }
 
-export type ContractStatus = 
-  | { 'Draft' : null }
-  | { 'Rejected' : null }
-  | { 'PendingSignatures' : null }
-  | { 'Signed' : null }
-  | { 'Expired' : null };
+export type ContractStatus =
+  | { Draft: null }
+  | { Rejected: null }
+  | { PendingSignatures: null }
+  | { Signed: null }
+  | { Expired: null };
 
-export type SignatureMode = 
-  | { 'OnChainAck' : null }
-  | { 'ExternalQualifiedSignature' : null };
+export type SignatureMode =
+  | { OnChainAck: null }
+  | { ExternalQualifiedSignature: null };
 
 export interface ContractParty {
   legal_name: string;
@@ -131,7 +141,7 @@ export interface Config {
   absolute_majority: number;
 }
 
-export type Result<T> = { 'Ok' : T } | { 'Err' : string };
+export type Result<T> = { Ok: T } | { Err: string };
 
 export interface AIIntegrityReport {
   fairness_score: number;
@@ -144,7 +154,7 @@ export interface AIIntegrityReport {
 }
 
 export interface AIDebateLog {
-  agent: 'advocate' | 'skeptic' | 'analyst';
+  agent: "advocate" | "skeptic" | "analyst";
   round: number;
   argument: string;
   timestamp: string;
@@ -189,6 +199,8 @@ export interface SubmitProposalInput {
   execution_plan: string;
   timeline: string;
   expected_impact: string;
+  approved_company: [] | [ProposalCompany];
+  location: [] | [Location];
 }
 
 export interface CreateContractInput {
@@ -200,8 +212,15 @@ export interface CreateContractInput {
 }
 
 export interface BackendService {
-  create_my_profile(input: { display_name: string, user_type: UserType, home_region: [] | [string] }): Promise<Result<UserProfile>>;
-  update_my_profile(input: { display_name: string, home_region: [] | [string] }): Promise<Result<UserProfile>>;
+  create_my_profile(input: {
+    display_name: string;
+    user_type: UserType;
+    home_region: [] | [string];
+  }): Promise<Result<UserProfile>>;
+  update_my_profile(input: {
+    display_name: string;
+    home_region: [] | [string];
+  }): Promise<Result<UserProfile>>;
   get_user(principal: Principal): Promise<[] | [UserProfile]>;
   get_my_profile(): Promise<[] | [UserProfile]>;
   whoami(): Promise<Principal>;
@@ -214,17 +233,26 @@ export interface BackendService {
   list_proposals(status_filter: [] | [ProposalStatus]): Promise<Proposal[]>;
 
   cast_vote(proposal_id: bigint, in_favor: boolean): Promise<Result<Vote>>;
+  get_my_vote(id: bigint): Promise<[] | [Vote]>;
   get_proposal_votes(id: bigint): Promise<Vote[]>;
 
   finalize_proposal(id: bigint): Promise<Result<Proposal>>;
   back_proposal(id: bigint): Promise<Result<Proposal>>;
 
-  create_contract_record(id: bigint, input: CreateContractInput): Promise<Result<ContractRecord>>;
+  create_contract_record(
+    id: bigint,
+    input: CreateContractInput,
+  ): Promise<Result<ContractRecord>>;
   investor_ack_contract(id: bigint): Promise<Result<ContractRecord>>;
   company_ack_contract(id: bigint): Promise<Result<ContractRecord>>;
-  record_external_signature_status(id: bigint, input: ExternalSignatureUpdateInput): Promise<Result<ContractRecord>>;
+  record_external_signature_status(
+    id: bigint,
+    input: ExternalSignatureUpdateInput,
+  ): Promise<Result<ContractRecord>>;
   get_contract_record(id: bigint): Promise<[] | [ContractRecord]>;
-  list_contracts(status_filter: [] | [ContractStatus]): Promise<ContractRecord[]>;
+  list_contracts(
+    status_filter: [] | [ContractStatus],
+  ): Promise<ContractRecord[]>;
   get_proposal_phase(id: bigint): Promise<Result<ProposalPhase>>;
 
   get_audit_log(limit: number, offset: number): Promise<AuditLog[]>;

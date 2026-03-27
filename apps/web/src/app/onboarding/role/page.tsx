@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Landmark, Users, Building2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,19 @@ export default function RoleSelectionPage() {
   const router = useRouter();
   const setRole = useAuthStore((state) => state.setRole);
   const currentRole = useAuthStore((state) => state.user?.role);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isInitializing = useAuthStore((state) => state.isInitializing);
+  const hasProfile = useAuthStore((state) => state.hasProfile);
+
+  useEffect(() => {
+    if (!isInitializing && !isAuthenticated) {
+      router.replace("/login");
+      return;
+    }
+    if (!isInitializing && hasProfile) {
+      router.replace("/dashboard");
+    }
+  }, [hasProfile, isAuthenticated, isInitializing, router]);
 
   const handleRoleSelect = (role: UserRole) => {
     setRole(role);
@@ -45,7 +59,9 @@ export default function RoleSelectionPage() {
         <Card
           className={cn(
             "relative cursor-pointer transition-all border-2 hover:border-primary/50",
-            currentRole === "funder" ? "border-primary bg-primary/[0.02]" : "border-neutral-200 dark:border-neutral-800"
+            currentRole === "funder"
+              ? "border-primary bg-primary/[0.02]"
+              : "border-neutral-200 dark:border-neutral-800",
           )}
           onClick={() => handleRoleSelect("funder")}
         >
@@ -55,24 +71,25 @@ export default function RoleSelectionPage() {
             </div>
             <CardTitle className="text-xl">Funder / NPO</CardTitle>
             <CardDescription className="text-base">
-              I want to deploy capital and fund verified local projects with high impact.
+              I want to deploy capital and fund verified local projects with
+              high impact.
             </CardDescription>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-             <ul className="space-y-2">
-               <li className="flex items-center gap-2">
-                 <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                 Tiered KYC Verification
-               </li>
-               <li className="flex items-center gap-2">
-                 <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                 Milestone-based Escrow
-               </li>
-               <li className="flex items-center gap-2">
-                 <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                 Dual-Path funding capability
-               </li>
-             </ul>
+            <ul className="space-y-2">
+              <li className="flex items-center gap-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                Tiered KYC Verification
+              </li>
+              <li className="flex items-center gap-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                Milestone-based Escrow
+              </li>
+              <li className="flex items-center gap-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                Dual-Path funding capability
+              </li>
+            </ul>
           </CardContent>
           {currentRole === "funder" && (
             <div className="absolute top-4 right-4 h-6 w-6 rounded-full bg-primary flex items-center justify-center text-primary-foreground">
@@ -84,7 +101,9 @@ export default function RoleSelectionPage() {
         <Card
           className={cn(
             "relative cursor-pointer transition-all border-2 hover:border-primary/50",
-            currentRole === "regional" ? "border-primary bg-primary/[0.02]" : "border-neutral-200 dark:border-neutral-800"
+            currentRole === "regional"
+              ? "border-primary bg-primary/[0.02]"
+              : "border-neutral-200 dark:border-neutral-800",
           )}
           onClick={() => handleRoleSelect("regional")}
         >
@@ -94,24 +113,25 @@ export default function RoleSelectionPage() {
             </div>
             <CardTitle className="text-xl">Regional User</CardTitle>
             <CardDescription className="text-base">
-              I want to propose projects, debate, and vote in my local community.
+              I want to propose projects, debate, and vote in my local
+              community.
             </CardDescription>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-             <ul className="space-y-2">
-               <li className="flex items-center gap-2">
-                 <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                 Geographic verification
-               </li>
-               <li className="flex items-center gap-2">
-                 <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                 Expertise-weighted voting
-               </li>
-               <li className="flex items-center gap-2">
-                 <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                 Submit "Data Pack" proposals
-               </li>
-             </ul>
+            <ul className="space-y-2">
+              <li className="flex items-center gap-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                Geographic verification
+              </li>
+              <li className="flex items-center gap-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                Expertise-weighted voting
+              </li>
+              <li className="flex items-center gap-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                Submit "Data Pack" proposals
+              </li>
+            </ul>
           </CardContent>
           {currentRole === "regional" && (
             <div className="absolute top-4 right-4 h-6 w-6 rounded-full bg-primary flex items-center justify-center text-primary-foreground">

@@ -1,7 +1,15 @@
 import { createBackendActor } from "./icp";
 import { Identity } from "@icp-sdk/core/agent";
 import { Principal } from "@icp-sdk/core/principal";
-import { Proposal, UserProfile, Location, ContractRecord, UserType, ProposalCategory } from "../types/api";
+import {
+  Proposal,
+  UserProfile,
+  Location,
+  ContractRecord,
+  UserType,
+  ProposalCategory,
+  ProposalCompany,
+} from "../types/api";
 
 /**
  * Handles Result<T> from backend and throws on error
@@ -67,6 +75,8 @@ export async function submitProposalClient(
     execution_plan: string;
     timeline: string;
     expected_impact: string;
+    approved_company: [] | [ProposalCompany];
+    location: [] | [Location];
   }
 ): Promise<Proposal> {
   const actor = await createBackendActor(identity);

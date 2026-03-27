@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { SerializedProposal } from "@/lib/actions/proposals";
 import { convertProposalsToGeoJSON } from "@/lib/geojson";
 import { cn } from "@/lib/utils";
+import { MAPBOX_API_KEY } from "@/lib/env";
 import { motion } from "framer-motion";
 import {
 	ArrowRight,
@@ -71,6 +72,11 @@ export function InteractiveMap({
 		() => proposals.find((p) => p.id === selectedProposalId),
 		[proposals, selectedProposalId],
 	);
+	const selectedProposalLocationLabel = selectedProposal
+		? selectedProposal.location.city && selectedProposal.location.country
+			? `${selectedProposal.location.city}, ${selectedProposal.location.country}`
+			: selectedProposal.location.city || selectedProposal.region_tag
+		: "";
 
 	const mapStyle =
 		resolvedTheme === "dark"
@@ -169,7 +175,7 @@ export function InteractiveMap({
 				onMouseMove={onMouseMove}
 				interactive={interactive}
 				mapStyle={mapStyle}
-				mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_API_KEY}
+				mapboxAccessToken={MAPBOX_API_KEY}
 				interactiveLayerIds={["clusters", "unclustered-point"]}
 			>
 				<Source
@@ -301,7 +307,7 @@ export function InteractiveMap({
 								</div>
 								<div className="flex items-center gap-1 px-2 py-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-md text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
 									<MapPin className="h-3 w-3" />
-									{selectedProposal.region_tag}
+									{selectedProposalLocationLabel}
 								</div>
 							</div>
 

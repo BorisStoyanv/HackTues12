@@ -1,9 +1,25 @@
+import fs from "node:fs";
+import http from "node:http";
+import https from "node:https";
 import express from "express";
 import { z } from "zod";
-import { assertConfig, config } from "./config.js";
+import { assertConfig, config, hasTlsConfig } from "./config.js";
 import { DEBATE_MODELS, DEBATE_ROUND_COUNT, runProposalDebate } from "./debateService.js";
 
 const app = express();
+
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", process.env.CORS_ALLOW_ORIGIN || "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept");
+
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+
+  next();
+});
+
 app.use(express.json({ limit: "1mb" }));
 
 const proposalSchema = z.object({
@@ -128,11 +144,37 @@ app.post("/api/v1/debate/proposals/evaluate/stream", async (req, res) => {
 
 try {
   assertConfig();
+  const servers = [];
 
-  app.listen(config.port, () => {
-    // eslint-disable-next-line no-console
-    console.log(`AI engine listening on port ${config.port}`);
-  });
+  if (!config.httpsOnly || !hasTlsConfig()) {
+    const httpServer = http.createServer(app);
+    httpServer.listen(config.port, () => {
+      // eslint-disable-next-line no-console
+      console.log(`AI engine HTTP listening on port ${config.port}`);
+    });
+    servers.push(httpServer);
+  }
+
+  if (hasTlsConfig()) {
+    const tlsOptions = {
+      key: fs.readFileSync(config.tlsKeyPath),
+      cert: fs.readFileSync(config.tlsCertPath),
+      ...(config.tlsCaPath ? { ca: fs.readFileSync(config.tlsCaPath) } : {}),
+    };
+
+    const httpsServer = https.createServer(tlsOptions, app);
+    httpsServer.listen(config.httpsPort, () => {
+      // eslint-disable-next-line no-console
+      console.log(`AI engine HTTPS listening on port ${config.httpsPort}`);
+    });
+    servers.push(httpsServer);
+  }
+
+  if (servers.length === 0) {
+    throw new Error(
+      "No listener was started. Configure HTTP or provide TLS cert/key paths for HTTPS.",
+    );
+  }
 } catch (error) {
   // eslint-disable-next-line no-console
   console.error(error instanceof Error ? error.message : error);
