@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { MapPin, Search, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MAPBOX_API_KEY } from "@/lib/env";
-import { reverseGeocodeCoordinates } from "@/lib/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 interface LocationData {
@@ -39,12 +38,8 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
   
   const [searchQuery, setSearchQuery] = useState(value.formatted_address || "");
   const [isSearching, setIsSearching] = useState(false);
-<<<<<<< HEAD
-  const [searchResults, setSearchResults] = useState<GeocodeResult[]>([]);
-=======
   const [isResolvingPin, setIsResolvingPin] = useState(false);
-  const [searchResults, setSearchResults] = useState<MapboxFeature[]>([]);
->>>>>>> origin/Boris
+  const [searchResults, setSearchResults] = useState<GeocodeResult[]>([]);
   const [showResults, setShowResults] = useState(false);
 
   // Initialize viewState based on value or default to a global view
@@ -126,47 +121,30 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
     async (lng: number, lat: number) => {
       setIsResolvingPin(true);
       setViewState((prev) => ({ ...prev, longitude: lng, latitude: lat }));
-      try {
-        const resolved = await reverseGeocodeCoordinates(lng, lat);
-        setSearchQuery(resolved.formatted_address);
-        onChange(resolved);
-      } catch (err) {
-        console.error("Reverse geocoding error:", err);
-        onChange({
-          formatted_address: value.formatted_address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
-          city: value.city || "Pinned location",
-          country: value.country || "Unknown Country",
-          lat,
-          lng,
-        });
-      } finally {
-        setIsResolvingPin(false);
-      }
+      
+      // Since reverse geocoding is currently unavailable via our internal API,
+      // we update the coordinates and set a placeholder address.
+      const placeholderAddress = `Pinned at ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      setSearchQuery(placeholderAddress);
+      
+      onChange({
+        formatted_address: placeholderAddress,
+        city: value.city || "Pinned location",
+        country: value.country || "Unknown Country",
+        lat,
+        lng,
+      });
+      
+      setIsResolvingPin(false);
     },
-    [onChange, value.city, value.country, value.formatted_address],
+    [onChange, value.city, value.country],
   );
 
   // Reverse geocode when dragging the marker
-  // Note: Using the same /api/geocode route but with lat,lng coordinates if Google supports it,
-  // or we might need a separate reverse geocode route. For now, we'll just update coordinates.
   const handleMarkerDragEnd = async (e: { lngLat: { lng: number; lat: number } }) => {
     const lng = e.lngLat.lng;
     const lat = e.lngLat.lat;
-<<<<<<< HEAD
-
-    setViewState((prev) => ({ ...prev, longitude: lng, latitude: lat }));
-
-    try {
-      // For now, we update the lat/lng only as reverse geocoding via address string might be inaccurate.
-      // In a real scenario, we'd use lat,lng in the geocode API.
-      onChange({ ...value, lat, lng });
-    } catch (err) {
-      console.error("Marker drag error:", err);
-      onChange({ ...value, lat, lng });
-    }
-=======
     await resolveAndSetLocation(lng, lat);
->>>>>>> origin/Boris
   };
 
   const handleMapClick = useCallback(async (event: MapMouseEvent) => {
