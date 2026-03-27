@@ -35,7 +35,7 @@ export function ContractSigningInterface({ contractId }: { contractId: string })
 
   return (
     <Button 
-      className="w-full h-16 text-xl font-black rounded-2xl shadow-2xl shadow-primary/20 bg-primary text-primary-foreground hover:scale-[1.02] transition-all" 
+      className="w-full h-16 text-xl font-semibold rounded-2xl shadow-2xl shadow-primary/20 bg-primary text-primary-foreground hover:scale-[1.02] transition-all" 
       disabled={isSubmitting || !identity}
       onClick={handleSign}
     >

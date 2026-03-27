@@ -86,7 +86,7 @@ export default function SettingsPage() {
                       className="h-11 pl-10 rounded-xl font-mono text-sm"
                     />
                   </div>
-                  <p className="text-[10px] text-muted-foreground italic">Your primary region for governance notifications and weighting.</p>
+                  <p className="text-[10px] text-muted-foreground">Your primary region for governance notifications and weighting.</p>
                </div>
             </CardContent>
             <CardFooter className="bg-neutral-50/50 dark:bg-neutral-900/50 border-t p-6 md:px-8">
@@ -116,7 +116,7 @@ export default function SettingsPage() {
                </div>
                <div className="flex items-center gap-3 p-4">
                   <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                  <p className="text-xs font-medium text-muted-foreground italic">Authenticated via Secure Subnet</p>
+                  <p className="text-xs font-medium text-muted-foreground">Authenticated via Secure Subnet</p>
                </div>
             </CardContent>
           </Card>

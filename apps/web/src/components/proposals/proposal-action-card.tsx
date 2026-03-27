@@ -55,7 +55,7 @@ export function ProposalActionCard({ proposal }: ProposalActionCardProps) {
     return (
       <div className="space-y-4">
         <div className="flex flex-col gap-1">
-          <h3 className="text-sm font-black uppercase tracking-widest">Cast Your Stance</h3>
+          <h3 className="text-sm font-semibold uppercase tracking-widest">Cast Your Stance</h3>
           <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">Your signature is immutably pinned to this consensus round.</p>
         </div>
         
@@ -71,7 +71,7 @@ export function ProposalActionCard({ proposal }: ProposalActionCardProps) {
             )}
           >
             {isSubmittingVote ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="mr-2 h-5 w-5" />}
-            <span className="font-black uppercase tracking-widest text-xs">Approve</span>
+            <span className="font-semibold uppercase tracking-widest text-xs">Approve</span>
           </Button>
           <Button
             disabled={!!voteDisabledReason || isSubmittingVote}
@@ -84,7 +84,7 @@ export function ProposalActionCard({ proposal }: ProposalActionCardProps) {
             )}
           >
             {isSubmittingVote ? <Loader2 className="h-5 w-5 animate-spin" /> : <XCircle className="mr-2 h-5 w-5" />}
-            <span className="font-black uppercase tracking-widest text-xs">Reject</span>
+            <span className="font-semibold uppercase tracking-widest text-xs">Reject</span>
           </Button>
         </div>
         
@@ -105,7 +105,7 @@ export function ProposalActionCard({ proposal }: ProposalActionCardProps) {
       return (
         <div className="p-6 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-700 space-y-2 text-center">
           <CheckCircle2 className="h-8 w-8 mx-auto" />
-          <p className="font-black uppercase tracking-widest text-sm">Capital Deployed</p>
+          <p className="font-semibold uppercase tracking-widest text-sm">Capital Deployed</p>
           <p className="text-xs font-medium">Your contribution is now locked in escrow.</p>
         </div>
       );
@@ -114,7 +114,7 @@ export function ProposalActionCard({ proposal }: ProposalActionCardProps) {
     return (
       <div className="space-y-4">
         <div className="flex flex-col gap-1">
-          <h3 className="text-sm font-black uppercase tracking-widest">Deploy Capital</h3>
+          <h3 className="text-sm font-semibold uppercase tracking-widest">Deploy Capital</h3>
           <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">Verified investor path only. Escrow-protected.</p>
         </div>
 
@@ -138,7 +138,7 @@ export function ProposalActionCard({ proposal }: ProposalActionCardProps) {
               />
             </div>
             <Button 
-              className="w-full h-14 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-primary/20"
+              className="w-full h-14 rounded-2xl font-semibold uppercase tracking-widest shadow-xl shadow-primary/20"
               disabled={isFunding || !pledgeAmount || parseFloat(pledgeAmount) <= 0}
               onClick={handleFund}
             >
@@ -154,7 +154,7 @@ export function ProposalActionCard({ proposal }: ProposalActionCardProps) {
 
   return (
     <div className="p-6 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-center">
-      <p className="text-sm font-black uppercase tracking-widest text-muted-foreground">
+      <p className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
         {proposal.status === "Backed" ? "Project Fully Backed" : `Status: ${proposal.status}`}
       </p>
     </div>

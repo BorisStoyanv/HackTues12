@@ -31,7 +31,7 @@ export function ProposalDetailSheet({
 							initialData={proposal}
 						/>
 					) : (
-						<div className="flex-1 flex items-center justify-center p-12 text-center text-muted-foreground italic">
+						<div className="flex-1 flex items-center justify-center p-12 text-center text-muted-foreground">
 							Loading protocol data pack...
 						</div>
 					)}

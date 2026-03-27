@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { formatCurrency } from "@/lib/utils";
 
 export default function MyProposalsPage() {
   const [proposals, setProposals] = useState<SerializedProposal[]>([]);
@@ -86,7 +87,7 @@ export default function MyProposalsPage() {
               const sidebarValue =
                 proposal.status === "Active"
                   ? formatPercent(votingMetrics.supportPercent, 0)
-                  : `$${proposal.budget_amount.toLocaleString()}`;
+                  : formatCurrency(proposal.budget_amount, proposal.budget_currency);
               const sidebarProgress =
                 proposal.status === "Active"
                   ? votingMetrics.supportPercent
@@ -103,7 +104,7 @@ export default function MyProposalsPage() {
                     <div className="flex flex-col md:flex-row">
                       <div className="p-6 md:p-8 flex-1 space-y-4">
                         <div className="flex items-center gap-3">
-                          <Badge className="bg-primary/10 text-primary border-none font-black text-[9px] uppercase tracking-widest px-2.5 py-0.5">
+                          <Badge className="bg-primary/10 text-primary border-none font-semibold text-[9px] uppercase tracking-widest px-2.5 py-0.5">
                             {proposal.status}
                           </Badge>
                           <span className="text-[10px] font-mono text-muted-foreground">
@@ -117,17 +118,17 @@ export default function MyProposalsPage() {
                           {proposal.description}
                         </p>
                         <div className="flex flex-wrap items-center gap-6 pt-2">
-                          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground/80">
+                          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/80">
                             <Clock className="w-3.5 h-3.5" />
                             {new Date(
                               proposal.created_at / 1_000_000,
                             ).toLocaleDateString()}
                           </div>
-                          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground/80">
+                          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/80">
                             <MapPin className="w-3.5 h-3.5" />
                             {proposal.location.city || proposal.region_tag}
                           </div>
-                          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary">
+                          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-primary">
                             <Gavel className="w-3.5 h-3.5" />
                             {proposal.status === "Active"
                               ? `${formatPercent(votingMetrics.turnoutPercent, 0)} turnout`
@@ -142,10 +143,10 @@ export default function MyProposalsPage() {
                               ? "Cast VP"
                               : "Budget Requirement"}
                           </p>
-                          <p className="text-2xl font-black">
+                          <p className="text-2xl font-semibold">
                             {proposal.status === "Active"
                               ? votingMetrics.totalCastWeight.toFixed(1)
-                              : `$${proposal.budget_amount.toLocaleString()}`}
+                              : formatCurrency(proposal.budget_amount, proposal.budget_currency)}
                           </p>
                         </div>
                         <div className="pt-2">

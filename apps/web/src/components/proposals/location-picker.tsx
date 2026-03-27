@@ -296,7 +296,7 @@ export function LocationPicker({ value, onChange, error, euOnly = true }: Locati
           ) : (
              <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-background/10 backdrop-blur-[2px]">
                 <div className="bg-background/90 px-6 py-3 rounded-full shadow-2xl border border-border/40 animate-in zoom-in-95 duration-500">
-                   <p className="text-xs font-black uppercase tracking-widest text-foreground">
+                   <p className="text-xs font-semibold uppercase tracking-widest text-foreground">
                       {restrictionError || "Drop Anchor in Europe"}
                    </p>
                 </div>
@@ -324,13 +324,13 @@ export function LocationPicker({ value, onChange, error, euOnly = true }: Locati
           className="grid grid-cols-2 gap-4"
         >
           <div className="p-4 rounded-2xl bg-muted/30 border border-border/40 space-y-1">
-             <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Resolved City</span>
+             <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground ml-1">Resolved City</span>
              <div className="font-bold text-sm truncate px-1">
                {value.city || "Regional Hub"}
              </div>
           </div>
           <div className="p-4 rounded-2xl bg-muted/30 border border-border/40 space-y-1">
-             <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Jurisdiction</span>
+             <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground ml-1">Jurisdiction</span>
              <div className="font-bold text-sm truncate px-1">
                {value.country || "EU Domain"}
              </div>

@@ -127,7 +127,7 @@ export function AIDebateLive({ proposal }: { proposal: SerializedProposal }) {
 					key={`research-${index}`}
 					className="rounded-2xl border bg-background p-4 shadow-sm"
 				>
-					<div className="flex items-center gap-2 mb-2 text-[10px] font-black uppercase tracking-widest text-primary">
+					<div className="flex items-center gap-2 mb-2 text-[10px] font-semibold uppercase tracking-widest text-primary">
 						<Search className="h-3 w-3" />
 						Internet Research Stage
 					</div>
@@ -153,7 +153,7 @@ export function AIDebateLive({ proposal }: { proposal: SerializedProposal }) {
 					<div className="max-w-[85%] space-y-1.5">
 						<div
 							className={cn(
-								"flex items-center gap-2 text-[10px] font-black uppercase tracking-widest",
+								"flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest",
 								item.side === "left"
 									? "justify-start"
 									: "justify-end",
@@ -181,7 +181,7 @@ export function AIDebateLive({ proposal }: { proposal: SerializedProposal }) {
 					key={`verdict-${index}`}
 					className="mx-auto max-w-sm rounded-xl border border-dashed bg-background/50 p-4 text-center"
 				>
-					<div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1 flex items-center justify-center gap-2">
+					<div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1 flex items-center justify-center gap-2">
 						<ShieldCheck className="h-3 w-3" /> Round {item.round}{" "}
 						Judge Verdict
 					</div>
@@ -192,7 +192,7 @@ export function AIDebateLive({ proposal }: { proposal: SerializedProposal }) {
 						</span>{" "}
 						({formatPercent(item.score)})
 					</p>
-					<p className="text-[10px] text-muted-foreground mt-1 italic">
+					<p className="text-[10px] text-muted-foreground mt-1">
 						{item.rationale}
 					</p>
 				</div>
@@ -209,7 +209,7 @@ export function AIDebateLive({ proposal }: { proposal: SerializedProposal }) {
 					<BrainCircuit className="h-5 w-5" />
 				</div>
 				<div>
-					<h3 className="text-sm font-black uppercase tracking-widest">
+					<h3 className="text-sm font-semibold uppercase tracking-widest">
 						Protocol Vetting
 					</h3>
 					<p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tight">
@@ -225,10 +225,10 @@ export function AIDebateLive({ proposal }: { proposal: SerializedProposal }) {
 					<Sparkles className="absolute top-4 right-4 h-8 w-8 text-primary/20" />
 					<div className="relative z-10 space-y-4">
 						<div className="space-y-1">
-							<p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">
+							<p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">
 								Final AI Consensus
 							</p>
-							<h4 className="text-4xl font-black tracking-tighter text-foreground">
+							<h4 className="text-2xl font-semibold tracking-tight text-foreground">
 								{formatPercent(finalResult.aggregateScore)}{" "}
 								Support
 							</h4>
@@ -241,7 +241,7 @@ export function AIDebateLive({ proposal }: { proposal: SerializedProposal }) {
 							{Object.entries(finalResult.criteria).map(
 								([key, val]) => (
 									<div key={key}>
-										<p className="text-[8px] font-black uppercase tracking-widest text-muted-foreground mb-0.5 truncate">
+										<p className="text-[8px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5 truncate">
 											{key.replace(/_/g, " ")}
 										</p>
 										<p className="text-base font-bold text-foreground">

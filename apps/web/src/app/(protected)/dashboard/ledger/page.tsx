@@ -4,7 +4,7 @@ import { fetchAuditLogs, fetchAllProposals } from "@/lib/actions/proposals";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FileText, TrendingUp, DollarSign, ArrowUpRight, ArrowDownRight, Wallet, Landmark } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import type { SerializedAuditLog, SerializedProposal } from "@/lib/actions/proposals";
 
@@ -53,8 +53,8 @@ export default function LedgerPage() {
           <div className="grid gap-6 md:grid-cols-3">
              <Card className="border-neutral-200 dark:border-neutral-800 shadow-sm rounded-2xl overflow-hidden">
                 <CardHeader className="pb-2">
-                   <CardDescription className="text-[10px] font-black uppercase tracking-widest">Global Capital Pledged</CardDescription>
-                   <CardTitle className="text-3xl font-black">${totalBudget.toLocaleString()}</CardTitle>
+                   <CardDescription className="text-[10px] font-semibold uppercase tracking-widest">Global Capital Pledged</CardDescription>
+                   <CardTitle className="text-3xl font-semibold">{formatCurrency(totalBudget, "USD")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                    <div className="flex items-center gap-1.5 text-xs text-green-500 font-bold">
@@ -66,8 +66,8 @@ export default function LedgerPage() {
 
              <Card className="border-neutral-200 dark:border-neutral-800 shadow-sm rounded-2xl overflow-hidden">
                 <CardHeader className="pb-2">
-                   <CardDescription className="text-[10px] font-black uppercase tracking-widest">Locked in Escrow</CardDescription>
-                   <CardTitle className="text-3xl font-black">${totalBacking.toLocaleString()}</CardTitle>
+                   <CardDescription className="text-[10px] font-semibold uppercase tracking-widest">Locked in Escrow</CardDescription>
+                   <CardTitle className="text-3xl font-semibold">{formatCurrency(totalBacking, "USD")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
@@ -79,11 +79,11 @@ export default function LedgerPage() {
 
              <Card className="border-neutral-200 dark:border-neutral-800 shadow-sm rounded-2xl overflow-hidden bg-neutral-900 text-white border-none">
                 <CardHeader className="pb-2">
-                   <CardDescription className="text-[10px] font-black uppercase tracking-widest opacity-60 text-white">Trust Tokens Issued</CardDescription>
-                   <CardTitle className="text-3xl font-black">1.2M <span className="text-sm font-bold opacity-40">OFT</span></CardTitle>
+                   <CardDescription className="text-[10px] font-semibold uppercase tracking-widest opacity-60 text-white">Trust Tokens Issued</CardDescription>
+                   <CardTitle className="text-3xl font-semibold">1.2M <span className="text-sm font-bold opacity-40">OFT</span></CardTitle>
                 </CardHeader>
                 <CardContent>
-                   <p className="text-[10px] font-medium opacity-60 leading-relaxed italic">
+                   <p className="text-[10px] font-medium opacity-60 leading-relaxed">
                       Minted upon verified impact milestones.
                    </p>
                 </CardContent>
@@ -93,7 +93,7 @@ export default function LedgerPage() {
           <div className="grid gap-10 lg:grid-cols-12">
              {/* Transaction Feed */}
              <div className="lg:col-span-8 space-y-6">
-                <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                <h3 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                    <Wallet className="h-4 w-4" />
                    On-Chain Capital Events
                 </h3>
@@ -114,12 +114,12 @@ export default function LedgerPage() {
                                  </div>
                               </div>
                               <div className="text-right">
-                                 <Badge variant="outline" className="text-[10px] font-black font-mono">CONFIRMED</Badge>
+                                 <Badge variant="outline" className="text-[10px] font-semibold font-mono">CONFIRMED</Badge>
                               </div>
                            </div>
                         ))
                       ) : (
-                        <div className="p-20 text-center text-muted-foreground text-sm italic">
+                        <div className="p-20 text-center text-muted-foreground text-sm">
                            Awaiting financial triggers on the regional subnets.
                         </div>
                       )}
@@ -129,7 +129,7 @@ export default function LedgerPage() {
 
              {/* Regional Breakdown */}
              <div className="lg:col-span-4 space-y-6">
-                <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                <h3 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                    <Landmark className="h-4 w-4" />
                    Regional Domain Stats
                 </h3>
@@ -137,8 +137,8 @@ export default function LedgerPage() {
                    <div className="space-y-4">
                       <div className="flex items-center justify-between">
                          <span className="text-xs font-bold">Sofia Urban</span>
-                         <div className="flex items-center gap-1.5 text-[10px] font-black text-green-500">
-                            <ArrowUpRight className="h-3 w-3" /> $42k
+                         <div className="flex items-center gap-1.5 text-[10px] font-semibold text-green-500">
+                            <ArrowUpRight className="h-3 w-3" /> {formatCurrency(42000, "USD")}
                          </div>
                       </div>
                       <div className="h-1.5 w-full bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
@@ -148,8 +148,8 @@ export default function LedgerPage() {
                    <div className="space-y-4">
                       <div className="flex items-center justify-between">
                          <span className="text-xs font-bold">Plovdiv Tech Hub</span>
-                         <div className="flex items-center gap-1.5 text-[10px] font-black text-amber-500">
-                            <ArrowDownRight className="h-3 w-3" /> $12k
+                         <div className="flex items-center gap-1.5 text-[10px] font-semibold text-amber-500">
+                            <ArrowDownRight className="h-3 w-3" /> {formatCurrency(12000, "USD")}
                          </div>
                       </div>
                       <div className="h-1.5 w-full bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
@@ -159,8 +159,8 @@ export default function LedgerPage() {
                    <div className="space-y-4">
                       <div className="flex items-center justify-between">
                          <span className="text-xs font-bold">Varna Coastal</span>
-                         <div className="flex items-center gap-1.5 text-[10px] font-black text-green-500">
-                            <ArrowUpRight className="h-3 w-3" /> $28k
+                         <div className="flex items-center gap-1.5 text-[10px] font-semibold text-green-500">
+                            <ArrowUpRight className="h-3 w-3" /> {formatCurrency(28000, "USD")}
                          </div>
                       </div>
                       <div className="h-1.5 w-full bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">

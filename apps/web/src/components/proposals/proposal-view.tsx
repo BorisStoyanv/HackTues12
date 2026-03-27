@@ -31,6 +31,7 @@ import {
 import { useProposalGovernance } from "@/hooks/use-proposal-governance";
 import { SerializedProposal, SerializedVote } from "@/lib/actions/proposals";
 import { getProposalVotingMetrics } from "@/lib/proposals/voting";
+import { formatCurrency } from "@/lib/utils";
 import { AIDebateLive } from "./ai-debate-live";
 import {
 	ProtocolRules,
@@ -94,24 +95,24 @@ export function ProposalView({
 				<div className="max-w-7xl mx-auto w-full flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
 					<div className="space-y-2">
 						<div className="flex items-center gap-2">
-							<Badge className="bg-primary text-primary-foreground font-black uppercase tracking-widest text-[10px] px-2 py-0.5 rounded">
+							<Badge className="bg-primary text-primary-foreground font-semibold uppercase tracking-widest text-[10px] px-2 py-0.5 rounded">
 								{statusFormatted}
 							</Badge>
-							<span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+							<span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
 								<Globe className="h-3 w-3" /> {locationLabel}
 							</span>
 						</div>
-						<h1 className="text-3xl font-black tracking-tight leading-tight">
+						<h1 className="text-3xl font-semibold tracking-tight leading-tight">
 							{proposal.title}
 						</h1>
 					</div>
 					<div className="flex items-center gap-8">
 						<div className="text-right">
-							<p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+							<p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
 								Capital Required
 							</p>
-							<p className="text-2xl font-black tracking-tighter text-primary">
-								{proposal.budget_amount.toLocaleString()}{" "}
+							<p className="text-2xl font-semibold tracking-tight text-primary">
+								{formatCurrency(proposal.budget_amount, proposal.budget_currency)}{" "}
 								<span className="text-xs">
 									{proposal.budget_currency}
 								</span>
@@ -145,12 +146,12 @@ export function ProposalView({
 							{/* Audit Ledger Moved Here */}
 							<div className="pt-4">
 								<div className="flex items-center justify-between mb-3">
-									<h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+									<h3 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
 										Audit Ledger
 									</h3>
 									<Badge
 										variant="secondary"
-										className="text-[8px] px-1.5 py-0 rounded-full font-black uppercase tracking-widest"
+										className="text-[8px] px-1.5 py-0 rounded-full font-semibold uppercase tracking-widest"
 									>
 										{votes.length} Votes
 									</Badge>
@@ -159,13 +160,13 @@ export function ProposalView({
 									<table className="w-full text-sm">
 										<thead className="bg-neutral-50 dark:bg-neutral-900/50 border-b border-neutral-200 dark:border-neutral-800">
 											<tr>
-												<th className="text-left px-4 py-3 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+												<th className="text-left px-4 py-3 text-[9px] font-semibold uppercase tracking-widest text-muted-foreground">
 													Voter
 												</th>
-												<th className="text-center px-4 py-3 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+												<th className="text-center px-4 py-3 text-[9px] font-semibold uppercase tracking-widest text-muted-foreground">
 													Stance
 												</th>
-												<th className="text-right px-4 py-3 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+												<th className="text-right px-4 py-3 text-[9px] font-semibold uppercase tracking-widest text-muted-foreground">
 													VP
 												</th>
 											</tr>
@@ -190,20 +191,20 @@ export function ProposalView({
 																{vote.in_favor ? (
 																	<Badge
 																		variant="outline"
-																		className="border-emerald-200 bg-emerald-50 text-emerald-700 font-black text-[8px] uppercase tracking-widest px-1.5 py-0 rounded"
+																		className="border-emerald-200 bg-emerald-50 text-emerald-700 font-semibold text-[8px] uppercase tracking-widest px-1.5 py-0 rounded"
 																	>
 																		Yes
 																	</Badge>
 																) : (
 																	<Badge
 																		variant="outline"
-																		className="border-rose-200 bg-rose-50 text-rose-700 font-black text-[8px] uppercase tracking-widest px-1.5 py-0 rounded"
+																		className="border-rose-200 bg-rose-50 text-rose-700 font-semibold text-[8px] uppercase tracking-widest px-1.5 py-0 rounded"
 																	>
 																		No
 																	</Badge>
 																)}
 															</td>
-															<td className="px-4 py-3 text-right font-mono font-black text-primary text-xs">
+															<td className="px-4 py-3 text-right font-mono font-semibold text-primary text-xs">
 																{vote.weight.toFixed(
 																	1,
 																)}
@@ -215,7 +216,7 @@ export function ProposalView({
 												<tr>
 													<td
 														colSpan={3}
-														className="px-4 py-8 text-center text-muted-foreground uppercase font-black tracking-widest text-[9px] opacity-50"
+														className="px-4 py-8 text-center text-muted-foreground uppercase font-semibold tracking-widest text-[9px] opacity-50"
 													>
 														No votes yet
 													</td>
@@ -238,7 +239,7 @@ export function ProposalView({
 											>
 												<ChevronLeft className="h-4 w-4" />
 											</Button>
-											<span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+											<span className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground">
 												Page {auditPage} of{" "}
 												{totalAuditPages}
 											</span>
@@ -277,7 +278,7 @@ export function ProposalView({
 										render={
 											<Button
 												variant="outline"
-												className="w-full h-14 rounded-2xl font-black uppercase tracking-widest text-xs border-2 shadow-sm gap-2"
+												className="w-full h-14 rounded-2xl font-semibold uppercase tracking-widest text-xs border-2 shadow-sm gap-2"
 											/>
 										}
 									>
@@ -289,7 +290,7 @@ export function ProposalView({
 										className="w-full sm:max-w-6xl p-0 flex flex-col border-l"
 									>
 										<SheetHeader className="p-6 md:p-8 border-b bg-neutral-50/50 dark:bg-neutral-950/50 shrink-0">
-											<SheetTitle className="text-2xl font-black tracking-tight">
+											<SheetTitle className="text-2xl font-semibold tracking-tight">
 												{proposal.title} Details
 											</SheetTitle>
 										</SheetHeader>
@@ -307,7 +308,7 @@ export function ProposalView({
 														{proposal.description}
 													</p>
 													<div className="flex items-center gap-2 pt-2">
-														<span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+														<span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
 															Category
 														</span>
 														<Badge
@@ -331,7 +332,7 @@ export function ProposalView({
 														</div>
 														<div className="space-y-3 bg-neutral-50 dark:bg-neutral-900/50 p-4 rounded-xl border">
 															<div className="flex justify-between border-b pb-2">
-																<span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+																<span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
 																	Target
 																	Completion
 																</span>
@@ -342,7 +343,7 @@ export function ProposalView({
 																</span>
 															</div>
 															<div className="flex justify-between pt-1">
-																<span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+																<span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
 																	Lead
 																	Executor
 																</span>
@@ -443,7 +444,7 @@ export function ProposalView({
 							<div className="p-6 rounded-3xl bg-primary/5 border border-primary/20 text-foreground space-y-4">
 								<div className="flex items-center gap-2">
 									<Info className="h-4 w-4 text-primary" />
-									<p className="text-[10px] font-black uppercase tracking-widest text-primary">
+									<p className="text-[10px] font-semibold uppercase tracking-widest text-primary">
 										Protocol Insight
 									</p>
 								</div>

@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ContractSigningInterface } from "@/components/proposals/contract-signing-interface";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { useEffect, useState, Suspense } from "react";
 import type { SerializedContract, SerializedProposal } from "@/lib/actions/proposals";
 
@@ -85,10 +85,10 @@ function ContractDetailContent() {
             </Link>
             <div className="space-y-0.5">
                <h1 className="text-lg font-bold tracking-tight">Trust Contract #{id}</h1>
-               <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Digital Trust Engine</p>
+               <p className="text-[10px] text-muted-foreground uppercase font-semibold tracking-widest">Digital Trust Engine</p>
             </div>
           </div>
-          <Badge variant="outline" className="font-black text-[10px] uppercase tracking-widest px-3 py-1 bg-background/50">
+          <Badge variant="outline" className="font-semibold text-[10px] uppercase tracking-widest px-3 py-1 bg-background/50">
             {contract.status}
           </Badge>
         </div>
@@ -99,7 +99,7 @@ function ContractDetailContent() {
           
           <div className="lg:col-span-8 space-y-10">
             <section className="space-y-4">
-              <h2 className="text-3xl font-black tracking-tighter uppercase italic">Legal Binding</h2>
+              <h2 className="text-3xl font-semibold tracking-tight ">Legal Binding</h2>
               <Card className="border-neutral-200 dark:border-neutral-800 shadow-xl rounded-[2rem] overflow-hidden">
                 <CardHeader className="p-8 pb-4">
                   <CardTitle className="text-xl font-bold flex items-center gap-2">
@@ -123,7 +123,7 @@ function ContractDetailContent() {
                   </div>
 
                   <div className="space-y-4 pt-4 border-t border-neutral-100 dark:border-neutral-800">
-                     <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Signatory Status</h3>
+                     <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Signatory Status</h3>
                      <div className="grid gap-4">
                         <div className="flex items-center justify-between p-4 rounded-xl bg-neutral-50/50 dark:bg-neutral-900/50 border border-neutral-200 dark:border-neutral-800">
                            <div className="flex items-center gap-3">
@@ -132,7 +132,7 @@ function ContractDetailContent() {
                               </div>
                               <span className="text-sm font-bold">{contract.company_name}</span>
                            </div>
-                           <Badge className="bg-green-500 text-white font-black text-[9px] uppercase">SIGNED</Badge>
+                           <Badge className="bg-green-500 text-white font-semibold text-[9px] uppercase">SIGNED</Badge>
                         </div>
                         <div className="flex items-center justify-between p-4 rounded-xl bg-neutral-50/50 dark:bg-neutral-900/50 border border-neutral-200 dark:border-neutral-800">
                            <div className="flex items-center gap-3">
@@ -141,7 +141,7 @@ function ContractDetailContent() {
                               </div>
                               <span className="text-sm font-bold">Investor (Principal @{contract.investor.substring(0, 8)}...)</span>
                            </div>
-                           <Badge variant="secondary" className="font-black text-[9px] uppercase">PENDING</Badge>
+                           <Badge variant="secondary" className="font-semibold text-[9px] uppercase">PENDING</Badge>
                         </div>
                      </div>
                   </div>
@@ -151,13 +151,13 @@ function ContractDetailContent() {
 
             {proposal && (
               <section className="space-y-4">
-                 <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Linked Initiative</h2>
+                 <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Linked Initiative</h2>
                  <Link href={`/dashboard/proposals/detail?id=${proposal.id}`}>
                    <Card className="border-neutral-200 dark:border-neutral-800 shadow-sm rounded-2xl hover:border-primary/50 transition-all group overflow-hidden">
                       <div className="p-6 flex items-center justify-between">
                          <div className="space-y-1">
                             <p className="text-lg font-bold group-hover:text-primary transition-colors">{proposal.title}</p>
-                            <p className="text-xs text-muted-foreground">{proposal.region_tag} Domain • ${proposal.budget_amount.toLocaleString()} Goal</p>
+                            <p className="text-xs text-muted-foreground">{proposal.region_tag} Domain • {formatCurrency(proposal.budget_amount, proposal.budget_currency)} Goal</p>
                          </div>
                          <ShieldCheck className="h-8 w-8 text-primary/20 group-hover:text-primary transition-colors" />
                       </div>
@@ -170,7 +170,7 @@ function ContractDetailContent() {
           <div className="lg:col-span-4 space-y-6">
              <Card className="border-neutral-200 dark:border-neutral-800 shadow-xl rounded-[2rem] overflow-hidden sticky top-24 bg-neutral-900 text-white border-none">
                 <CardHeader className="p-8">
-                   <CardTitle className="text-2xl font-black italic tracking-tighter uppercase">Signature Core</CardTitle>
+                   <CardTitle className="text-2xl font-semibold tracking-tight ">Signature Core</CardTitle>
                    <CardDescription className="text-white/60 font-medium">Verify and commit your legal intent to the ledger.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-8 pt-0 space-y-8">
@@ -190,7 +190,7 @@ function ContractDetailContent() {
 
                    <div className="flex items-center gap-3 p-2">
                       <AlertCircle className="h-4 w-4 text-amber-400 shrink-0" />
-                      <p className="text-[10px] text-white/40 italic leading-tight">
+                      <p className="text-[10px] text-white/40 leading-tight">
                         Warning: This action initiates an irreversible cryptographic bond.
                       </p>
                    </div>

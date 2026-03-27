@@ -7,7 +7,7 @@ import {
   formatPercent,
   getProposalVotingMetrics,
 } from "@/lib/proposals/voting";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 
 interface ProposalCardProps {
   proposal: SerializedProposal;
@@ -49,7 +49,7 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
           >
             {locationLabel || "Global Domain"}
           </Badge>
-          <Badge className="w-fit bg-primary/10 text-primary border-none text-[9px] font-black uppercase tracking-tighter">
+          <Badge className="w-fit bg-primary/10 text-primary border-none text-[9px] font-semibold uppercase tracking-tight">
             {proposal.status}
           </Badge>
         </div>
@@ -58,7 +58,7 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
         <div className="absolute top-6 right-6">
           <div className="flex items-center gap-2 rounded-full bg-primary/90 backdrop-blur-md px-4 py-2 shadow-lg">
             <ShieldCheck className="h-4 w-4 text-primary-foreground" />
-            <span className="text-sm font-black text-primary-foreground tracking-tight">
+            <span className="text-sm font-semibold text-primary-foreground tracking-tight">
               {proposal.fairness_score}% Integrity
             </span>
           </div>
@@ -84,9 +84,9 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
 
         <div className="space-y-8">
           <div className="space-y-3">
-            <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-[0.15em] text-muted-foreground">
+            <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
               <span>{primaryLabel}</span>
-              <span className="text-foreground font-black">{primaryValue}</span>
+              <span className="text-foreground font-semibold">{primaryValue}</span>
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
               <div
@@ -99,17 +99,17 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
           <div className="flex items-center justify-between border-t border-neutral-100 dark:border-neutral-900 pt-8">
             <div className="flex items-center gap-8">
               <div className="flex flex-col">
-                <span className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] font-black mb-1">
+                <span className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] font-semibold mb-1">
                   {proposal.status === "Active" ? "Cast VP" : "Budget"}
                 </span>
                 <span className="text-xl font-bold">
                   {proposal.status === "Active"
                     ? votingMetrics.totalCastWeight.toFixed(1)
-                    : `$${proposal.budget_amount.toLocaleString()}`}
+                    : formatCurrency(proposal.budget_amount, proposal.budget_currency)}
                 </span>
               </div>
               <div className="flex flex-col border-l border-neutral-100 dark:border-neutral-900 pl-8">
-                <span className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] font-black mb-1">
+                <span className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] font-semibold mb-1">
                   {proposal.status === "Active" ? "Turnout" : "Voters"}
                 </span>
                 <span className="text-xl font-bold flex items-center gap-2">
