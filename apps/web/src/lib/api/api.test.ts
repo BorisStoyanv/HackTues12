@@ -102,6 +102,7 @@ describe('API Service Layer', () => {
         execution_plan: 'Detailed execution plan text...',
         timeline: '12 months',
         expected_impact: 'Community impact text...',
+        approved_company: [] as any,
         location: [{
           city: 'New Region',
           country: 'Bulgaria',

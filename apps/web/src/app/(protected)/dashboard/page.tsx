@@ -273,11 +273,11 @@ export default function DashboardPage() {
 
   return (
     <div className="flex-1 overflow-y-auto bg-background p-6 md:p-10">
-      <div className="max-w-6xl mx-auto space-y-10">
+      <div className="w-full space-y-10">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-neutral-200 dark:border-neutral-800">
           <div className="space-y-2">
             <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              Dashboard
+              Overview
             </h1>
             <p className="text-muted-foreground text-sm flex items-center gap-2">
               <span className="inline-flex h-2 w-2 rounded-full bg-green-500 animate-pulse" />
@@ -371,7 +371,7 @@ export default function DashboardPage() {
                     <button
                       key={vote.id}
                       type="button"
-                      onClick={() => router.push(`/dashboard/proposals/${vote.proposalId}`)}
+                      onClick={() => router.push(`/dashboard/proposals/detail?id=${vote.proposalId}`)}
                       className="w-full text-left flex items-start gap-4 p-5 hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors"
                     >
                       <div
@@ -463,7 +463,7 @@ export default function DashboardPage() {
                   proposals.map((p) => (
                     <div
                       key={p.id}
-                      onClick={() => router.push(`/dashboard/proposals/${p.id}`)}
+                      onClick={() => router.push(`/dashboard/proposals/detail?id=${p.id}`)}
                       className="flex items-start gap-3 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors cursor-pointer group"
                     >
                       <div className="mt-1 flex h-2 w-2 shrink-0 rounded-full bg-primary ring-4 ring-primary/10" />

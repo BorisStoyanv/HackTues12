@@ -177,7 +177,7 @@ export default function GovernancePage() {
                         </div>
 
                         <Link
-                          href={`/dashboard/proposals/${proposal.id}`}
+                          href={`/dashboard/proposals/detail?id=${proposal.id}`}
                           className={cn(
                             buttonVariants({ size: "sm" }),
                             "w-full rounded-xl font-bold h-10 shadow-lg shadow-primary/10",

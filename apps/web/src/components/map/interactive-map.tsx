@@ -334,7 +334,10 @@ export function InteractiveMap({
 
 							<div className="flex gap-2">
 								<Link
-									href={`${linkPrefix}/${selectedProposal.id}`}
+									href={linkPrefix.includes("dashboard") 
+                    ? `/dashboard/proposals/detail?id=${selectedProposal.id}` 
+                    : `${linkPrefix}/${selectedProposal.id}`
+                  }
 									className="flex-1 flex items-center justify-center h-12 text-[10px] font-black uppercase tracking-[0.2em] bg-foreground text-background rounded-2xl transition-all hover:bg-foreground/90 active:scale-[0.98] shadow-xl"
 								>
 									Full Audit{" "}

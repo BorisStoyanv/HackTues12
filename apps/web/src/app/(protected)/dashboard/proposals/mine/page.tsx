@@ -97,7 +97,7 @@ export default function MyProposalsPage() {
               return (
                 <Link
                   key={proposal.id}
-                  href={`/dashboard/proposals/${proposal.id}`}
+                  href={`/dashboard/proposals/detail?id=${proposal.id}`}
                 >
                   <Card className="border-neutral-200 dark:border-neutral-800 shadow-sm rounded-2xl overflow-hidden hover:border-primary/50 transition-all group mb-4">
                     <div className="flex flex-col md:flex-row">

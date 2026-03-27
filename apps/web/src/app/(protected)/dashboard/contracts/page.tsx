@@ -49,7 +49,7 @@ export default function ContractsPage() {
               contracts.map((contract) => (
                 <Link 
                   key={contract.proposal_id} 
-                  href={`/dashboard/contracts/${contract.proposal_id}`}
+                  href={`/dashboard/contracts/detail?id=${contract.proposal_id}`}
                   className="group block transition-all"
                 >
                   <Card className="h-full border-neutral-200 dark:border-neutral-800 shadow-sm hover:shadow-xl hover:border-primary/50 transition-all rounded-2xl overflow-hidden flex flex-col">

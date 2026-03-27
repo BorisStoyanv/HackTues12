@@ -224,7 +224,10 @@ export function ProposalExplorer({
             </div>
             <div className="grid grid-cols-2 gap-3">
               <Link
-                href={`${linkPrefix}/${selectedProposal.id}`}
+                href={mode === "authenticated" 
+                  ? `/dashboard/proposals/detail?id=${selectedProposal.id}` 
+                  : `/proposals/${selectedProposal.id}`
+                }
                 className={cn(
                   buttonVariants({ size: "lg" }),
                   "w-full h-14 rounded-xl text-xs font-black uppercase tracking-widest shadow-xl shadow-primary/20",

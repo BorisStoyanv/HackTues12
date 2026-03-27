@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import {
   fetchProposalById,
   fetchProposalVotes,
@@ -8,10 +8,11 @@ import {
   SerializedVote,
 } from "@/lib/actions/proposals";
 import { ProposalView } from "@/components/proposals/proposal-view";
-import { useParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
-export default function DashboardProposalDetailPage() {
-  const { id } = useParams();
+function ProposalDetailContent() {
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id");
   const [proposal, setProposal] = useState<SerializedProposal | undefined>(
     undefined,
   );
@@ -19,7 +20,7 @@ export default function DashboardProposalDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (typeof id !== "string") return;
+    if (!id) return;
 
     let cancelled = false;
 
@@ -39,8 +40,13 @@ export default function DashboardProposalDetailPage() {
     };
   }, [id]);
 
-  if (typeof id !== "string") {
-    return null;
+  if (!id) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+        <h1 className="text-xl font-semibold">Missing Proposal ID</h1>
+        <p className="text-muted-foreground text-sm">Please provide a valid proposal ID in the URL.</p>
+      </div>
+    );
   }
 
   return (
@@ -58,5 +64,17 @@ export default function DashboardProposalDetailPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function DashboardProposalDetailPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-full items-center justify-center min-h-[50vh]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    }>
+      <ProposalDetailContent />
+    </Suspense>
   );
 }

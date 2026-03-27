@@ -5,21 +5,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { ShieldCheck, FileText, Lock, Building2, User, AlertCircle, ArrowLeft, ExternalLink } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ContractSigningInterface } from "@/components/proposals/contract-signing-interface";
 import { cn } from "@/lib/utils";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import type { SerializedContract, SerializedProposal } from "@/lib/actions/proposals";
 
-export default function ContractDetailPage() {
-  const { id } = useParams();
+function ContractDetailContent() {
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id");
   const [contract, setContract] = useState<SerializedContract | null>(null);
   const [proposal, setProposal] = useState<SerializedProposal | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (typeof id !== "string") return;
+    if (!id) return;
 
     let cancelled = false;
 
@@ -45,7 +46,7 @@ export default function ContractDetailPage() {
     };
   }, [id]);
 
-  if (typeof id !== "string") return null;
+  if (!id) return null;
 
   if (isLoading) {
     return (
@@ -151,7 +152,7 @@ export default function ContractDetailPage() {
             {proposal && (
               <section className="space-y-4">
                  <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Linked Initiative</h2>
-                 <Link href={`/dashboard/proposals/${proposal.id}`}>
+                 <Link href={`/dashboard/proposals/detail?id=${proposal.id}`}>
                    <Card className="border-neutral-200 dark:border-neutral-800 shadow-sm rounded-2xl hover:border-primary/50 transition-all group overflow-hidden">
                       <div className="p-6 flex items-center justify-between">
                          <div className="space-y-1">
@@ -200,5 +201,17 @@ export default function ContractDetailPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ContractDetailPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-[50vh] items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+      </div>
+    }>
+      <ContractDetailContent />
+    </Suspense>
   );
 }
