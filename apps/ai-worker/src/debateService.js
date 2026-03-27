@@ -331,6 +331,8 @@ function countMissingInfoSignals(text) {
     /no evidence/g,
     /unclear/g,
     /unknown/g,
+    /no (clear )?(visitor|visitors|income|revenue|economic impact)/g,
+    /missing (visitor|income|revenue|economic impact)/g,
   ];
 
   return patterns.reduce((sum, pattern) => sum + (normalized.match(pattern) || []).length, 0);
@@ -509,6 +511,7 @@ async function judgeRound({
   historyText,
   responseLanguageName,
   round,
+  evidenceGapPenaltyUsed,
   advocateStatement,
   skepticStatement,
 }) {
@@ -519,6 +522,10 @@ async function judgeRound({
     "Do not automatically favor the skeptic just because some evidence is missing.",
     "Reasonable, explicitly labeled assumptions and ranges are valid argumentation when hard data is limited.",
     "Penalize generic or repetitive 'missing information' claims if they are not paired with substantive alternative risk analysis.",
+    "Evidence-gap penalty can be applied at most once across all rounds.",
+    evidenceGapPenaltyUsed
+      ? "Evidence-gap penalty was already used in a previous round, so in this round you must not reduce score due to missing evidence."
+      : "If missing evidence materially affects confidence, you may apply an evidence-gap penalty in this round.",
     `Write the rationale in ${responseLanguageName}.`,
     'Keep "winner" strictly as advocate|skeptic|tie and "score" as a number in [0,1].',
     "Return JSON only.",
@@ -527,6 +534,7 @@ async function judgeRound({
   const userPrompt = [
     `Round: ${round} of ${ROUND_COUNT}`,
     `Rationale language: ${responseLanguageName}`,
+    `Evidence-gap penalty already used in prior rounds: ${evidenceGapPenaltyUsed ? "yes" : "no"}`,
     "Proposal:",
     proposalText,
     "",
@@ -624,6 +632,7 @@ async function judgeFinal({ proposalText, evidenceText, economicBriefText, respo
     "For neglect_and_age and potential_tourism_benefit, high values imply higher funding priority.",
     "Do not automatically penalize the advocate for every evidence gap if assumptions were explicit and reasonable.",
     "Do not over-reward repetitive generic skepticism focused only on missing information.",
+    "Treat evidence-gap downside as already accounted for at most once in round scoring; do not repeatedly penalize the same gap in the final view.",
     `Write the rationale in ${responseLanguageName}.`,
     'Keep "funding_recommendation" strictly as one of: fund, defer, reject (in English).',
     "Return JSON only.",
@@ -722,6 +731,7 @@ export async function runProposalDebate(proposal, hooks = {}) {
   ensureContinue();
 
   const rounds = [];
+  let evidenceGapPenaltyUsed = false;
 
   for (let round = 1; round <= ROUND_COUNT; round += 1) {
     const speakingOrder = round % 2 === 1 ? ["advocate", "skeptic"] : ["skeptic", "advocate"];
@@ -815,9 +825,21 @@ export async function runProposalDebate(proposal, hooks = {}) {
       historyText,
       responseLanguageName: responseLanguage.name,
       round,
+      evidenceGapPenaltyUsed,
       advocateStatement,
       skepticStatement,
     });
+
+    const rationaleHasEvidenceGapFocus = countMissingInfoSignals(judgment.rationale) > 0;
+
+    if (rationaleHasEvidenceGapFocus && judgment.score < 0.5) {
+      if (!evidenceGapPenaltyUsed) {
+        evidenceGapPenaltyUsed = true;
+      } else {
+        judgment.score = 0.5;
+        judgment.winner = "tie";
+      }
+    }
 
     rounds.push({
       round,
