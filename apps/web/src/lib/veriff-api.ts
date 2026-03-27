@@ -1,4 +1,4 @@
-const DEFAULT_VERIFF_BACKEND_URL = "http://127.0.0.1:8787";
+const DEFAULT_VERIFF_BACKEND_URL = "https://ai.open-ft.app/kyc";
 
 export function getVeriffBackendUrl() {
   return (process.env.NEXT_PUBLIC_VERIFF_BACKEND_URL || DEFAULT_VERIFF_BACKEND_URL).replace(/\/$/, "");

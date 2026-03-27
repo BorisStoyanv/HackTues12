@@ -144,7 +144,11 @@ export default function KYCPage() {
   const handleStartVeriff = async () => {
     const firstName = representativeFirstName.trim();
     const lastName = representativeLastName.trim();
-    const publicAppUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
+    const publicAppUrl =
+      process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
+      (typeof window !== "undefined"
+        ? window.location.origin.replace(/\/$/, "")
+        : "");
 
     if (!firstName || !lastName) {
       setVeriffError(
@@ -160,7 +164,7 @@ export default function KYCPage() {
 
     if (!publicAppUrl) {
       setVeriffError(
-        "NEXT_PUBLIC_APP_URL is missing. Point it to your HTTPS tunnel before starting Veriff.",
+        "Unable to determine the public app URL for the Veriff callback.",
       );
       return;
     }
