@@ -760,6 +760,13 @@ code {
   color: var(--success);
 }
 
+.status-pill--held,
+.status-pill--released,
+.status-pill--refunded {
+  background: rgba(14, 109, 120, 0.16);
+  color: var(--accent-strong);
+}
+
 .status-pill--rejected,
 .status-pill--quorumnotmet,
 .status-pill--expired {
