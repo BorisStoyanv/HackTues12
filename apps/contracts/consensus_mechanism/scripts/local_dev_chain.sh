@@ -18,15 +18,17 @@ usage() {
 Usage:
   ./scripts/local_dev_chain.sh setup [--reset]
   ./scripts/local_dev_chain.sh happy
+  ./scripts/local_dev_chain.sh guardrails
   ./scripts/local_dev_chain.sh refund
   ./scripts/local_dev_chain.sh balances [identity...]
-  ./scripts/local_dev_chain.sh verify <proposal_id> <happy|refund> [funder_identity] [beneficiary_identity]
+  ./scripts/local_dev_chain.sh verify <proposal_id> <happy|guardrails> [funder_identity] [beneficiary_identity]
 
 What it does:
   setup     Starts/reuses a persistent local dfx network, deploys a local ICP ledger,
             deploys the consensus canister, registers mock users, and shortens voting.
   happy     Runs the happy-path governance + real ledger-backed escrow scenario.
-  refund    Runs the refund-path governance + real ledger-backed refund scenario.
+  guardrails Verifies funding is blocked before approval and after rejection.
+  refund    Legacy alias that now runs the guardrail verification flow.
   balances  Prints principal, account-id, and local ICP balance for identities.
   verify    Validates votes, audit trail, escrow block indexes, and balances.
 
@@ -34,6 +36,8 @@ Notes:
   - The ledger balances are real on the local dev chain.
   - Funding uses ICRC-2 approval plus fund_proposal, which pulls ICP into a
     canister-owned proposal escrow subaccount before release or refund.
+  - Post-approval funding is now strict: new escrows can only be created from
+    AwaitingFunding proposals.
 EOF
 }
 
@@ -448,23 +452,41 @@ run_happy_path() {
   print_balances investor1 community1
 }
 
-run_refund_path() {
+run_guardrail_checks() {
   setup 0
 
   local proposal_id
-  proposal_id="$(submit_proposal community2 "Refund path $(date +%s)" "Local scripted refund path." "Mock budget only" 50000000)"
+  local pre_vote_output
+  local post_reject_output
+  proposal_id="$(submit_proposal community2 "Guardrail path $(date +%s)" "Funding should stay blocked until and unless the community approves." "Mock budget only" 50000000)"
 
   echo
   echo "Created proposal $proposal_id"
   print_balances investor1 community2
 
-  fund "$proposal_id" 50000000 "scripted-refund-deposit-$proposal_id"
+  echo
+  echo "Expecting funding-before-approval to fail..."
+  pre_vote_output="$(fund "$proposal_id" 50000000 "scripted-pre-vote-deposit-$proposal_id" 2>&1 || true)"
+  echo "$pre_vote_output"
+  if [[ "$pre_vote_output" != *"Cannot fund a proposal before it passes community voting"* ]]; then
+    echo "Expected Active funding guardrail did not trigger" >&2
+    exit 1
+  fi
+
   vote community1 "$proposal_id" false
   vote community2 "$proposal_id" false
 
   sleep 35
   finalize community1 "$proposal_id"
-  refund "$proposal_id" "scripted-refund-$proposal_id"
+
+  echo
+  echo "Expecting funding-after-rejection to fail..."
+  post_reject_output="$(fund "$proposal_id" 50000000 "scripted-post-reject-deposit-$proposal_id" 2>&1 || true)"
+  echo "$post_reject_output"
+  if [[ "$post_reject_output" != *"Cannot fund a proposal that has already failed voting"* ]]; then
+    echo "Expected rejected funding guardrail did not trigger" >&2
+    exit 1
+  fi
 
   echo
   dfx canister call "$CONSENSUS_CANISTER" get_proposal_view "($proposal_id)"
@@ -487,8 +509,12 @@ main() {
     happy)
       run_happy_path
       ;;
+    guardrails)
+      run_guardrail_checks
+      ;;
     refund)
-      run_refund_path
+      echo "refund is now a legacy alias; running guardrail verification instead."
+      run_guardrail_checks
       ;;
     balances)
       bootstrap_env
