@@ -46,6 +46,21 @@ type ProposalCategory = variant {
   Other;
 };
 
+type ProposalCompany = record {
+  legal_name : text;
+  registration_id : text;
+  representative_name : text;
+  representative_principal : opt principal;
+};
+
+type ProposalLocation = record {
+  formatted_address : text;
+  city : text;
+  country : text;
+  lat : float64;
+  lng : float64;
+};
+
 type Proposal = record {
   id : nat64;
   submitter : principal;
@@ -60,6 +75,8 @@ type Proposal = record {
   execution_plan : opt text;
   timeline : opt text;
   expected_impact : opt text;
+  approved_company : opt ProposalCompany;
+  location : opt ProposalLocation;
   fairness_score : opt float64;
   risk_flags : vec text;
   backed_by : opt principal;
@@ -84,6 +101,8 @@ type SubmitProposalInput = record {
   execution_plan : text;
   timeline : text;
   expected_impact : text;
+  approved_company : opt ProposalCompany;
+  location : opt ProposalLocation;
 };
 
 type Vote = record {
@@ -212,6 +231,7 @@ service : {
   list_proposals : (opt ProposalStatus) -> (vec Proposal) query;
 
   cast_vote : (nat64, bool) -> (Result_3);
+  get_my_vote : (nat64) -> (opt Vote) query;
   get_proposal_votes : (nat64) -> (vec Vote) query;
 
   finalize_proposal : (nat64) -> (Result_2);
