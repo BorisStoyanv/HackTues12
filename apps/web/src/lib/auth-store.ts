@@ -6,7 +6,7 @@ import { UserProfile } from "./types/api";
 
 export type UserRole = "User" | "InvestorUser" | "funder" | "regional" | null;
 
-interface AuthUser {
+export interface AuthUser {
   id: string;
   role: UserRole;
   reputation: number;
