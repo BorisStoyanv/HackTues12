@@ -29,6 +29,7 @@ const proposalSchema = z.object({
   info: z.string().max(5000).optional().default(""),
   neededFunds: z.coerce.number().positive(),
   currency: z.string().min(2).max(10).optional().default("USD"),
+  responseLanguage: z.enum(["auto", "en", "bg"]).optional().default("auto"),
 });
 
 const debateRequestSchema = z.object({
