@@ -23,7 +23,7 @@ export default function AuditLogPage() {
   }, []);
 
   return (
-    <div className="flex-1 overflow-y-auto bg-background">
+    <div className="flex flex-col h-full bg-background overflow-hidden">
       <div className="border-b bg-neutral-50/30 dark:bg-neutral-950/30 px-6 py-6 md:px-12 md:py-8 shrink-0">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-1">
@@ -45,8 +45,8 @@ export default function AuditLogPage() {
         </div>
       </div>
 
-      <div className="px-6 py-8 md:px-12">
-        <div className="max-w-7xl mx-auto">
+      <div className="flex-1 overflow-hidden flex flex-col px-6 py-8 md:px-12">
+        <div className="max-w-7xl mx-auto w-full h-full flex flex-col min-h-0">
           <AuditExplorer initialLogs={logs} />
         </div>
       </div>
