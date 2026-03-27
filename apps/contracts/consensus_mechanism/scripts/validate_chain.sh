@@ -9,11 +9,11 @@ CONSENSUS_CANISTER="consensus_mechanism"
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/validate_chain.sh <proposal_id> <happy|refund> [funder_identity] [beneficiary_identity]
+  ./scripts/validate_chain.sh <proposal_id> <happy|guardrails> [funder_identity] [beneficiary_identity]
 
 Examples:
   ./scripts/validate_chain.sh 1 happy investor1 community1
-  ./scripts/validate_chain.sh 2 refund investor1 community2
+  ./scripts/validate_chain.sh 2 guardrails investor1 community2
 EOF
 }
 
@@ -155,9 +155,9 @@ main() {
       expected_votes="3"
       beneficiary_identity="${beneficiary_identity:-community1}"
       ;;
-    refund)
+    guardrails|refund)
       expected_status="Rejected"
-      expected_escrow="Refunded"
+      expected_escrow=""
       expected_votes="2"
       beneficiary_identity="${beneficiary_identity:-community2}"
       ;;
@@ -190,8 +190,13 @@ main() {
     exit 1
   fi
 
-  if [[ "$escrow_state" != "$expected_escrow" ]]; then
+  if [[ -n "$expected_escrow" && "$escrow_state" != "$expected_escrow" ]]; then
     echo "Validation failed: expected escrow state $expected_escrow, got $escrow_state" >&2
+    exit 1
+  fi
+
+  if [[ -z "$expected_escrow" && -n "$escrow_state" ]]; then
+    echo "Validation failed: expected no escrow state, got $escrow_state" >&2
     exit 1
   fi
 
@@ -200,26 +205,29 @@ main() {
     exit 1
   fi
 
-  if [[ -z "$deposit_block_index" ]]; then
+  if [[ "$mode" == "happy" && -z "$deposit_block_index" ]]; then
     echo "Validation failed: deposit_block_index is missing" >&2
     exit 1
   fi
 
   must_contain "$events" 'event_type = variant { ProposalFinalized }' "missing ProposalFinalized audit event"
-  must_contain "$events" 'event_type = variant { ProposalBacked }' "missing ProposalBacked audit event"
 
   if [[ "$mode" == "happy" ]]; then
+    must_contain "$events" 'event_type = variant { ProposalBacked }' "missing ProposalBacked audit event"
     if [[ -z "$release_block_index" ]]; then
       echo "Validation failed: release_block_index is missing" >&2
       exit 1
     fi
     must_contain "$events" 'event_type = variant { EscrowReleased }' "missing EscrowReleased audit event"
   else
-    if [[ -z "$refund_block_index" ]]; then
-      echo "Validation failed: refund_block_index is missing" >&2
+    if [[ -n "$deposit_block_index" ]]; then
+      echo "Validation failed: deposit_block_index should not exist for guardrail flow" >&2
       exit 1
     fi
-    must_contain "$events" 'event_type = variant { EscrowRefunded }' "missing EscrowRefunded audit event"
+    if [[ "$events" == *'event_type = variant { ProposalBacked }'* ]]; then
+      echo "Validation failed: ProposalBacked should not exist for guardrail flow" >&2
+      exit 1
+    fi
   fi
 
   funder_principal="$(principal_of "$funder_identity")"
@@ -232,7 +240,11 @@ main() {
   echo "  voter count         : $voter_count"
   echo "  yes votes           : $yes_votes"
   echo "  no votes            : $no_votes"
-  echo "  deposit block index : $deposit_block_index"
+  if [[ -n "$deposit_block_index" ]]; then
+    echo "  deposit block index : $deposit_block_index"
+  else
+    echo "  deposit block index : not created"
+  fi
   if [[ -n "$release_block_index" ]]; then
     echo "  release block index : $release_block_index"
   fi
@@ -244,10 +256,12 @@ main() {
   echo "  beneficiary         : $beneficiary_principal"
   echo "  beneficiary balance : $(balance_of "$beneficiary_identity")"
 
-  if ledger_block_lookup "$deposit_block_index" >/dev/null; then
-    echo "  ledger deposit      : block $deposit_block_index is queryable on the ledger"
-  else
-    echo "  ledger deposit      : block query unavailable, using on-chain block index"
+  if [[ -n "$deposit_block_index" ]]; then
+    if ledger_block_lookup "$deposit_block_index" >/dev/null; then
+      echo "  ledger deposit      : block $deposit_block_index is queryable on the ledger"
+    else
+      echo "  ledger deposit      : block query unavailable, using on-chain block index"
+    fi
   fi
 
   if [[ -n "$release_block_index" ]]; then

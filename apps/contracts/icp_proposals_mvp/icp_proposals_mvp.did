@@ -106,6 +106,55 @@ type SubmitProposalInput = record {
   location : opt ProposalLocation;
 };
 
+type ProposalAIDebateModels = record {
+  advocate : text;
+  skeptic : text;
+  judge : text;
+};
+
+type ProposalAIDebateCriteriaRatings = record {
+  popularity : float64;
+  tourism_attendance : float64;
+  neglect_and_age : float64;
+  potential_tourism_benefit : float64;
+};
+
+type ProposalAIDebateRound = record {
+  round : nat32;
+  advocate_statement : text;
+  skeptic_statement : text;
+  winner : text;
+  score : float64;
+  rationale : text;
+};
+
+type ProposalAIDebate = record {
+  models : ProposalAIDebateModels;
+  search_text : text;
+  geo_hint_display_name : opt text;
+  rounds : vec ProposalAIDebateRound;
+  aggregate_score : float64;
+  judge_reported_aggregate_score : float64;
+  funding_priority_score : float64;
+  funding_recommendation : text;
+  rationale : text;
+  criteria_ratings : ProposalAIDebateCriteriaRatings;
+  saved_at : nat64;
+};
+
+type SaveProposalAIDebateInput = record {
+  models : ProposalAIDebateModels;
+  search_text : text;
+  geo_hint_display_name : opt text;
+  rounds : vec ProposalAIDebateRound;
+  aggregate_score : float64;
+  judge_reported_aggregate_score : float64;
+  funding_priority_score : float64;
+  funding_recommendation : text;
+  rationale : text;
+  criteria_ratings : ProposalAIDebateCriteriaRatings;
+};
+
 type Vote = record {
   voter : principal;
   proposal_id : nat64;
@@ -229,7 +278,9 @@ service : {
 
   submit_proposal : (SubmitProposalInput) -> (Result_2);
   get_proposal : (nat64) -> (opt Proposal) query;
+  get_proposal_ai_debate : (nat64) -> (opt ProposalAIDebate) query;
   list_proposals : (opt ProposalStatus) -> (vec Proposal) query;
+  save_proposal_ai_debate : (nat64, SaveProposalAIDebateInput) -> (Result_2);
 
   cast_vote : (nat64, bool) -> (Result_3);
   get_my_vote : (nat64) -> (opt Vote) query;

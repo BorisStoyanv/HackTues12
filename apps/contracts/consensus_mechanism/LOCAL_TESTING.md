@@ -8,15 +8,15 @@ cd /mnt/c/Users/ivan2/Documents/GitHub/HackTues12/apps/contracts/consensus_mecha
 
 ## Fast Path
 
-Use the runner for a persistent local dev chain, real local ICP balances, and the two validated escrow flows:
+Use the runner for a persistent local dev chain, real local ICP balances, and the validated post-approval funding flow plus funding guardrails:
 
 ```bash
 bash scripts/local_dev_chain.sh setup --reset
 bash scripts/local_dev_chain.sh happy
-bash scripts/local_dev_chain.sh refund
+bash scripts/local_dev_chain.sh guardrails
 bash scripts/local_dev_chain.sh balances investor1 community1
 bash scripts/local_dev_chain.sh verify 1 happy investor1 community1
-bash scripts/local_dev_chain.sh verify 2 refund investor1 community2
+bash scripts/local_dev_chain.sh verify 2 guardrails investor1 community2
 ```
 
 `happy` performs the real ledger-backed payout flow:
@@ -25,11 +25,11 @@ bash scripts/local_dev_chain.sh verify 2 refund investor1 community2
 - `fund_proposal` pulls ICP into the proposal escrow subaccount
 - `release_escrow` transfers ICP to the beneficiary
 
-`refund` performs the real reject-and-refund flow:
-- investor approves the canister
-- `fund_proposal` pulls ICP into escrow
-- the proposal is rejected
-- `refund_escrow` transfers ICP back to the investor
+`guardrails` verifies the new post-approval funding restrictions:
+- `fund_proposal` fails while the proposal is still `Active`
+- the proposal is rejected by community voting
+- `fund_proposal` still fails after rejection
+- no escrow funding record is created
 
 ## Manual Setup
 
@@ -62,8 +62,9 @@ Validate votes, audit events, escrow state, block indexes, and balances with:
 
 ```bash
 bash scripts/validate_chain.sh 1 happy investor1 community1
-bash scripts/validate_chain.sh 2 refund investor1 community2
+bash scripts/validate_chain.sh 2 guardrails investor1 community2
 ```
+
 
 ## Manual Happy Path
 
@@ -178,7 +179,7 @@ Expected outcome:
 - beneficiary balance increases by the funded amount
 - escrow state becomes `Released`
 
-## Manual Refund Path
+## Manual Guardrail Path
 
 ### 1. Submit a proposal that will fail
 
@@ -188,7 +189,7 @@ BENEFICIARY=$(dfx identity get-principal)
 
 dfx canister call consensus_mechanism submit_proposal "(record {
   title = \"Low support test\";
-  description = \"This one should fail and refund the escrow.\";
+  description = \"This one should fail before any NPO funding is allowed.\";
   budget_description = \"Mock budget only\";
   region_tag = \"sofia\";
   beneficiary = principal \"$BENEFICIARY\";
@@ -196,37 +197,22 @@ dfx canister call consensus_mechanism submit_proposal "(record {
 })"
 ```
 
-### 2. Approve and fund before finalization
-
-For a `0.5 ICP` request, a safe approval amount is `50020000` e8s:
+### 2. Confirm funding is blocked before approval
 
 ```bash
-CONSENSUS_ID=$(dfx canister id consensus_mechanism)
-
 dfx identity use investor1
-dfx canister call ryjl3-tyaaa-aaaaa-aaaba-cai icrc2_approve "(record {
-  fee = opt 10000;
-  memo = null;
-  from_subaccount = null;
-  created_at_time = null;
-  amount = 50020000;
-  expected_allowance = null;
-  expires_at = null;
-  spender = record {
-    owner = principal \"$CONSENSUS_ID\";
-    subaccount = null;
-  };
-})"
-
 dfx canister call consensus_mechanism fund_proposal '(record {
   proposal_id = 2;
   amount_e8s = 50000000;
   deposit_block_index = null;
-  deposit_reference = opt "manual-refund-deposit-2";
+  deposit_reference = opt "manual-guardrail-active-2";
 })'
 ```
 
-### 3. Reject and refund
+Expected result:
+- call fails with `Cannot fund a proposal before it passes community voting`
+
+### 3. Reject the proposal and confirm funding is still blocked
 
 ```bash
 dfx identity use community1
@@ -241,13 +227,18 @@ dfx identity use community1
 dfx canister call consensus_mechanism finalize_proposal '(2)'
 
 dfx identity use investor1
-dfx canister call consensus_mechanism refund_escrow '(record {
+dfx canister call consensus_mechanism fund_proposal '(record {
   proposal_id = 2;
-  reference = opt "manual-refund-2";
+  amount_e8s = 50000000;
+  deposit_block_index = null;
+  deposit_reference = opt "manual-guardrail-rejected-2";
 })'
 ```
 
-### 4. Verify refund state and balances
+Expected result:
+- call fails with `Cannot fund a proposal that has already failed voting`
+
+### 4. Verify rejected state and unchanged balances
 
 ```bash
 dfx canister call consensus_mechanism get_proposal_view '(2)'
@@ -256,10 +247,10 @@ bash scripts/local_dev_chain.sh balances investor1 community2
 ```
 
 Expected outcome:
-- investor receives the escrowed ICP back
-- investor still pays ledger fees net
+- no escrow is created
+- investor balance does not decrease for proposal funding
 - beneficiary balance does not increase
-- escrow state becomes `Refunded`
+- proposal status becomes `Rejected`
 
 ## Reset
 

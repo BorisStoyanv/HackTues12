@@ -1,6 +1,36 @@
 import { createBackendActor } from "../api/icp";
 import { AuditLog, ContractRecord, Proposal } from "../types/api";
 
+export interface SerializedProposalAIDebate {
+  models: {
+    advocate: string;
+    skeptic: string;
+    judge: string;
+  };
+  search_text: string;
+  geo_hint_display_name: string | null;
+  rounds: Array<{
+    round: number;
+    advocate_statement: string;
+    skeptic_statement: string;
+    winner: string;
+    score: number;
+    rationale: string;
+  }>;
+  aggregate_score: number;
+  judge_reported_aggregate_score: number;
+  funding_priority_score: number;
+  funding_recommendation: string;
+  rationale: string;
+  criteria_ratings: {
+    popularity: number;
+    tourism_attendance: number;
+    neglect_and_age: number;
+    potential_tourism_benefit: number;
+  };
+  saved_at: number;
+}
+
 export interface SerializedProposal {
 	id: string;
 	submitter: string;
@@ -37,6 +67,7 @@ export interface SerializedProposal {
 		country: string;
 		formatted_address: string;
 	};
+  ai_debate: SerializedProposalAIDebate | null;
 }
 
 export interface SerializedVote {
@@ -261,7 +292,49 @@ async function serializeProposal(
 		no_weight: proposal.no_weight,
 		voter_count: proposal.voter_count,
 		location: resolvedLocation,
+    ai_debate: null,
 	};
+}
+
+function serializeProposalAIDebate(
+  debate: any,
+): SerializedProposalAIDebate {
+  return {
+    models: {
+      advocate: debate.models.advocate,
+      skeptic: debate.models.skeptic,
+      judge: debate.models.judge,
+    },
+    search_text: debate.search_text,
+    geo_hint_display_name:
+      debate.geo_hint_display_name.length > 0
+        ? debate.geo_hint_display_name[0]!
+        : null,
+    rounds: (debate.rounds as any[]).map((round) => ({
+      round: Number(round.round),
+      advocate_statement: round.advocate_statement,
+      skeptic_statement: round.skeptic_statement,
+      winner: round.winner,
+      score: Number(round.score),
+      rationale: round.rationale,
+    })),
+    aggregate_score: Number(debate.aggregate_score),
+    judge_reported_aggregate_score: Number(
+      debate.judge_reported_aggregate_score,
+    ),
+    funding_priority_score: Number(debate.funding_priority_score),
+    funding_recommendation: debate.funding_recommendation,
+    rationale: debate.rationale,
+    criteria_ratings: {
+      popularity: Number(debate.criteria_ratings.popularity),
+      tourism_attendance: Number(debate.criteria_ratings.tourism_attendance),
+      neglect_and_age: Number(debate.criteria_ratings.neglect_and_age),
+      potential_tourism_benefit: Number(
+        debate.criteria_ratings.potential_tourism_benefit,
+      ),
+    },
+    saved_at: Number(debate.saved_at),
+  };
 }
 
 async function loadRegionVotingPowerMap(
@@ -349,7 +422,11 @@ export async function fetchProposalById(id: string) {
 	if (isNaN(Number(id))) return { success: false, error: "Invalid ID" };
 	try {
 		const actor = await createBackendActor();
-		const result = await actor.get_proposal(BigInt(id));
+    const [result, debateResult] = await Promise.all([
+      actor.get_proposal(BigInt(id)),
+      (actor as any).get_proposal_ai_debate(BigInt(id)),
+    ]);
+
 		if (result.length > 0) {
 			const proposal = result[0]!;
 			let totalRegionalVp = 0;
@@ -369,11 +446,18 @@ export async function fetchProposalById(id: string) {
 
 			return {
 				success: true,
-				proposal: await serializeProposal(proposal, totalRegionalVp),
+				proposal: {
+          ...(await serializeProposal(proposal, totalRegionalVp)),
+          ai_debate:
+            debateResult && debateResult.length > 0
+              ? serializeProposalAIDebate(debateResult[0]!)
+              : null,
+        },
 			};
 		}
 		return { success: false, error: "Not found" };
 	} catch (error) {
+    console.error("Error fetching proposal:", error);
 		return { success: false, error: "Error fetching proposal" };
 	}
 }

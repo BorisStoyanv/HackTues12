@@ -689,13 +689,7 @@ async fn fund_proposal(input: FundProposalInput) -> ApiResult<Proposal> {
     }
 
     let mut proposal = get_proposal(input.proposal_id)?;
-    match proposal.status {
-        ProposalStatus::Active | ProposalStatus::AwaitingFunding => {}
-        ProposalStatus::Backed => return Err("Proposal already has escrow funding".to_string()),
-        ProposalStatus::QuorumNotMet | ProposalStatus::Rejected => {
-            return Err("Cannot fund a proposal that has already failed voting".to_string())
-        }
-    }
+    validate_funding_status(&proposal.status)?;
 
     if proposal.escrow.is_some() {
         return Err("Escrow has already been created for this proposal".to_string());
@@ -1233,14 +1227,17 @@ fn compute_vote_power(profile: &UserProfile, proposal_region: &str) -> f64 {
     };
     let stability_score = (0.5 + (profile.activity_count as f64 / 20.0)).min(1.2);
     let base_weight = (reputation + 1.0).log2().min(10.0);
-    let locality_mult = if profile.is_local_verified
-        && profile.home_region.as_deref() == Some(proposal_region)
-    {
-        1.15
+    let locality_mult =
+        if profile.is_local_verified && profile.home_region.as_deref() == Some(proposal_region) {
+            1.15
+        } else {
+            1.0
+        };
+    let expertise_mult = if profile.has_expert_standing {
+        1.10
     } else {
         1.0
     };
-    let expertise_mult = if profile.has_expert_standing { 1.10 } else { 1.0 };
     let accuracy_modifier = 0.75 + (accuracy_ratio * 0.5);
 
     (base_weight * locality_mult * expertise_mult * accuracy_modifier * stability_score)
@@ -1254,6 +1251,19 @@ fn is_majority_passed(yes_weight: f64, total_weight: f64) -> bool {
 
     let settings = get_settings();
     yes_weight / total_weight > settings.approval_basis_points as f64 / 10_000.0
+}
+
+fn validate_funding_status(status: &ProposalStatus) -> ApiResult<()> {
+    match status {
+        ProposalStatus::AwaitingFunding => Ok(()),
+        ProposalStatus::Active => {
+            Err("Cannot fund a proposal before it passes community voting".to_string())
+        }
+        ProposalStatus::Backed => Err("Proposal already has escrow funding".to_string()),
+        ProposalStatus::QuorumNotMet | ProposalStatus::Rejected => {
+            Err("Cannot fund a proposal that has already failed voting".to_string())
+        }
+    }
 }
 
 fn has_held_escrow(proposal: &Proposal) -> bool {
@@ -1306,12 +1316,7 @@ fn ledger_account_identifier_hex(account: &LedgerAccount) -> String {
     state.update([0x0A]);
     state.update(b"account-id");
     state.update(account.owner.as_slice());
-    state.update(
-        account
-            .subaccount
-            .as_deref()
-            .unwrap_or(&[0u8; 32]),
-    );
+    state.update(account.subaccount.as_deref().unwrap_or(&[0u8; 32]));
 
     let hash = state.finalize();
     let mut checksum = Crc32Hasher::new();
@@ -1357,15 +1362,13 @@ async fn transfer_from_investor_to_escrow(
         memo: None,
         created_at_time: Some(now()),
     };
-    let (result,): (LedgerTransferFromResult,) = Call::unbounded_wait(
-        ledger_canister_id,
-        "icrc2_transfer_from",
-    )
-    .with_arg(transfer)
-    .await
-    .map_err(|error| format!("Failed to move approved ICP into escrow: {error:?}"))?
-    .candid_tuple()
-    .map_err(|error| format!("Failed to decode escrow funding response: {error:?}"))?;
+    let (result,): (LedgerTransferFromResult,) =
+        Call::unbounded_wait(ledger_canister_id, "icrc2_transfer_from")
+            .with_arg(transfer)
+            .await
+            .map_err(|error| format!("Failed to move approved ICP into escrow: {error:?}"))?
+            .candid_tuple()
+            .map_err(|error| format!("Failed to decode escrow funding response: {error:?}"))?;
 
     match result {
         LedgerTransferFromResult::Ok(block_index) => nat_to_u64(&block_index, "block_index"),
@@ -1390,15 +1393,13 @@ async fn transfer_from_escrow_subaccount(
         memo: None,
         created_at_time: Some(now()),
     };
-    let (result,): (LedgerTransferResult,) = Call::unbounded_wait(
-        ledger_canister_id,
-        "icrc1_transfer",
-    )
-    .with_arg(transfer)
-    .await
-    .map_err(|error| format!("Failed to submit ledger transfer: {error:?}"))?
-    .candid_tuple()
-    .map_err(|error| format!("Failed to decode ledger transfer response: {error:?}"))?;
+    let (result,): (LedgerTransferResult,) =
+        Call::unbounded_wait(ledger_canister_id, "icrc1_transfer")
+            .with_arg(transfer)
+            .await
+            .map_err(|error| format!("Failed to submit ledger transfer: {error:?}"))?
+            .candid_tuple()
+            .map_err(|error| format!("Failed to decode ledger transfer response: {error:?}"))?;
 
     match result {
         LedgerTransferResult::Ok(block_index) => nat_to_u64(&block_index, "block_index"),
@@ -1434,7 +1435,10 @@ candid::export_service!();
 
 #[cfg(test)]
 mod tests {
-    use super::{compute_vote_power, is_majority_passed, UserProfile, UserType};
+    use super::{
+        compute_vote_power, is_majority_passed, validate_funding_status, ProposalStatus,
+        UserProfile, UserType,
+    };
 
     #[test]
     fn vote_power_increases_with_reputation() {
@@ -1461,5 +1465,14 @@ mod tests {
         assert!(is_majority_passed(52.0, 100.0));
         assert!(!is_majority_passed(51.0, 100.0));
         assert!(!is_majority_passed(0.0, 0.0));
+    }
+
+    #[test]
+    fn funding_is_only_allowed_after_proposal_reaches_awaiting_funding() {
+        assert!(validate_funding_status(&ProposalStatus::AwaitingFunding).is_ok());
+        assert!(validate_funding_status(&ProposalStatus::Active).is_err());
+        assert!(validate_funding_status(&ProposalStatus::Backed).is_err());
+        assert!(validate_funding_status(&ProposalStatus::Rejected).is_err());
+        assert!(validate_funding_status(&ProposalStatus::QuorumNotMet).is_err());
     }
 }
