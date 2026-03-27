@@ -1,8 +1,30 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import {
+  Activity,
+  ArrowRight,
+  Gavel,
+  Globe,
+  Scale,
+  Timer,
+  Users,
+} from "lucide-react";
+import Link from "next/link";
+
 import {
   fetchAllProposals,
   fetchConfig,
   SerializedProposal,
 } from "@/lib/actions/proposals";
+import type { Config } from "@/lib/types/api";
+import {
+  formatConfigPercent,
+  formatPercent,
+  getProposalVotingMetrics,
+} from "@/lib/proposals/voting";
+import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -10,33 +32,38 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import {
-  Activity,
-  ArrowRight,
-  Gavel,
-  Timer,
-  Users,
-  Scale,
-  Globe,
-} from "lucide-react";
-import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { buttonVariants } from "@/components/ui/button";
-import {
-  formatConfigPercent,
-  formatPercent,
-  getProposalVotingMetrics,
-} from "@/lib/proposals/voting";
 
-export default async function GovernancePage() {
-  const [proposalsResult, configResult] = await Promise.all([
-    fetchAllProposals("Active"),
-    fetchConfig(),
-  ]);
+type GovernanceConfig = Omit<Config, "voting_period_ns"> & {
+  voting_period_ns: number;
+};
 
-  const proposals = proposalsResult.success ? proposalsResult.proposals : [];
-  const config = configResult.success ? configResult.config : null;
+export default function GovernancePage() {
+  const [proposals, setProposals] = useState<SerializedProposal[]>([]);
+  const [config, setConfig] = useState<GovernanceConfig | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    Promise.all([fetchAllProposals("Active"), fetchConfig()]).then(
+      ([proposalsResult, configResult]) => {
+        if (cancelled) {
+          return;
+        }
+
+        setProposals(proposalsResult.success ? proposalsResult.proposals : []);
+        setConfig(
+          configResult.success && configResult.config
+            ? configResult.config
+            : null,
+        );
+      },
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="flex-1 overflow-y-auto bg-background pb-20">
@@ -80,8 +107,8 @@ export default async function GovernancePage() {
         <div className="max-w-7xl mx-auto space-y-12">
           <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             {proposals.length > 0 ? (
-              proposals.map((proposal: SerializedProposal) => {
-                const endsAt = new Date(proposal.voting_ends_at / 1000000);
+              proposals.map((proposal) => {
+                const endsAt = new Date(proposal.voting_ends_at / 1_000_000);
                 const isExpired = endsAt < new Date();
                 const votingMetrics = getProposalVotingMetrics(proposal);
 

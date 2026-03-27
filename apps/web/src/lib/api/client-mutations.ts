@@ -76,6 +76,7 @@ export async function submitProposalClient(
     timeline: string;
     expected_impact: string;
     approved_company: [] | [ProposalCompany];
+    location: [] | [Location];
   }
 ): Promise<Proposal> {
   const actor = await createBackendActor(identity);

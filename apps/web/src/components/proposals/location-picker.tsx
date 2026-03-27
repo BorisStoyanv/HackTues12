@@ -7,6 +7,7 @@ import { useTheme } from "next-themes";
 import { Input } from "@/components/ui/input";
 import { MapPin, Search, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MAPBOX_API_KEY } from "@/lib/env";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 interface LocationData {
@@ -27,12 +28,21 @@ interface MapboxFeature {
   id: string;
   place_name: string;
   text: string;
+  place_type?: string[];
   center: [number, number];
   context?: {
     id: string;
     text: string;
   }[];
 }
+
+const FEATURE_PRIORITY: Record<string, number> = {
+  locality: 0,
+  place: 1,
+  neighborhood: 2,
+  address: 3,
+  poi: 4,
+};
 
 export function LocationPicker({ value, onChange, error }: LocationPickerProps) {
   const { resolvedTheme } = useTheme();
@@ -76,14 +86,20 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
 
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        const token = process.env.NEXT_PUBLIC_MAPBOX_API_KEY;
+        const token = MAPBOX_API_KEY;
         if (!token) throw new Error("Mapbox token missing");
 
         const res = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&types=address,poi,place&limit=5`
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&types=locality,place,address,poi,neighborhood&limit=8`
         );
         const data = await res.json();
-        setSearchResults(data.features || []);
+        const features = Array.isArray(data.features) ? data.features : [];
+        features.sort((left: MapboxFeature, right: MapboxFeature) => {
+          const leftType = left.place_type?.[0] || "poi";
+          const rightType = right.place_type?.[0] || "poi";
+          return (FEATURE_PRIORITY[leftType] ?? 99) - (FEATURE_PRIORITY[rightType] ?? 99);
+        });
+        setSearchResults(features);
       } catch (err) {
         console.error("Geocoding error:", err);
       } finally {
@@ -94,19 +110,30 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
 
   // Extract City and Country from Mapbox Context
   const parseContext = (feature: MapboxFeature) => {
-    let city = feature.text || "";
+    const featureType = feature.place_type?.[0] ?? "";
+    const exactLabel = feature.text || "";
+    let locality = "";
+    let place = "";
     let country = "";
 
     if (feature.context) {
       for (const item of feature.context) {
+        if (item.id.startsWith("locality")) {
+          locality = item.text;
+        }
         if (item.id.startsWith("place")) {
-          city = item.text;
+          place = item.text;
         }
         if (item.id.startsWith("country")) {
           country = item.text;
         }
       }
     }
+
+    let city =
+      featureType === "locality" || featureType === "place"
+        ? exactLabel
+        : locality || place || exactLabel;
 
     // Fallbacks if contexts aren't perfect
     if (!city) city = "Unknown City";
@@ -151,11 +178,11 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
     setViewState((prev) => ({ ...prev, longitude: lng, latitude: lat }));
 
     try {
-      const token = process.env.NEXT_PUBLIC_MAPBOX_API_KEY;
+      const token = MAPBOX_API_KEY;
       if (!token) return;
 
       const res = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}&types=address,poi,place&limit=1`
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}&types=locality,place,address,poi,neighborhood&limit=1`
       );
       const data = await res.json();
       
@@ -230,7 +257,7 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
           {...viewState}
           onMove={(e) => setViewState(e.viewState)}
           mapStyle={mapStyle}
-          mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_API_KEY}
+          mapboxAccessToken={MAPBOX_API_KEY}
         >
           <NavigationControl position="bottom-right" />
           

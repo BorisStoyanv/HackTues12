@@ -1,27 +1,78 @@
+"use client";
+
 import { fetchContractById, fetchProposalById } from "@/lib/actions/proposals";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ShieldCheck, FileText, Lock, Building2, User, AlertCircle, ArrowLeft, ExternalLink } from "lucide-react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { useParams } from "next/navigation";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ContractSigningInterface } from "@/components/proposals/contract-signing-interface";
 import { cn } from "@/lib/utils";
+import { useEffect, useState } from "react";
+import type { SerializedContract, SerializedProposal } from "@/lib/actions/proposals";
 
-export default async function ContractDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  
-  const [contractResult, proposalResult] = await Promise.all([
-    fetchContractById(id),
-    fetchProposalById(id)
-  ]);
+export default function ContractDetailPage() {
+  const { id } = useParams();
+  const [contract, setContract] = useState<SerializedContract | null>(null);
+  const [proposal, setProposal] = useState<SerializedProposal | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  if (!contractResult.success || !contractResult.contract) {
-    notFound();
+  useEffect(() => {
+    if (typeof id !== "string") return;
+
+    let cancelled = false;
+
+    Promise.all([fetchContractById(id), fetchProposalById(id)]).then(
+      ([contractResult, proposalResult]) => {
+        if (cancelled) return;
+        setContract(
+          contractResult.success && contractResult.contract
+            ? contractResult.contract
+            : null,
+        );
+        setProposal(
+          proposalResult.success && proposalResult.proposal
+            ? proposalResult.proposal
+            : null,
+        );
+        setIsLoading(false);
+      },
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  if (typeof id !== "string") return null;
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+      </div>
+    );
   }
 
-  const contract = contractResult.contract;
-  const proposal = proposalResult.success ? proposalResult.proposal : null;
+  if (!contract) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center bg-background px-6">
+        <div className="space-y-3 text-center">
+          <h1 className="text-2xl font-bold tracking-tight">Contract Not Found</h1>
+          <p className="text-sm text-muted-foreground">
+            This trust contract is not available on the ledger.
+          </p>
+          <Link
+            href="/dashboard/contracts"
+            className={buttonVariants({ variant: "outline" })}
+          >
+            Back to Contracts
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 overflow-y-auto bg-background pb-20">

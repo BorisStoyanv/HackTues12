@@ -31,6 +31,7 @@ import {
   updateMyProfileClient,
 } from "@/lib/api/client-mutations";
 import { getDefaultDisplayName } from "@/lib/profile-utils";
+import { waitForProfileSync } from "@/lib/profile-sync";
 import { cn } from "@/lib/utils";
 
 import { loadStripe } from "@stripe/stripe-js";
@@ -73,6 +74,7 @@ export default function KYCPage() {
   const hasProfile = useAuthStore((state) => state.hasProfile);
   const initialize = useAuthStore((state) => state.initialize);
   const [step, setStep] = useState<Step>("details");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -101,27 +103,34 @@ export default function KYCPage() {
     setSubmitError(null);
 
     try {
-      if (hasProfile) {
-        await updateMyProfileClient(identity, values.orgName, null);
-      } else {
-        await createMyProfileClient(
-          identity,
-          values.orgName || getDefaultDisplayName(user.id),
-          { InvestorUser: null },
-          null,
-        );
-      }
+      setIsSavingProfile(true);
+      const mutationPromise = hasProfile
+        ? updateMyProfileClient(identity, values.orgName, null)
+        : createMyProfileClient(
+            identity,
+            values.orgName || getDefaultDisplayName(user.id),
+            { InvestorUser: null },
+            null,
+          );
+
+      const syncPromise = waitForProfileSync(
+        identity,
+        (profile) => "InvestorUser" in profile.user_type,
+      );
+
+      await Promise.race([syncPromise, mutationPromise.then(() => syncPromise)]);
 
       await initialize();
+      setStep("upload");
     } catch (error) {
       console.error("Failed to save investor profile:", error);
       setSubmitError(
         error instanceof Error ? error.message : "Failed to save your profile.",
       );
       return;
+    } finally {
+      setIsSavingProfile(false);
     }
-
-    setStep("upload");
   };
 
   const handleUpload = async () => {
@@ -190,10 +199,20 @@ export default function KYCPage() {
               throw new Error("Identity not found.");
             }
 
-            await requestVerificationClient(identity);
+            const verificationPromise = requestVerificationClient(identity);
+            const syncPromise = waitForProfileSync(
+              identity,
+              (profile) =>
+                profile.is_verified.length > 0 && Boolean(profile.is_verified[0]),
+            );
+
+            await Promise.race([
+              syncPromise,
+              verificationPromise.then(() => syncPromise),
+            ]);
             await initialize();
             setKycStatus("verified");
-            setStep("complete");
+            router.replace("/dashboard");
           } catch (error) {
             console.error("Failed to finalize investor verification:", error);
             setSubmitError(
@@ -284,13 +303,23 @@ export default function KYCPage() {
                   variant="ghost"
                   type="button"
                   onClick={() => router.push("/onboarding/role")}
+                  disabled={isSavingProfile}
                 >
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Back
                 </Button>
-                <Button type="submit">
-                  Next
-                  <ArrowRight className="ml-2 h-4 w-4" />
+                <Button type="submit" disabled={isSavingProfile}>
+                  {isSavingProfile ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      Next
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
+                  )}
                 </Button>
               </CardFooter>
             </form>
@@ -310,6 +339,11 @@ export default function KYCPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {submitError && (
+              <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {submitError}
+              </div>
+            )}
             <div className="border-2 border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl p-12 flex flex-col items-center justify-center text-center space-y-4 hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors cursor-pointer group">
               <div className="h-16 w-16 rounded-full bg-primary/5 flex items-center justify-center group-hover:scale-110 transition-transform">
                 <Upload className="h-8 w-8 text-primary" />

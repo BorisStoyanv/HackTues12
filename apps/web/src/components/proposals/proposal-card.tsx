@@ -15,6 +15,10 @@ interface ProposalCardProps {
 
 export function ProposalCard({ proposal }: ProposalCardProps) {
   const votingMetrics = getProposalVotingMetrics(proposal);
+  const locationLabel =
+    proposal.location.city && proposal.location.country
+      ? `${proposal.location.city}, ${proposal.location.country}`
+      : proposal.location.city || proposal.region_tag;
   const fundingProgress =
     proposal.funding_goal > 0
       ? (proposal.current_funding / proposal.funding_goal) * 100
@@ -43,7 +47,7 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
             variant="secondary"
             className="bg-background/90 backdrop-blur-md border shadow-sm px-3 py-1 font-bold uppercase tracking-widest text-[9px]"
           >
-            {proposal.region_tag || "Global Domain"}
+            {locationLabel || "Global Domain"}
           </Badge>
           <Badge className="w-fit bg-primary/10 text-primary border-none text-[9px] font-black uppercase tracking-tighter">
             {proposal.status}

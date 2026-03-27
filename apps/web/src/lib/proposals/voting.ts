@@ -9,7 +9,19 @@ export interface ProposalVotingMetrics {
   oppositionPercent: number;
   turnoutPercent: number;
   leadingPercentOfRegion: number;
+  supportShareOfCastPercent: number;
   hasVotes: boolean;
+}
+
+export const QUORUM_PERCENT_OF_TOTAL = 5;
+export const ABSOLUTE_MAJORITY_PERCENT_OF_TOTAL = 51;
+
+function clampPercent(value: number) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.min(Math.max(value, 0), 100);
 }
 
 export function getProposalVotingMetrics(
@@ -30,13 +42,21 @@ export function getProposalVotingMetrics(
     totalCastWeight,
     totalRegionalVp,
     supportPercent:
-      totalCastWeight > 0 ? (yesWeight / totalCastWeight) * 100 : 0,
+      totalRegionalVp > 0
+        ? clampPercent((yesWeight / totalRegionalVp) * 100)
+        : 0,
     oppositionPercent:
-      totalCastWeight > 0 ? (noWeight / totalCastWeight) * 100 : 0,
+      totalRegionalVp > 0
+        ? clampPercent((noWeight / totalRegionalVp) * 100)
+        : 0,
     turnoutPercent:
-      totalRegionalVp > 0 ? (totalCastWeight / totalRegionalVp) * 100 : 0,
+      totalRegionalVp > 0
+        ? clampPercent((totalCastWeight / totalRegionalVp) * 100)
+        : 0,
     leadingPercentOfRegion:
       totalRegionalVp > 0 ? (leadingWeight / totalRegionalVp) * 100 : 0,
+    supportShareOfCastPercent:
+      totalCastWeight > 0 ? (yesWeight / totalCastWeight) * 100 : 0,
     hasVotes: totalCastWeight > 0,
   };
 }
@@ -59,7 +79,7 @@ export function isProposalClosable(
   const metrics = getProposalVotingMetrics(proposal);
   return (
     nowMs >= proposal.voting_ends_at / 1_000_000 ||
-    metrics.leadingPercentOfRegion >= 51
+    metrics.leadingPercentOfRegion >= ABSOLUTE_MAJORITY_PERCENT_OF_TOTAL
   );
 }
 

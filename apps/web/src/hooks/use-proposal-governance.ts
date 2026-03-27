@@ -5,12 +5,8 @@ import { useRouter } from "next/navigation";
 
 import { SerializedProposal } from "@/lib/actions/proposals";
 import { createBackendActor } from "@/lib/api/icp";
-import {
-  castVoteClient,
-  finalizeProposalClient,
-} from "@/lib/api/client-mutations";
+import { castVoteClient } from "@/lib/api/client-mutations";
 import { useAuthStore } from "@/lib/auth-store";
-import { isProposalClosable } from "@/lib/proposals/voting";
 
 interface ViewerProposalProfile {
   reputation: number;
@@ -45,9 +41,7 @@ export function useProposalGovernance(proposal?: SerializedProposal) {
   );
   const [isLoading, setIsLoading] = useState(false);
   const [voteError, setVoteError] = useState<string | null>(null);
-  const [closeError, setCloseError] = useState<string | null>(null);
   const [isSubmittingVote, setIsSubmittingVote] = useState(false);
-  const [isClosingProposal, setIsClosingProposal] = useState(false);
 
   useEffect(() => {
     if (!proposal || proposal.status !== "Active") {
@@ -81,7 +75,6 @@ export function useProposalGovernance(proposal?: SerializedProposal) {
 
     setIsLoading(true);
     setVoteError(null);
-    setCloseError(null);
 
     createBackendActor(identity)
       .then(async (actor) => {
@@ -184,13 +177,6 @@ export function useProposalGovernance(proposal?: SerializedProposal) {
     viewerVote,
   ]);
 
-  const canCloseProposal = useMemo(() => {
-    if (!proposal || !identity || !isAuthenticated) {
-      return false;
-    }
-    return isProposalClosable(proposal);
-  }, [identity, isAuthenticated, proposal]);
-
   const handleVote = async (inFavor: boolean) => {
     if (!proposal || !identity || voteDisabledReason) {
       return;
@@ -217,35 +203,8 @@ export function useProposalGovernance(proposal?: SerializedProposal) {
     }
   };
 
-  const handleCloseProposal = async () => {
-    if (!proposal || !identity || !canCloseProposal) {
-      return;
-    }
-
-    setCloseError(null);
-    setIsClosingProposal(true);
-
-    try {
-      await finalizeProposalClient(identity, proposal.id);
-      router.refresh();
-    } catch (error) {
-      console.error("Proposal finalization failed:", error);
-      setCloseError(
-        error instanceof Error
-          ? error.message
-          : "Failed to close this proposal.",
-      );
-    } finally {
-      setIsClosingProposal(false);
-    }
-  };
-
   return {
-    canCloseProposal,
-    closeError,
-    handleCloseProposal,
     handleVote,
-    isClosingProposal,
     isLoading,
     isLocallyVerified,
     isSubmittingVote,

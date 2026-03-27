@@ -62,6 +62,14 @@ export const idlFactory: IDL.InterfaceFactory = ({
     representative_principal: idl.Opt(idl.Principal),
   });
 
+  const ProposalLocation = idl.Record({
+    formatted_address: idl.Text,
+    city: idl.Text,
+    country: idl.Text,
+    lat: idl.Float64,
+    lng: idl.Float64,
+  });
+
   const Proposal = idl.Record({
     id: idl.Nat64,
     status: ProposalStatus,
@@ -77,11 +85,13 @@ export const idlFactory: IDL.InterfaceFactory = ({
     executor_name: idl.Opt(idl.Text),
     expected_impact: idl.Opt(idl.Text),
     approved_company: idl.Opt(ProposalCompany),
+    location: idl.Opt(ProposalLocation),
     budget_currency: idl.Opt(idl.Text),
     voting_ends_at: idl.Nat64,
     category: idl.Opt(ProposalCategory),
     backed_at: idl.Opt(idl.Nat64),
     backed_by: idl.Opt(idl.Principal),
+    resolved_total_vp: idl.Opt(idl.Float64),
     voter_count: idl.Nat32,
     budget_amount: idl.Opt(idl.Float64),
     no_weight: idl.Float64,
@@ -102,6 +112,7 @@ export const idlFactory: IDL.InterfaceFactory = ({
     region_tag: idl.Text,
     timeline: idl.Text,
     approved_company: idl.Opt(ProposalCompany),
+    location: idl.Opt(ProposalLocation),
   });
 
   const Vote = idl.Record({

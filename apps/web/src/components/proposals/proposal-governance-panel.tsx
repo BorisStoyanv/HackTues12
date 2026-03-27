@@ -3,19 +3,20 @@
 import Link from "next/link";
 import {
   AlertTriangle,
+  Circle,
   CheckCircle2,
-  Clock,
   Loader2,
   ShieldCheck,
-  Vote,
   XCircle,
 } from "lucide-react";
 
 import { useProposalGovernance } from "@/hooks/use-proposal-governance";
 import { SerializedProposal } from "@/lib/actions/proposals";
 import {
+  ABSOLUTE_MAJORITY_PERCENT_OF_TOTAL,
   formatPercent,
   getProposalVotingMetrics,
+  QUORUM_PERCENT_OF_TOTAL,
 } from "@/lib/proposals/voting";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +28,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 
 interface ProposalGovernancePanelProps {
@@ -43,11 +43,7 @@ export function ProposalGovernancePanel({
 }: ProposalGovernancePanelProps) {
   const metrics = getProposalVotingMetrics(proposal);
   const {
-    canCloseProposal,
-    closeError,
-    handleCloseProposal,
     handleVote,
-    isClosingProposal,
     isLoading,
     isLocallyVerified,
     isSubmittingVote,
@@ -63,12 +59,45 @@ export function ProposalGovernancePanel({
     mode === "authenticated" ? "/dashboard/proposals" : "/proposals";
   const voteButtonsDisabled = Boolean(voteDisabledReason) || isSubmittingVote;
   const hasRecordedVote = Boolean(viewerVote);
-  const closeHelperText =
-    proposal.status !== "Active"
-      ? null
-      : canCloseProposal
-        ? "Voting can be closed now. Automatic resolution also runs when the threshold or deadline is reached."
-        : "Voting closes automatically at 51% of all possible regional VP or when the voting window expires.";
+  const isPassedStatus =
+    proposal.status === "AwaitingFunding" || proposal.status === "Backed";
+  const isResolvedWithQuorum =
+    isPassedStatus || proposal.status === "Rejected";
+  const quorumReached =
+    metrics.turnoutPercent >= QUORUM_PERCENT_OF_TOTAL || isResolvedWithQuorum;
+  const approvalReached =
+    metrics.supportPercent >= ABSOLUTE_MAJORITY_PERCENT_OF_TOTAL;
+  const approvalRulePassed = approvalReached || isPassedStatus;
+  const passedByDeadlineMajority =
+    isPassedStatus &&
+    metrics.supportPercent < ABSOLUTE_MAJORITY_PERCENT_OF_TOTAL &&
+    metrics.supportShareOfCastPercent >= 50;
+  const supportLabel =
+    metrics.totalRegionalVp > 0
+      ? `${metrics.yesWeight.toFixed(1)} / ${metrics.totalRegionalVp.toFixed(1)} yes VP`
+      : `${metrics.yesWeight.toFixed(1)} yes VP`;
+  const oppositionLabel =
+    metrics.totalRegionalVp > 0
+      ? `${metrics.noWeight.toFixed(1)} / ${metrics.totalRegionalVp.toFixed(1)} no VP`
+      : `${metrics.noWeight.toFixed(1)} no VP`;
+  const turnoutLabel =
+    metrics.totalRegionalVp > 0
+      ? `${metrics.totalCastWeight.toFixed(1)} / ${metrics.totalRegionalVp.toFixed(1)} VP`
+      : `${metrics.totalCastWeight.toFixed(1)} VP cast`;
+  const ruleItems = [
+    {
+      passed: quorumReached,
+      label: `Quorum: at least ${QUORUM_PERCENT_OF_TOTAL}% of eligible VP has voted`,
+      detail: `${formatPercent(metrics.turnoutPercent, 1)} turnout so far`,
+    },
+    {
+      passed: approvalRulePassed,
+      label: `Passes automatically at ${ABSOLUTE_MAJORITY_PERCENT_OF_TOTAL}% Yes VP, or by majority after time ends`,
+      detail: passedByDeadlineMajority
+        ? `Approved after deadline with ${formatPercent(metrics.supportShareOfCastPercent, 1)} Yes share of cast VP`
+        : `${formatPercent(metrics.supportPercent, 1)} Yes of total eligible VP`,
+    },
+  ];
 
   return (
     <Card className="border-border shadow-sm rounded-xl overflow-hidden sticky top-24 bg-background">
@@ -82,22 +111,90 @@ export function ProposalGovernancePanel({
       </CardHeader>
       <CardContent className="p-6 space-y-8">
         <div className="space-y-3">
-          <div className="flex justify-between items-end">
+          <div className="grid grid-cols-2 gap-6 items-end">
             <div className="flex flex-col">
               <span className="text-xs font-medium text-muted-foreground mb-1">
-                Support
+                Yes of total VP
               </span>
-              <span className="font-semibold text-2xl tracking-tight">
+              <span className="font-semibold text-2xl tracking-tight text-emerald-600 dark:text-emerald-400">
                 {formatPercent(metrics.supportPercent, 1)}
               </span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-medium text-sm mt-1">
+                {metrics.hasVotes ? supportLabel : "0.0 yes VP"}
+              </span>
             </div>
-            <span className="text-primary font-medium text-sm mb-1">
-              {metrics.hasVotes
-                ? `${metrics.yesWeight.toFixed(1)} yes VP`
-                : "No votes yet"}
-            </span>
+            <div className="flex flex-col items-end text-right">
+              <span className="text-xs font-medium text-muted-foreground mb-1">
+                No of total VP
+              </span>
+              <span className="font-semibold text-2xl tracking-tight text-red-600 dark:text-red-400">
+                {formatPercent(metrics.oppositionPercent, 1)}
+              </span>
+              <span className="text-red-600 dark:text-red-400 font-medium text-sm mt-1">
+                {metrics.hasVotes ? oppositionLabel : "0.0 no VP"}
+              </span>
+            </div>
           </div>
-          <Progress value={metrics.supportPercent} className="h-2" />
+          <div className="space-y-4">
+            <div className="relative pt-5">
+              <div className="relative h-3 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="absolute inset-y-0 left-0 rounded-full bg-emerald-500/90"
+                  style={{ width: `${Math.min(metrics.supportPercent, 100)}%` }}
+                />
+                <div
+                  className="absolute inset-y-0 right-0 rounded-full bg-red-500/85"
+                  style={{ width: `${Math.min(metrics.oppositionPercent, 100)}%` }}
+                />
+              </div>
+              {[
+                {
+                  label: `${QUORUM_PERCENT_OF_TOTAL}%`,
+                  value: QUORUM_PERCENT_OF_TOTAL,
+                },
+                {
+                  label: `${ABSOLUTE_MAJORITY_PERCENT_OF_TOTAL}%`,
+                  value: ABSOLUTE_MAJORITY_PERCENT_OF_TOTAL,
+                },
+              ].map((marker) => (
+                <div
+                  key={`${marker.label}-${marker.value}`}
+                  className="absolute top-0 -translate-x-1/2"
+                  style={{ left: `${marker.value}%` }}
+                >
+                  <div className="flex flex-col items-center gap-1">
+                    <span className="text-[10px] font-medium text-muted-foreground">
+                      {marker.label}
+                    </span>
+                    <div className="h-5 border-l border-dashed border-muted-foreground/40" />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-2">
+              {ruleItems.map((rule) => (
+                <div
+                  key={rule.label}
+                  className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-3"
+                >
+                  {rule.passed ? (
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-500" />
+                  ) : (
+                    <Circle className="mt-0.5 h-4 w-4 text-muted-foreground" />
+                  )}
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium leading-snug">
+                      {rule.label}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {rule.detail}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -106,10 +203,7 @@ export function ProposalGovernancePanel({
             <p className="text-base font-semibold tracking-tight">
               {formatPercent(metrics.turnoutPercent, 1)}
             </p>
-            <p className="text-xs text-muted-foreground">
-              {metrics.totalCastWeight.toFixed(1)} /{" "}
-              {metrics.totalRegionalVp.toFixed(1)} VP
-            </p>
+            <p className="text-xs text-muted-foreground">{turnoutLabel}</p>
           </div>
           <div className="space-y-1 text-right">
             <p className="text-xs font-medium text-muted-foreground">
@@ -236,27 +330,6 @@ export function ProposalGovernancePanel({
         <Separator className="bg-border" />
 
         <div className="space-y-3">
-          {proposal.status === "Active" && (
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full font-medium"
-              disabled={!canCloseProposal || isClosingProposal}
-              onClick={handleCloseProposal}
-            >
-              {isClosingProposal ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Closing vote
-                </>
-              ) : (
-                <>
-                  <Vote className="mr-2 h-4 w-4" />
-                  Close voting
-                </>
-              )}
-            </Button>
-          )}
           {proposal.status === "AwaitingFunding" && (
             <Link
               href={`${voteRoutePrefix}/${id}/fund`}
@@ -272,17 +345,6 @@ export function ProposalGovernancePanel({
             Export Audit
           </Button>
         </div>
-
-        {closeHelperText && (
-          <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-2 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2 font-medium text-foreground">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              Resolution rules
-            </div>
-            <p>{closeHelperText}</p>
-            {closeError && <p className="text-destructive">{closeError}</p>}
-          </div>
-        )}
 
         <div className="p-4 rounded-lg bg-muted/50 border border-border space-y-3">
           <div className="flex items-center gap-2">
@@ -320,14 +382,12 @@ export function ProposalGovernancePanel({
               Voting snapshot
             </div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Opposition</span>
+              <span className="text-muted-foreground">No of total VP</span>
               <span>{formatPercent(metrics.oppositionPercent, 1)}</span>
             </div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Absolute threshold</span>
-              <span>
-                {formatPercent(metrics.leadingPercentOfRegion, 1)} of region VP
-              </span>
+              <span className="text-muted-foreground">Yes share of cast VP</span>
+              <span>{formatPercent(metrics.supportShareOfCastPercent, 1)}</span>
             </div>
           </div>
         )}

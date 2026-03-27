@@ -65,10 +65,12 @@ export interface Proposal {
   timeline: [] | [string];
   expected_impact: [] | [string];
   approved_company: [] | [ProposalCompany];
+  location: [] | [Location];
   fairness_score: [] | [number];
   risk_flags: string[];
   backed_by: [] | [Principal];
   backed_at: [] | [bigint];
+  resolved_total_vp: [] | [number];
   status: ProposalStatus;
   created_at: bigint;
   voting_ends_at: bigint;
@@ -198,6 +200,7 @@ export interface SubmitProposalInput {
   timeline: string;
   expected_impact: string;
   approved_company: [] | [ProposalCompany];
+  location: [] | [Location];
 }
 
 export interface CreateContractInput {

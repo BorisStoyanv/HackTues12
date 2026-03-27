@@ -2,6 +2,7 @@
 
 import { createBackendActor } from "../api/icp";
 import { Proposal, AuditLog, ContractRecord, Config, Vote } from "../types/api";
+import { MAPBOX_API_KEY } from "../env";
 
 export interface SerializedProposal {
   id: string;
@@ -49,6 +50,29 @@ export interface SerializedVote {
   timestamp: number;
 }
 
+function parseVoteAuditLog(log: AuditLog): SerializedVote | null {
+  const serialized = serializeAuditLog(log);
+  if (
+    serialized.event_type !== "VoteCast" ||
+    !serialized.proposal_id
+  ) {
+    return null;
+  }
+
+  const match = serialized.payload.match(/^(yes|no) with Vp ([0-9]+(?:\.[0-9]+)?)/i);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    voter: serialized.actor,
+    proposal_id: serialized.proposal_id,
+    in_favor: match[1]!.toLowerCase() === "yes",
+    weight: Number(match[2]),
+    timestamp: serialized.timestamp,
+  };
+}
+
 // Map region tags to base coordinates
 const REGION_COORDINATES: Record<
   string,
@@ -66,6 +90,11 @@ const REGION_COORDINATES: Record<
   global: { lat: 20.0, lng: 0.0, country: "Multiple" },
 };
 
+const regionLocationCache = new Map<
+  string,
+  Promise<SerializedProposal["location"]>
+>();
+
 /**
  * Deterministic jitter based on an ID (bigint)
  * Returns a value between -0.01 and 0.01
@@ -74,10 +103,114 @@ function getJitter(id: bigint): number {
   return Number(id % BigInt(1000)) / 50000 - 0.01;
 }
 
-function serializeProposal(
+function normalizeLookupKey(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\p{L}\p{N}\s_-]/gu, "")
+    .replace(/\s+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+async function geocodeRegionTag(regionTag: string) {
+  if (!MAPBOX_API_KEY) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(regionTag)}.json?access_token=${MAPBOX_API_KEY}&types=locality,place,region,address,neighborhood&limit=1`,
+    );
+    if (!response.ok) {
+      return null;
+    }
+    const data = (await response.json()) as {
+      features?: Array<{
+        place_name?: string;
+        text?: string;
+        center?: [number, number];
+        context?: Array<{ id?: string; text?: string }>;
+      }>;
+    };
+    const feature = data.features?.[0];
+    const center = feature?.center;
+    if (!feature || !center || center.length < 2) {
+      return null;
+    }
+
+    let country = "";
+    for (const item of feature.context ?? []) {
+      if (item.id?.startsWith("country")) {
+        country = item.text ?? "";
+      }
+    }
+
+    return {
+      lat: center[1],
+      lng: center[0],
+      city: feature.text || regionTag,
+      country: country || "Unknown Country",
+      formatted_address:
+        feature.place_name || `${feature.text || regionTag}, ${country || "Unknown Country"}`,
+    };
+  } catch (error) {
+    console.error(`Failed to geocode proposal region ${regionTag}:`, error);
+    return null;
+  }
+}
+
+async function resolveProposalLocation(
+  proposal: Proposal,
+): Promise<SerializedProposal["location"]> {
+  const persistedLocation = proposal.location.length > 0 ? proposal.location[0]! : null;
+  if (persistedLocation) {
+    return persistedLocation;
+  }
+
+  const normalizedRegionKey = normalizeLookupKey(proposal.region_tag);
+  const baseCoords =
+    REGION_COORDINATES[normalizedRegionKey] || REGION_COORDINATES["global"]!;
+
+  if (REGION_COORDINATES[normalizedRegionKey]) {
+    return {
+      lat: baseCoords.lat + getJitter(proposal.id),
+      lng: baseCoords.lng + getJitter(proposal.id + BigInt(1)),
+      city: proposal.region_tag,
+      country: baseCoords.country,
+      formatted_address: `${proposal.region_tag}, ${baseCoords.country}`,
+    };
+  }
+
+  const cacheKey = proposal.region_tag.trim();
+  if (!regionLocationCache.has(cacheKey)) {
+    regionLocationCache.set(
+      cacheKey,
+      (async () => {
+        const geocoded = await geocodeRegionTag(cacheKey);
+        if (geocoded) {
+          return geocoded;
+        }
+        return {
+          lat: baseCoords.lat + getJitter(proposal.id),
+          lng: baseCoords.lng + getJitter(proposal.id + BigInt(1)),
+          city: proposal.region_tag,
+          country: baseCoords.country,
+          formatted_address: `${proposal.region_tag}, ${baseCoords.country}`,
+        };
+      })(),
+    );
+  }
+
+  return regionLocationCache.get(cacheKey)!;
+}
+
+async function serializeProposal(
   proposal: Proposal,
   totalRegionalVp: number = 0,
-): SerializedProposal {
+): Promise<SerializedProposal> {
   const statusKey = Object.keys(proposal.status)[0] || "Active";
   const budget =
     proposal.budget_amount.length > 0 ? Number(proposal.budget_amount[0]) : 0;
@@ -85,15 +218,13 @@ function serializeProposal(
   const fairness =
     proposal.fairness_score.length > 0 ? proposal.fairness_score[0]! : 0;
   const currentFunding = statusKey === "Backed" ? budget : 0;
-
-  // Resolve location from region tag
-  const regionKey = proposal.region_tag.toLowerCase();
-  const baseCoords =
-    REGION_COORDINATES[regionKey] || REGION_COORDINATES["global"]!;
-
-  // Apply jitter so markers don't overlap if they share a region tag
-  const lat = baseCoords.lat + getJitter(proposal.id);
-  const lng = baseCoords.lng + getJitter(proposal.id + BigInt(1));
+  const resolvedLocation = await resolveProposalLocation(proposal);
+  const resolvedSnapshotVp =
+    proposal.resolved_total_vp.length > 0
+      ? Number(proposal.resolved_total_vp[0]!)
+      : null;
+  const effectiveTotalRegionalVp =
+    resolvedSnapshotVp ?? totalRegionalVp;
 
   return {
     id: proposal.id.toString(),
@@ -129,18 +260,12 @@ function serializeProposal(
     created_at: Number(proposal.created_at),
     updated_at: Number(proposal.created_at),
     voting_ends_at: Number(proposal.voting_ends_at),
-    total_regional_vp: totalRegionalVp,
+    total_regional_vp: effectiveTotalRegionalVp,
     yes_weight: yesWeight,
     current_funding: currentFunding,
     no_weight: proposal.no_weight,
     voter_count: proposal.voter_count,
-    location: {
-      lat,
-      lng,
-      city: proposal.region_tag,
-      country: baseCoords.country,
-      formatted_address: `${proposal.region_tag}, ${baseCoords.country}`,
-    },
+    location: resolvedLocation,
   };
 }
 
@@ -173,10 +298,12 @@ async function serializeProposalCollection(
   proposals: Proposal[],
 ) {
   const regionVotingPowerMap = await loadRegionVotingPowerMap(actor, proposals);
-  return proposals.map((proposal) =>
-    serializeProposal(
+  return Promise.all(
+    proposals.map((proposal) =>
+      serializeProposal(
       proposal,
       regionVotingPowerMap.get(proposal.region_tag) ?? 0,
+      ),
     ),
   );
 }
@@ -197,16 +324,16 @@ export async function fetchAllProposals(status?: string) {
   }
 }
 
-export async function fetchMyProposals() {
+export async function fetchMyProposals(principal: string | null | undefined) {
   try {
+    if (!principal) {
+      return { success: true, proposals: [] };
+    }
+
     const actor = await createBackendActor();
-    const [proposals, principal] = await Promise.all([
-      actor.list_proposals([]),
-      actor.whoami(),
-    ]);
-    const principalStr = principal.toString();
+    const proposals = await actor.list_proposals([]);
     const filtered = proposals.filter(
-      (p) => p.submitter.toString() === principalStr,
+      (p) => p.submitter.toString() === principal,
     );
     return {
       success: true,
@@ -226,20 +353,22 @@ export async function fetchProposalById(id: string) {
       const proposal = result[0]!;
       let totalRegionalVp = 0;
 
-      try {
-        totalRegionalVp = Number(
-          await actor.get_region_total_vp(proposal.region_tag),
-        );
-      } catch (error) {
-        console.error(
-          `Failed to fetch regional VP for ${proposal.region_tag}:`,
-          error,
-        );
+      if (proposal.resolved_total_vp.length === 0) {
+        try {
+          totalRegionalVp = Number(
+            await actor.get_region_total_vp(proposal.region_tag),
+          );
+        } catch (error) {
+          console.error(
+            `Failed to fetch regional VP for ${proposal.region_tag}:`,
+            error,
+          );
+        }
       }
 
       return {
         success: true,
-        proposal: serializeProposal(proposal, totalRegionalVp),
+        proposal: await serializeProposal(proposal, totalRegionalVp),
       };
     }
     return { success: false, error: "Not found" };
@@ -252,6 +381,22 @@ export async function fetchProposalVotes(id: string) {
   try {
     const actor = await createBackendActor();
     const votes = await actor.get_proposal_votes(BigInt(id));
+    if (votes.length === 0) {
+      const auditLogs = await actor.get_audit_log(500, 0);
+      const reconstructedVotes = auditLogs
+        .map(parseVoteAuditLog)
+        .filter(
+          (vote): vote is SerializedVote =>
+            Boolean(vote && vote.proposal_id === id),
+        )
+        .sort((left, right) => right.timestamp - left.timestamp);
+
+      return {
+        success: true,
+        votes: reconstructedVotes,
+      };
+    }
+
     return {
       success: true,
       votes: votes.map(

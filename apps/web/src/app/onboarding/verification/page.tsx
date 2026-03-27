@@ -37,7 +37,9 @@ import {
   createMyProfileClient,
   updateMyProfileClient,
 } from "@/lib/api/client-mutations";
+import { geocodeAddress } from "@/lib/mapbox";
 import { getDefaultDisplayName, normalizeRegionTag } from "@/lib/profile-utils";
+import { waitForProfileSync } from "@/lib/profile-sync";
 import { cn } from "@/lib/utils";
 
 import { loadStripe } from "@stripe/stripe-js";
@@ -88,6 +90,7 @@ export default function VerificationPage() {
   const initialize = useAuthStore((state) => state.initialize);
   const [step, setStep] = useState<Step>("geo");
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [detectedLocation, setDetectedLocation] = useState<{
     city: string;
     country: string;
@@ -118,31 +121,22 @@ export default function VerificationPage() {
 
   const handleGeoSubmit = async (values: GeoFormValues) => {
     setIsVerifying(true);
+    geoForm.clearErrors("address");
     try {
-      const res = await fetch("/api/geocode", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address: values.address }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        geoForm.setError("address", {
-          message: data.error || "Geocoding failed",
-        });
-        setIsVerifying(false);
-        return;
-      }
-
+      const data = await geocodeAddress(values.address);
       const location = { city: data.city, country: data.country };
       setDetectedLocation(location);
       setGeoVerified(true, location);
-      setIsVerifying(false);
       setStep("location-confirmed");
     } catch (err) {
       console.error(err);
-      geoForm.setError("address", { message: "An unexpected error occurred." });
+      geoForm.setError("address", {
+        message:
+          err instanceof Error
+            ? err.message
+            : "Unable to verify this address right now.",
+      });
+    } finally {
       setIsVerifying(false);
     }
   };
@@ -193,33 +187,42 @@ export default function VerificationPage() {
     }
 
     const homeRegion = normalizeRegionTag(detectedLocation.city);
+    if (!homeRegion) {
+      setSubmitError(
+        "We could not derive a valid region from your verified location. Please change the address and try again.",
+      );
+      return;
+    }
     const displayName = user.display_name || getDefaultDisplayName(user.id);
 
     try {
+      setIsSavingProfile(true);
       setSubmitError(null);
 
-      if (hasProfile) {
-        await updateMyProfileClient(identity, displayName, homeRegion);
-      } else {
-        await createMyProfileClient(
-          identity,
-          displayName,
-          { User: null },
-          homeRegion,
-        );
-      }
+      const mutationPromise = hasProfile
+        ? updateMyProfileClient(identity, displayName, homeRegion)
+        : createMyProfileClient(identity, displayName, { User: null }, homeRegion);
+
+      const syncPromise = waitForProfileSync(
+        identity,
+        (profile) =>
+          profile.home_region.length > 0 &&
+          profile.home_region[0] === homeRegion,
+      );
+
+      await Promise.race([syncPromise, mutationPromise.then(() => syncPromise)]);
 
       await initialize();
+      router.replace("/dashboard");
     } catch (error) {
       console.error("Failed to save community profile:", error);
       setSubmitError(
         error instanceof Error ? error.message : "Failed to save your profile.",
       );
       return;
+    } finally {
+      setIsSavingProfile(false);
     }
-
-    console.log("Expertise submitted:", values);
-    setStep("complete");
   };
 
   if (!user) return null;
@@ -398,6 +401,11 @@ export default function VerificationPage() {
           <Form {...expertiseForm}>
             <form onSubmit={expertiseForm.handleSubmit(handleExpertiseSubmit)}>
               <CardContent className="space-y-6">
+                {submitError && (
+                  <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                    {submitError}
+                  </div>
+                )}
                 <FormField
                   control={expertiseForm.control}
                   name="area"
@@ -487,13 +495,23 @@ export default function VerificationPage() {
                   variant="ghost"
                   type="button"
                   onClick={() => setStep("geo")}
+                  disabled={isSavingProfile}
                 >
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Back
                 </Button>
-                <Button type="submit">
-                  Complete Onboarding
-                  <ArrowRight className="ml-2 h-4 w-4" />
+                <Button type="submit" disabled={isSavingProfile}>
+                  {isSavingProfile ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Completing...
+                    </>
+                  ) : (
+                    <>
+                      Complete Onboarding
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
+                  )}
                 </Button>
               </CardFooter>
             </form>
@@ -512,20 +530,18 @@ export default function VerificationPage() {
               Welcome, Citizen
             </CardTitle>
             <CardDescription className="text-lg">
-              Your regional profile is active. Your current reputation score is{" "}
-              <span className="font-bold text-foreground">150 $V_p$</span>.
+              Your community profile is ready. Redirecting you to the dashboard.
             </CardDescription>
           </CardHeader>
           <CardFooter className="flex flex-col gap-4 pb-12">
             <Button
               className="w-full h-12 text-lg font-bold"
-              onClick={() => router.push("/explore")}
+              onClick={() => router.push("/dashboard")}
             >
-              Explore Local Projects
+              Open Dashboard
             </Button>
             <p className="text-xs text-muted-foreground text-center">
-              You can increase your reputation by participating in debates and
-              casting accurate votes.
+              Voting power and regional activity are available from your dashboard.
             </p>
           </CardFooter>
         </Card>

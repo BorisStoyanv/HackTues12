@@ -1,25 +1,53 @@
-import { fetchMyProposals } from "@/lib/actions/proposals";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Briefcase, ArrowRight, Clock, MapPin, Gavel } from "lucide-react";
+"use client";
+
+import { useEffect, useState } from "react";
+import { Briefcase, Clock, Gavel, MapPin } from "lucide-react";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
-import { buttonVariants } from "@/components/ui/button";
+
+import { fetchMyProposals, SerializedProposal } from "@/lib/actions/proposals";
+import { useAuthStore } from "@/lib/auth-store";
 import {
   formatPercent,
   getProposalVotingMetrics,
 } from "@/lib/proposals/voting";
+import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 
-export default async function MyProposalsPage() {
-  const result = await fetchMyProposals();
-  const proposals = result.success ? result.proposals : [];
+export default function MyProposalsPage() {
+  const [proposals, setProposals] = useState<SerializedProposal[]>([]);
+  const principal = useAuthStore((state) => state.principal);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isInitializing = useAuthStore((state) => state.isInitializing);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (isInitializing) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (!isAuthenticated || !principal) {
+      setProposals([]);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    fetchMyProposals(principal).then((result) => {
+      if (cancelled) {
+        return;
+      }
+      setProposals(result.success ? result.proposals : []);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, isInitializing, principal]);
 
   return (
     <div className="flex-1 overflow-y-auto bg-background pb-20">
@@ -92,12 +120,12 @@ export default async function MyProposalsPage() {
                           <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground/80">
                             <Clock className="w-3.5 h-3.5" />
                             {new Date(
-                              proposal.created_at / 1000000,
+                              proposal.created_at / 1_000_000,
                             ).toLocaleDateString()}
                           </div>
                           <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground/80">
                             <MapPin className="w-3.5 h-3.5" />
-                            {proposal.region_tag}
+                            {proposal.location.city || proposal.region_tag}
                           </div>
                           <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary">
                             <Gavel className="w-3.5 h-3.5" />

@@ -20,7 +20,6 @@ export async function POST(req: Request) {
 					Accept: "text/event-stream",
 				},
 				body: JSON.stringify(body),
-				// Important for SSE streaming
 				cache: "no-store",
 			},
 		);
@@ -41,7 +40,6 @@ export async function POST(req: Request) {
 			throw new Error("No response body from AI Worker");
 		}
 
-		// Proxy the stream using the transform stream pattern for stability
 		const { readable, writable } = new TransformStream();
 		response.body.pipeTo(writable);
 
@@ -50,13 +48,12 @@ export async function POST(req: Request) {
 				"Content-Type": "text/event-stream",
 				"Cache-Control": "no-cache, no-transform",
 				Connection: "keep-alive",
-				"X-Accel-Buffering": "no", // Disable buffering for Nginx if present
+				"X-Accel-Buffering": "no",
 			},
 		});
 	} catch (error: any) {
 		console.error("[AI Proxy] Fatal Error:", error);
 
-		// Log more detail about the fetch failure
 		if (error.cause) {
 			console.error("[AI Proxy] Fetch Cause:", error.cause);
 		}

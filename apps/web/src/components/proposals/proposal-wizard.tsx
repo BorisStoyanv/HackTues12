@@ -18,7 +18,8 @@ import { cn } from "@/lib/utils";
 import { LocationPicker } from "./location-picker";
 import { submitProposalClient } from "@/lib/api/client-mutations";
 import { useAuthStore } from "@/lib/auth-store";
-import { ProposalCategory } from "@/lib/types/api";
+import { Location, ProposalCategory } from "@/lib/types/api";
+import { normalizeRegionTag } from "@/lib/profile-utils";
 
 const STEPS = [
   { id: "basic", title: "Basic Information", description: "Identity & Type", icon: Building2 },
@@ -93,7 +94,7 @@ export function ProposalWizard() {
         fieldsToValidate = ["title", "category", "description"];
         break;
       case 1:
-        fieldsToValidate = ["region_tag"];
+        fieldsToValidate = ["region_tag", "location"];
         break;
       case 2:
         fieldsToValidate = ["expected_impact"];
@@ -148,12 +149,24 @@ export function ProposalWizard() {
     setSubmitError(null);
     try {
       const category: ProposalCategory = { [data.category]: null } as any;
+      const location: [] | [Location] = data.location
+        ? [
+            {
+              city: data.location.city ?? data.region_tag,
+              country: data.location.country ?? "Unknown Country",
+              formatted_address: data.location.formatted_address,
+              lat: data.location.lat,
+              lng: data.location.lng,
+            },
+          ]
+        : [];
 
       const result = await submitProposalClient(identity, {
         ...data,
         category,
         budget_amount: data.budget_amount,
         approved_company: [],
+        location,
       });
       
       console.log("Broadcasting successful:", result);
@@ -386,10 +399,10 @@ export function ProposalWizard() {
                               }} 
                               onChange={(val) => {
                                  field.onChange(val);
-                                 setValue("region_tag", val.city ? val.city.toLowerCase().replace(/\s+/g, '_') : "global");
-                                 trigger("location");
+                                 setValue("region_tag", val.city ? normalizeRegionTag(val.city) : "global");
+                                 void trigger(["location", "region_tag"]);
                               }}
-                              error={errors.location?.message}
+                              error={typeof errors.location?.message === "string" ? errors.location.message : undefined}
                             />
                           )}
                         />

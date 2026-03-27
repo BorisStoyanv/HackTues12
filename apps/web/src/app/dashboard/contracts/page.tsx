@@ -1,3 +1,5 @@
+"use client";
+
 import { fetchAllContracts } from "@/lib/actions/proposals";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -5,10 +7,24 @@ import { CreditCard, ArrowRight, ShieldCheck, FileText, Lock, Building2 } from "
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
+import { useEffect, useState } from "react";
+import type { SerializedContract } from "@/lib/actions/proposals";
 
-export default async function ContractsPage() {
-  const result = await fetchAllContracts();
-  const contracts = result.success ? result.contracts : [];
+export default function ContractsPage() {
+  const [contracts, setContracts] = useState<SerializedContract[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchAllContracts().then((result) => {
+      if (cancelled) return;
+      setContracts(result.success ? result.contracts : []);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="flex-1 overflow-y-auto bg-background">

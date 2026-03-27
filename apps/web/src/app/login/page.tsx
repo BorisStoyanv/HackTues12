@@ -5,20 +5,19 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { useAuthStore } from "@/lib/auth-store";
 import { useInternetIdentity } from "ic-use-internet-identity";
-import { Landmark, Mail, Link as LinkIcon, Code } from "lucide-react";
+import { AlertCircle, Landmark } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login: iiLogin, isLoggingIn, status } = useInternetIdentity();
+  const { login: iiLogin, isLoggingIn, isError, error } = useInternetIdentity();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isInitializing = useAuthStore((state) => state.isInitializing);
   const hasProfile = useAuthStore((state) => state.hasProfile);
@@ -29,10 +28,6 @@ export default function LoginPage() {
       router.replace(hasProfile ? "/dashboard" : "/onboarding/role");
     }
   }, [hasProfile, isAuthenticated, isInitializing, router]);
-
-  const handleSocialLogin = (provider: string) => {
-    alert(`${provider} login is coming soon. Please use Internet Identity.`);
-  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -50,10 +45,19 @@ export default function LoginPage() {
           <CardHeader className="space-y-1 text-center">
             <CardTitle className="text-2xl font-bold">Sign in</CardTitle>
             <CardDescription>
-              Choose your preferred method to continue
+              Continue with Internet Identity
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
+            {isError && (
+              <div className="flex items-start gap-3 rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>
+                  {error?.message ??
+                    "Internet Identity login failed. Check popup blocking and try again."}
+                </p>
+              </div>
+            )}
             <Button
               variant="default"
               className="h-12 text-base font-semibold"
@@ -72,49 +76,6 @@ export default function LoginPage() {
                 </>
               )}
             </Button>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">
-                  Or continue with social
-                </span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <Button
-                variant="outline"
-                className="h-11"
-                onClick={() => handleSocialLogin("google")}
-                disabled={isLoggingIn}
-              >
-                <Mail className="mr-2 h-4 w-4" />
-                Google
-              </Button>
-              <Button
-                variant="outline"
-                className="h-11"
-                onClick={() => handleSocialLogin("linkedin")}
-                disabled={isLoggingIn}
-              >
-                <LinkIcon className="mr-2 h-4 w-4" />
-                LinkedIn
-              </Button>
-            </div>
-            <Button
-              variant="outline"
-              className="h-11 w-full"
-              onClick={() => handleSocialLogin("github")}
-              disabled={isLoggingIn}
-            >
-              <Code className="mr-2 h-4 w-4" />
-              GitHub
-            </Button>
-          </CardContent>
-          <CardFooter className="flex flex-col items-center justify-center gap-4">
             <div className="flex flex-wrap items-center justify-center gap-1 text-sm text-muted-foreground">
               By continuing, you agree to our{" "}
               <Link
@@ -132,19 +93,7 @@ export default function LoginPage() {
               </Link>
               .
             </div>
-
-            <div className="pt-4 border-t w-full text-center">
-              <button
-                onClick={() => {
-                  useAuthStore.getState().loginMock();
-                  router.push("/dashboard");
-                }}
-                className="text-xs text-muted-foreground hover:text-primary transition-colors italic"
-              >
-                [Dev Mode] Skip authentication and go to Dashboard
-              </button>
-            </div>
-          </CardFooter>
+          </CardContent>
         </Card>
       </div>
     </div>

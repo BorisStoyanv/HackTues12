@@ -8,67 +8,200 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { 
-  Users, 
-  BarChart3, 
-  ShieldCheck, 
+import {
+  ShieldCheck,
   MapPin,
   TrendingUp,
   Activity,
-  ChevronRight,
   AlertCircle,
   Clock,
-  CheckCircle2
+  CheckCircle2,
+  BarChart3,
 } from "lucide-react";
-
 import { useState, useEffect } from "react";
-import { fetchMyVP, fetchMyProfile, SerializedUserProfile } from "@/lib/actions/users";
-import { fetchAllProposals, SerializedProposal } from "@/lib/actions/proposals";
-
+import {
+  fetchAllProposals,
+  fetchAuditLogs,
+  SerializedProposal,
+} from "@/lib/actions/proposals";
+import { createBackendActor } from "@/lib/api/icp";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
+type DashboardProfile = {
+  reputation: number;
+  homeRegion: string | null;
+  isLocalVerified: boolean;
+  isVerified: boolean;
+  userType: "User" | "InvestorUser";
+};
+
+type RecentVoteActivity = {
+  id: string;
+  proposalId: string;
+  proposalTitle: string;
+  proposalStatus: string | null;
+  inFavor: boolean;
+  weight: number;
+  timestamp: number;
+};
+
+function formatMetric(value: number | null, digits = 1) {
+  if (value === null || Number.isNaN(value)) {
+    return "—";
+  }
+
+  return value.toLocaleString(undefined, {
+    minimumFractionDigits: value % 1 === 0 ? 0 : digits,
+    maximumFractionDigits: digits,
+  });
+}
+
+function parseVotePayload(payload: string) {
+  const match = payload.match(/^(yes|no) with Vp ([0-9]+(?:\.[0-9]+)?)/i);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    inFavor: match[1]!.toLowerCase() === "yes",
+    weight: Number(match[2]),
+  };
+}
+
+function formatActivityTime(timestamp: number) {
+  return new Date(timestamp / 1_000_000).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
+  const identity = useAuthStore((state) => state.identity);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const router = useRouter();
   const [realVP, setRealVP] = useState<number | null>(null);
-  const [profile, setProfile] = useState<SerializedUserProfile | null>(null);
+  const [profile, setProfile] = useState<DashboardProfile | null>(null);
   const [proposals, setProposals] = useState<SerializedProposal[]>([]);
+  const [recentVotes, setRecentVotes] = useState<RecentVoteActivity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function loadBackendData() {
+      if (!identity) {
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       try {
-        const [vpRes, profileRes, proposalsRes] = await Promise.all([
-          fetchMyVP(),
-          fetchMyProfile(),
-          fetchAllProposals()
+        const actor = await createBackendActor(identity);
+        const profileResult = await actor.get_my_profile();
+
+        const resolvedProfile =
+          profileResult.length > 0
+            ? {
+                reputation: Number(profileResult[0]!.reputation),
+                homeRegion:
+                  profileResult[0]!.home_region.length > 0
+                    ? profileResult[0]!.home_region[0]!
+                    : null,
+                isLocalVerified: profileResult[0]!.is_local_verified,
+                isVerified:
+                  profileResult[0]!.is_verified.length > 0
+                    ? Boolean(profileResult[0]!.is_verified[0])
+                    : false,
+                userType:
+                  "InvestorUser" in profileResult[0]!.user_type
+                    ? ("InvestorUser" as const)
+                    : ("User" as const),
+              }
+            : null;
+
+        setProfile(resolvedProfile);
+
+        const vpRegion =
+          resolvedProfile?.homeRegion || user?.home_region || "global";
+
+        const [vpRes, proposalsRes, auditRes] = await Promise.all([
+          actor.get_my_vp(vpRegion),
+          fetchAllProposals(),
+          fetchAuditLogs(500, 0),
         ]);
 
-        if (vpRes.success && typeof vpRes.vp === "number") setRealVP(vpRes.vp);
-        if (profileRes.success && profileRes.profile) setProfile(profileRes.profile);
+        setRealVP("Ok" in vpRes ? Number(vpRes.Ok) : null);
+
         if (proposalsRes.success && proposalsRes.proposals) {
-          // Filter to active proposals, prioritize current user's region
-          const region = profileRes.profile?.home_region || "global";
+          const region = resolvedProfile?.homeRegion || user?.home_region || "global";
           const sorted = proposalsRes.proposals
-            .filter(p => p.status === "Active" || p.status === "AwaitingFunding")
-            .sort((a, b) => (a.region_tag === region ? -1 : 1));
+            .filter((p) => p.status === "Active" || p.status === "AwaitingFunding")
+            .sort((a, b) => (a.region_tag === region ? -1 : b.region_tag === region ? 1 : 0));
           setProposals(sorted.slice(0, 5));
+
+          const proposalLookup = new Map(
+            proposalsRes.proposals.map((proposal) => [proposal.id, proposal]),
+          );
+
+          if (auditRes.success) {
+            const currentPrincipal = user?.id || identity.getPrincipal().toString();
+            const activity = auditRes.logs
+              .filter(
+                (log) =>
+                  log.event_type === "VoteCast" &&
+                  log.actor === currentPrincipal &&
+                  Boolean(log.proposal_id),
+              )
+              .map((log) => {
+                const parsedVote = parseVotePayload(log.payload);
+                const proposalId = log.proposal_id;
+
+                if (!parsedVote || !proposalId) {
+                  return null;
+                }
+
+                const proposal = proposalLookup.get(proposalId);
+
+                return {
+                  id: log.id,
+                  proposalId,
+                  proposalTitle: proposal?.title || `Proposal #${proposalId}`,
+                  proposalStatus: proposal?.status ?? null,
+                  inFavor: parsedVote.inFavor,
+                  weight: parsedVote.weight,
+                  timestamp: log.timestamp,
+                };
+              })
+              .filter((vote): vote is RecentVoteActivity => Boolean(vote))
+              .sort((left, right) => right.timestamp - left.timestamp)
+              .slice(0, 6);
+
+            setRecentVotes(activity);
+          } else {
+            setRecentVotes([]);
+          }
+        } else {
+          setProposals([]);
+          setRecentVotes([]);
         }
       } catch (err) {
         console.error("Dashboard data load error:", err);
+        setRealVP(null);
+        setProfile(null);
+        setRecentVotes([]);
       } finally {
         setIsLoading(false);
       }
     }
 
-    if (user?.id) {
-      loadBackendData();
+    if (user?.id && identity && isAuthenticated) {
+      void loadBackendData();
     } else {
       setIsLoading(false);
     }
-  }, [user?.id]);
+  }, [identity, isAuthenticated, user?.home_region, user?.id]);
 
   if (!user) {
     return (
@@ -85,43 +218,62 @@ export default function DashboardPage() {
   const statCards = [
     {
       title: "Voting Power (VP)",
-      value: realVP !== null ? realVP.toLocaleString() : (isLoading ? "—" : "0"),
-      description: "Cryptographic influence weight",
+      value: isLoading ? "—" : formatMetric(realVP),
+      description: "Current effective weight for governance decisions",
       icon: Activity,
-      trend: realVP && realVP > 0 ? "Active Participant" : "Needs Engagement",
-      trendPositive: realVP && realVP > 0,
+      trend:
+        realVP !== null
+          ? profile?.isLocalVerified || user.geo_verified
+            ? "Local weighting active"
+            : "Standard weighting"
+          : "Unavailable",
+      trendPositive:
+        realVP !== null &&
+        realVP > 0 &&
+        Boolean(profile?.isLocalVerified || user.geo_verified),
     },
     {
-      title: "Reputation Score",
-      value: profile ? profile.reputation.toLocaleString() : (isLoading ? "—" : "100"),
-      description: "Based on historical accuracy",
+      title: "Reputation",
+      value: isLoading ? "—" : formatMetric(profile?.reputation ?? Number(user.reputation)),
+      description: "Base trust score stored on-chain",
       icon: TrendingUp,
-      trend: "Top 15% in region",
-      trendPositive: true,
+      trend:
+        profile?.isLocalVerified || user.geo_verified
+          ? "Regional profile verified"
+          : "Profile active",
+      trendPositive: Boolean(profile?.isLocalVerified || user.geo_verified),
     },
     {
       title: "Regional Anchor",
-      value: profile?.home_region || user.detected_location?.city || "Unassigned",
+      value: profile?.homeRegion || user.home_region || user.detected_location?.city || "Unassigned",
       description: "Primary governance zone",
       icon: MapPin,
-      trend: "Verified Status",
-      trendPositive: profile?.is_verified || user.geo_verified,
+      trend:
+        profile?.isLocalVerified || user.geo_verified
+          ? "Local verification saved"
+          : "Region saved",
+      trendPositive: Boolean(profile?.isLocalVerified || user.geo_verified),
     },
     {
       title: "Identity Tier",
-      value: profile?.user_type === "InvestorUser" ? "Capital Provider" : "Citizen",
-      description: "Platform clearance level",
+      value:
+        (profile?.userType || (user.role === "funder" ? "InvestorUser" : "User")) ===
+        "InvestorUser"
+          ? "Capital Provider"
+          : "Community User",
+      description: "Access level on the governance network",
       icon: ShieldCheck,
-      trend: profile?.kyc_status === 'verified' ? "KYC Completed" : "Standard Tier",
-      trendPositive: profile?.kyc_status === 'verified',
+      trend:
+        profile?.isVerified || user.kyc_status === "verified"
+          ? "Verified"
+          : "Standard",
+      trendPositive: Boolean(profile?.isVerified || user.kyc_status === "verified"),
     },
   ];
 
   return (
     <div className="flex-1 overflow-y-auto bg-background p-6 md:p-10">
       <div className="max-w-6xl mx-auto space-y-10">
-        
-        {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-neutral-200 dark:border-neutral-800">
           <div className="space-y-2">
             <h1 className="text-3xl font-bold tracking-tight text-foreground">
@@ -134,18 +286,22 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-3">
             <div className="text-right hidden sm:block">
-               <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Principal ID</p>
-               <p className="text-xs font-mono bg-neutral-100 dark:bg-neutral-900 px-2 py-1 rounded border border-neutral-200 dark:border-neutral-800">
-                 {user.id.substring(0, 15)}...
-               </p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                Principal ID
+              </p>
+              <p className="text-xs font-mono bg-neutral-100 dark:bg-neutral-900 px-2 py-1 rounded border border-neutral-200 dark:border-neutral-800">
+                {user.id.substring(0, 15)}...
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Stats Grid */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {statCards.map((stat, i) => (
-            <Card key={i} className="border-neutral-200 dark:border-neutral-800 shadow-sm transition-all hover:shadow-md">
+            <Card
+              key={i}
+              className="border-neutral-200 dark:border-neutral-800 shadow-sm transition-all hover:shadow-md"
+            >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {stat.title}
@@ -153,110 +309,191 @@ export default function DashboardPage() {
                 <stat.icon className="h-4 w-4 text-muted-foreground opacity-50" />
               </CardHeader>
               <CardContent>
-                <div className={cn(
-                  "text-3xl font-bold tracking-tight mb-1",
-                  stat.value === "—" && "text-muted-foreground/30 animate-pulse"
-                )}>
+                <div
+                  className={cn(
+                    "text-3xl font-bold tracking-tight mb-1",
+                    stat.value === "—" && "text-muted-foreground/30 animate-pulse",
+                  )}
+                >
                   {stat.value}
                 </div>
-                <p className="text-xs text-muted-foreground mb-4 h-4">
+                <p className="text-xs text-muted-foreground mb-4 min-h-8">
                   {stat.description}
                 </p>
-                <div className={cn(
-                  "inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm",
-                  stat.trendPositive 
-                    ? "bg-green-500/10 text-green-700 dark:text-green-400" 
-                    : "bg-neutral-100 dark:bg-neutral-800 text-muted-foreground"
-                )}>
-                   {stat.trendPositive ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
-                   {stat.trend}
+                <div
+                  className={cn(
+                    "inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm",
+                    stat.trendPositive
+                      ? "bg-green-500/10 text-green-700 dark:text-green-400"
+                      : "bg-neutral-100 dark:bg-neutral-800 text-muted-foreground",
+                  )}
+                >
+                  {stat.trendPositive ? (
+                    <CheckCircle2 className="h-3 w-3" />
+                  ) : (
+                    <AlertCircle className="h-3 w-3" />
+                  )}
+                  {stat.trend}
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        {/* Main Content Areas */}
         <div className="grid gap-6 md:grid-cols-3">
-           
-           {/* Governance Activity */}
-           <Card className="col-span-2 border-neutral-200 dark:border-neutral-800 shadow-sm">
-              <CardHeader className="border-b border-neutral-100 dark:border-neutral-900 bg-neutral-50/50 dark:bg-neutral-900/20 pb-4">
-                 <div className="flex items-center justify-between">
-                   <CardTitle className="text-base font-semibold">Governance Activity</CardTitle>
-                   <span className="text-[10px] font-mono text-muted-foreground bg-muted px-2 py-1 rounded">Past 30 Days</span>
-                 </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                 <div className="h-[300px] flex flex-col items-center justify-center p-6 text-center text-muted-foreground space-y-4">
-                    <BarChart3 className="h-10 w-10 opacity-20" />
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-foreground">No recent voting activity</p>
-                      <p className="text-xs">Participate in regional proposals to build your reputation graph.</p>
+          <Card className="col-span-2 border-neutral-200 dark:border-neutral-800 shadow-sm">
+            <CardHeader className="border-b border-neutral-100 dark:border-neutral-900 bg-neutral-50/50 dark:bg-neutral-900/20 pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-semibold">
+                  Governance Activity
+                </CardTitle>
+                <span className="text-[10px] font-mono text-muted-foreground bg-muted px-2 py-1 rounded">
+                  Past 30 Days
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {isLoading ? (
+                <div className="p-6 flex flex-col gap-4">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="flex items-start gap-4 animate-pulse">
+                      <div className="mt-1 h-9 w-9 rounded-full bg-neutral-200 dark:bg-neutral-800" />
+                      <div className="space-y-2 flex-1">
+                        <div className="h-3 bg-neutral-200 dark:bg-neutral-800 rounded w-1/2" />
+                        <div className="h-2 bg-neutral-200 dark:bg-neutral-800 rounded w-2/3" />
+                      </div>
                     </div>
-                 </div>
-              </CardContent>
-           </Card>
-
-           {/* Regional Alerts */}
-           <Card className="col-span-1 border-neutral-200 dark:border-neutral-800 shadow-sm flex flex-col">
-              <CardHeader className="border-b border-neutral-100 dark:border-neutral-900 bg-neutral-50/50 dark:bg-neutral-900/20 pb-4">
-                 <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-primary" />
-                    Action Required
-                 </CardTitle>
-                 <CardDescription className="text-xs">
-                    Active proposals in your region
-                 </CardDescription>
-              </CardHeader>
-              <CardContent className="flex-1 p-0 overflow-hidden">
-                 <div className="divide-y divide-neutral-100 dark:divide-neutral-900 h-full overflow-y-auto">
-                    {isLoading ? (
-                      <div className="p-6 flex flex-col gap-4">
-                         {[1, 2, 3].map(i => (
-                           <div key={i} className="flex gap-3 items-start animate-pulse">
-                              <div className="w-2 h-2 rounded-full bg-neutral-200 dark:bg-neutral-800 mt-1.5" />
-                              <div className="space-y-2 flex-1">
-                                <div className="h-3 bg-neutral-200 dark:bg-neutral-800 rounded w-full" />
-                                <div className="h-2 bg-neutral-200 dark:bg-neutral-800 rounded w-2/3" />
-                              </div>
-                           </div>
-                         ))}
+                  ))}
+                </div>
+              ) : recentVotes.length > 0 ? (
+                <div className="divide-y divide-neutral-100 dark:divide-neutral-900">
+                  {recentVotes.map((vote) => (
+                    <button
+                      key={vote.id}
+                      type="button"
+                      onClick={() => router.push(`/dashboard/proposals/${vote.proposalId}`)}
+                      className="w-full text-left flex items-start gap-4 p-5 hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors"
+                    >
+                      <div
+                        className={cn(
+                          "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+                          vote.inFavor
+                            ? "bg-green-500/10 text-green-700 dark:text-green-400"
+                            : "bg-red-500/10 text-red-700 dark:text-red-400",
+                        )}
+                      >
+                        {vote.inFavor ? (
+                          <CheckCircle2 className="h-4 w-4" />
+                        ) : (
+                          <AlertCircle className="h-4 w-4" />
+                        )}
                       </div>
-                    ) : proposals.length > 0 ? (
-                      proposals.map((p) => (
-                        <div 
-                          key={p.id} 
-                          onClick={() => router.push(`/dashboard/proposals/${p.id}`)}
-                          className="flex items-start gap-3 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors cursor-pointer group"
-                        >
-                           <div className="mt-1 flex h-2 w-2 shrink-0 rounded-full bg-primary ring-4 ring-primary/10" />
-                           <div className="flex-1 min-w-0 space-y-1">
-                              <p className="text-sm font-medium leading-snug truncate group-hover:text-primary transition-colors">
-                                {p.title}
-                              </p>
-                              <div className="flex items-center justify-between">
-                                 <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
-                                   {p.status}
-                                 </span>
-                                 <span className="text-[10px] font-bold text-foreground font-mono">
-                                   {p.budget_amount ? `$${p.budget_amount.toLocaleString()}` : 'TBD'}
-                                 </span>
-                              </div>
-                           </div>
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="text-sm font-medium leading-snug text-foreground">
+                            {vote.proposalTitle}
+                          </p>
+                          <span className="shrink-0 text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+                            {formatActivityTime(vote.timestamp)}
+                          </span>
                         </div>
-                      ))
-                    ) : (
-                      <div className="h-full flex flex-col items-center justify-center p-8 text-center text-muted-foreground space-y-2 min-h-[250px]">
-                         <CheckCircle2 className="h-8 w-8 opacity-20" />
-                         <p className="text-xs">All caught up! No active proposals require your attention right now.</p>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                          <span
+                            className={cn(
+                              "font-semibold",
+                              vote.inFavor
+                                ? "text-green-700 dark:text-green-400"
+                                : "text-red-700 dark:text-red-400",
+                            )}
+                          >
+                            Voted {vote.inFavor ? "Yes" : "No"}
+                          </span>
+                          <span>{formatMetric(vote.weight)} VP</span>
+                          {vote.proposalStatus ? (
+                            <span className="font-mono uppercase tracking-widest">
+                              {vote.proposalStatus}
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
-                    )}
-                 </div>
-              </CardContent>
-           </Card>
-        </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="h-[300px] flex flex-col items-center justify-center p-6 text-center text-muted-foreground space-y-4">
+                  <BarChart3 className="h-10 w-10 opacity-20" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-foreground">
+                      No recent voting activity
+                    </p>
+                    <p className="text-xs">
+                      Your vote history appears here after each on-chain VoteCast event.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
+          <Card className="col-span-1 border-neutral-200 dark:border-neutral-800 shadow-sm flex flex-col">
+            <CardHeader className="border-b border-neutral-100 dark:border-neutral-900 bg-neutral-50/50 dark:bg-neutral-900/20 pb-4">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <Clock className="h-4 w-4 text-primary" />
+                Action Required
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Active proposals in your region
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex-1 p-0 overflow-hidden">
+              <div className="divide-y divide-neutral-100 dark:divide-neutral-900 h-full overflow-y-auto">
+                {isLoading ? (
+                  <div className="p-6 flex flex-col gap-4">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="flex gap-3 items-start animate-pulse">
+                        <div className="w-2 h-2 rounded-full bg-neutral-200 dark:bg-neutral-800 mt-1.5" />
+                        <div className="space-y-2 flex-1">
+                          <div className="h-3 bg-neutral-200 dark:bg-neutral-800 rounded w-full" />
+                          <div className="h-2 bg-neutral-200 dark:bg-neutral-800 rounded w-2/3" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : proposals.length > 0 ? (
+                  proposals.map((p) => (
+                    <div
+                      key={p.id}
+                      onClick={() => router.push(`/dashboard/proposals/${p.id}`)}
+                      className="flex items-start gap-3 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors cursor-pointer group"
+                    >
+                      <div className="mt-1 flex h-2 w-2 shrink-0 rounded-full bg-primary ring-4 ring-primary/10" />
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <p className="text-sm font-medium leading-snug truncate group-hover:text-primary transition-colors">
+                          {p.title}
+                        </p>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
+                            {p.status}
+                          </span>
+                          <span className="text-[10px] font-bold text-foreground font-mono">
+                            {p.budget_amount ? `$${p.budget_amount.toLocaleString()}` : "TBD"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center p-8 text-center text-muted-foreground space-y-2 min-h-[250px]">
+                    <CheckCircle2 className="h-8 w-8 opacity-20" />
+                    <p className="text-xs">
+                      All caught up. No active proposals require your attention right now.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

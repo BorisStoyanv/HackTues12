@@ -70,6 +70,10 @@ export function ProposalView({
   const proposal = initialData;
   const statusFormatted = proposal.status.replace(/([A-Z])/g, " $1").trim();
   const creatorId = proposal.submitter;
+  const locationLabel =
+    proposal.location.city && proposal.location.country
+      ? `${proposal.location.city}, ${proposal.location.country}`
+      : proposal.location.city || proposal.region_tag;
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-background">
@@ -85,7 +89,7 @@ export function ProposalView({
                 variant="outline"
                 className="border-neutral-200 dark:border-neutral-800 px-2.5 py-0.5 rounded-md text-[11px] font-medium bg-background"
               >
-                {proposal.region_tag}
+                {locationLabel}
               </Badge>
               <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground ml-1">
                 <Clock className="w-3.5 h-3.5" />
@@ -120,9 +124,7 @@ export function ProposalView({
                   <span className="text-[11px] font-medium text-muted-foreground">
                     Region
                   </span>
-                  <span className="text-sm font-medium">
-                    {proposal.region_tag}
-                  </span>
+                  <span className="text-sm font-medium">{locationLabel}</span>
                 </div>
               </div>
             </div>

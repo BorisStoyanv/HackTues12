@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { SerializedProposal } from "@/lib/actions/proposals";
+import { AI_WORKER_URL } from "@/lib/env";
 
 export interface DebateEvent {
   event: string;
@@ -35,11 +36,17 @@ export function useAIDebate() {
 
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
+    let connectionTimedOut = false;
+    const timeoutId = window.setTimeout(() => {
+      connectionTimedOut = true;
+      abortController.abort();
+    }, 12000);
 
     try {
-      console.log(`[AI Debate] Connecting to local proxy...`);
+      const baseUrl = AI_WORKER_URL;
+      console.log(`[AI Debate] Connecting to ${baseUrl}...`);
       
-      const response = await fetch(`/api/ai/debate`, {
+      const response = await fetch(`${baseUrl}/api/v1/debate/proposals/evaluate/stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -48,7 +55,10 @@ export function useAIDebate() {
         body: JSON.stringify({
           proposal: {
             name: proposal.title,
-            location: proposal.region_tag,
+            location:
+              proposal.location.formatted_address ||
+              proposal.location.city ||
+              proposal.region_tag,
             category: proposal.category,
             info: proposal.description,
             neededFunds: proposal.budget_amount,
@@ -110,12 +120,30 @@ export function useAIDebate() {
       }
     } catch (err: any) {
       if (err.name === "AbortError") {
-        console.log("[AI Debate] Protocol aborted by user");
+        if (connectionTimedOut) {
+          const mixedContentHint =
+            window.location.protocol === "https:" &&
+            AI_WORKER_URL.startsWith("http://")
+              ? " The configured AI worker uses HTTP, which browsers block from this HTTPS app."
+              : "";
+          const httpsEdgeHint =
+            window.location.protocol === "https:" &&
+            AI_WORKER_URL.startsWith("https://")
+              ? " This app needs a working HTTPS listener on port 443 with a valid certificate. Plain HTTP on :8080 can work in curl but not from this browser."
+              : "";
+          setState((prev) => ({
+            ...prev,
+            error: `AI worker connection timed out while reaching ${AI_WORKER_URL}.${mixedContentHint}${httpsEdgeHint}`,
+          }));
+        } else {
+          console.log("[AI Debate] Protocol aborted by user");
+        }
       } else {
         console.error("[AI Debate] Protocol error:", err);
         setState(prev => ({ ...prev, error: err.message || "Failed to connect to AI worker" }));
       }
     } finally {
+      window.clearTimeout(timeoutId);
       setState(prev => ({ ...prev, isStreaming: false }));
     }
   }, []);
