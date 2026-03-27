@@ -27,8 +27,9 @@ export interface SerializedProposal {
   created_at: number;
   updated_at: number;
   voting_ends_at: number;
+  total_regional_vp: number;
   yes_weight: number;
-  current_funding: number; // Alias
+  current_funding: number;
   no_weight: number;
   voter_count: number;
   location: {
@@ -40,18 +41,29 @@ export interface SerializedProposal {
   };
 }
 
+export interface SerializedVote {
+  voter: string;
+  proposal_id: string;
+  in_favor: boolean;
+  weight: number;
+  timestamp: number;
+}
+
 // Map region tags to base coordinates
-const REGION_COORDINATES: Record<string, { lat: number; lng: number; country: string }> = {
-  'sofia': { lat: 42.6977, lng: 23.3219, country: "Bulgaria" },
-  'sofia_urban': { lat: 42.6977, lng: 23.3219, country: "Bulgaria" },
-  'sofia_center': { lat: 42.6977, lng: 23.3219, country: "Bulgaria" },
-  'plovdiv': { lat: 42.1354, lng: 24.7453, country: "Bulgaria" },
-  'varna': { lat: 43.2141, lng: 27.9147, country: "Bulgaria" },
-  'burgas': { lat: 42.5048, lng: 27.4626, country: "Bulgaria" },
-  'nairobi': { lat: -1.2921, lng: 36.8219, country: "Kenya" },
-  'london': { lat: 51.5074, lng: -0.1278, country: "UK" },
-  'new_york': { lat: 40.7128, lng: -74.0060, country: "USA" },
-  'global': { lat: 20.0, lng: 0.0, country: "Multiple" },
+const REGION_COORDINATES: Record<
+  string,
+  { lat: number; lng: number; country: string }
+> = {
+  sofia: { lat: 42.6977, lng: 23.3219, country: "Bulgaria" },
+  sofia_urban: { lat: 42.6977, lng: 23.3219, country: "Bulgaria" },
+  sofia_center: { lat: 42.6977, lng: 23.3219, country: "Bulgaria" },
+  plovdiv: { lat: 42.1354, lng: 24.7453, country: "Bulgaria" },
+  varna: { lat: 43.2141, lng: 27.9147, country: "Bulgaria" },
+  burgas: { lat: 42.5048, lng: 27.4626, country: "Bulgaria" },
+  nairobi: { lat: -1.2921, lng: 36.8219, country: "Kenya" },
+  london: { lat: 51.5074, lng: -0.1278, country: "UK" },
+  new_york: { lat: 40.7128, lng: -74.006, country: "USA" },
+  global: { lat: 20.0, lng: 0.0, country: "Multiple" },
 };
 
 /**
@@ -59,19 +71,26 @@ const REGION_COORDINATES: Record<string, { lat: number; lng: number; country: st
  * Returns a value between -0.01 and 0.01
  */
 function getJitter(id: bigint): number {
-  return (Number(id % BigInt(1000)) / 50000) - 0.01;
+  return Number(id % BigInt(1000)) / 50000 - 0.01;
 }
 
-function serializeProposal(proposal: Proposal): SerializedProposal {
-  const statusKey = Object.keys(proposal.status)[0] || 'Active';
-  const budget = proposal.budget_amount.length > 0 ? Number(proposal.budget_amount[0]) : 0;
+function serializeProposal(
+  proposal: Proposal,
+  totalRegionalVp: number = 0,
+): SerializedProposal {
+  const statusKey = Object.keys(proposal.status)[0] || "Active";
+  const budget =
+    proposal.budget_amount.length > 0 ? Number(proposal.budget_amount[0]) : 0;
   const yesWeight = proposal.yes_weight;
-  const fairness = proposal.fairness_score.length > 0 ? proposal.fairness_score[0]! : 0;
-  
+  const fairness =
+    proposal.fairness_score.length > 0 ? proposal.fairness_score[0]! : 0;
+  const currentFunding = statusKey === "Backed" ? budget : 0;
+
   // Resolve location from region tag
   const regionKey = proposal.region_tag.toLowerCase();
-  const baseCoords = REGION_COORDINATES[regionKey] || REGION_COORDINATES['global']!;
-  
+  const baseCoords =
+    REGION_COORDINATES[regionKey] || REGION_COORDINATES["global"]!;
+
   // Apply jitter so markers don't overlap if they share a region tag
   const lat = baseCoords.lat + getJitter(proposal.id);
   const lng = baseCoords.lng + getJitter(proposal.id + BigInt(1));
@@ -85,23 +104,34 @@ function serializeProposal(proposal: Proposal): SerializedProposal {
     description: proposal.description,
     short_description: proposal.description.substring(0, 160),
     problem_statement: proposal.description,
-    category: proposal.category.length > 0 && proposal.category[0] ? Object.keys(proposal.category[0])[0] : 'Other',
+    category:
+      proposal.category.length > 0 && proposal.category[0]
+        ? Object.keys(proposal.category[0])[0]
+        : "Other",
     budget_amount: budget,
     funding_goal: budget,
-    budget_currency: proposal.budget_currency.length > 0 ? proposal.budget_currency[0]! : 'USD',
-    budget_breakdown: proposal.budget_breakdown.length > 0 ? proposal.budget_breakdown[0]! : '',
-    executor_name: proposal.executor_name.length > 0 ? proposal.executor_name[0]! : '',
-    execution_plan: proposal.execution_plan.length > 0 ? proposal.execution_plan[0]! : '',
-    timeline: proposal.timeline.length > 0 ? proposal.timeline[0]! : '',
-    expected_impact: proposal.expected_impact.length > 0 ? proposal.expected_impact[0]! : '',
+    budget_currency:
+      proposal.budget_currency.length > 0
+        ? proposal.budget_currency[0]!
+        : "USD",
+    budget_breakdown:
+      proposal.budget_breakdown.length > 0 ? proposal.budget_breakdown[0]! : "",
+    executor_name:
+      proposal.executor_name.length > 0 ? proposal.executor_name[0]! : "",
+    execution_plan:
+      proposal.execution_plan.length > 0 ? proposal.execution_plan[0]! : "",
+    timeline: proposal.timeline.length > 0 ? proposal.timeline[0]! : "",
+    expected_impact:
+      proposal.expected_impact.length > 0 ? proposal.expected_impact[0]! : "",
     fairness_score: fairness,
     risk_flags: proposal.risk_flags || [],
     status: statusKey,
     created_at: Number(proposal.created_at),
     updated_at: Number(proposal.created_at),
     voting_ends_at: Number(proposal.voting_ends_at),
+    total_regional_vp: totalRegionalVp,
     yes_weight: yesWeight,
-    current_funding: yesWeight,
+    current_funding: currentFunding,
     no_weight: proposal.no_weight,
     voter_count: proposal.voter_count,
     location: {
@@ -109,16 +139,58 @@ function serializeProposal(proposal: Proposal): SerializedProposal {
       lng,
       city: proposal.region_tag,
       country: baseCoords.country,
-      formatted_address: `${proposal.region_tag}, ${baseCoords.country}`
-    }
+      formatted_address: `${proposal.region_tag}, ${baseCoords.country}`,
+    },
   };
+}
+
+async function loadRegionVotingPowerMap(
+  actor: Awaited<ReturnType<typeof createBackendActor>>,
+  proposals: Proposal[],
+) {
+  const uniqueRegions = [
+    ...new Set(
+      proposals.map((proposal) => proposal.region_tag).filter(Boolean),
+    ),
+  ];
+  const entries = await Promise.all(
+    uniqueRegions.map(async (region) => {
+      try {
+        const totalVp = await actor.get_region_total_vp(region);
+        return [region, Number(totalVp)] as const;
+      } catch (error) {
+        console.error(`Failed to fetch regional VP for ${region}:`, error);
+        return [region, 0] as const;
+      }
+    }),
+  );
+
+  return new Map(entries);
+}
+
+async function serializeProposalCollection(
+  actor: Awaited<ReturnType<typeof createBackendActor>>,
+  proposals: Proposal[],
+) {
+  const regionVotingPowerMap = await loadRegionVotingPowerMap(actor, proposals);
+  return proposals.map((proposal) =>
+    serializeProposal(
+      proposal,
+      regionVotingPowerMap.get(proposal.region_tag) ?? 0,
+    ),
+  );
 }
 
 export async function fetchAllProposals(status?: string) {
   try {
     const actor = await createBackendActor();
-    const proposals = await actor.list_proposals(status ? [{ [status]: null } as any] : []);
-    return { success: true, proposals: proposals.map(serializeProposal) };
+    const proposals = await actor.list_proposals(
+      status ? [{ [status]: null } as any] : [],
+    );
+    return {
+      success: true,
+      proposals: await serializeProposalCollection(actor, proposals),
+    };
   } catch (error) {
     console.error("Failed to fetch proposals:", error);
     return { success: false, proposals: [] };
@@ -130,11 +202,16 @@ export async function fetchMyProposals() {
     const actor = await createBackendActor();
     const [proposals, principal] = await Promise.all([
       actor.list_proposals([]),
-      actor.whoami()
+      actor.whoami(),
     ]);
     const principalStr = principal.toString();
-    const filtered = proposals.filter(p => p.submitter.toString() === principalStr);
-    return { success: true, proposals: filtered.map(serializeProposal) };
+    const filtered = proposals.filter(
+      (p) => p.submitter.toString() === principalStr,
+    );
+    return {
+      success: true,
+      proposals: await serializeProposalCollection(actor, filtered),
+    };
   } catch (error) {
     return { success: false, proposals: [] };
   }
@@ -145,7 +222,26 @@ export async function fetchProposalById(id: string) {
   try {
     const actor = await createBackendActor();
     const result = await actor.get_proposal(BigInt(id));
-    if (result.length > 0) return { success: true, proposal: serializeProposal(result[0]!) };
+    if (result.length > 0) {
+      const proposal = result[0]!;
+      let totalRegionalVp = 0;
+
+      try {
+        totalRegionalVp = Number(
+          await actor.get_region_total_vp(proposal.region_tag),
+        );
+      } catch (error) {
+        console.error(
+          `Failed to fetch regional VP for ${proposal.region_tag}:`,
+          error,
+        );
+      }
+
+      return {
+        success: true,
+        proposal: serializeProposal(proposal, totalRegionalVp),
+      };
+    }
     return { success: false, error: "Not found" };
   } catch (error) {
     return { success: false, error: "Error fetching proposal" };
@@ -156,14 +252,17 @@ export async function fetchProposalVotes(id: string) {
   try {
     const actor = await createBackendActor();
     const votes = await actor.get_proposal_votes(BigInt(id));
-    return { 
-      success: true, 
-      votes: votes.map(v => ({
-        ...v,
-        voter: v.voter.toString(),
-        weight: Number(v.weight),
-        timestamp: Number(v.timestamp),
-      })) 
+    return {
+      success: true,
+      votes: votes.map(
+        (v): SerializedVote => ({
+          ...v,
+          voter: v.voter.toString(),
+          proposal_id: v.proposal_id.toString(),
+          weight: Number(v.weight),
+          timestamp: Number(v.timestamp),
+        }),
+      ),
     };
   } catch (error) {
     console.error("Failed to fetch votes:", error);
@@ -185,7 +284,9 @@ export async function fetchAuditLogs(limit: number = 50, offset: number = 0) {
 export async function fetchAllContracts(status?: string) {
   try {
     const actor = await createBackendActor();
-    const contracts = await actor.list_contracts(status ? [{ [status]: null } as any] : []);
+    const contracts = await actor.list_contracts(
+      status ? [{ [status]: null } as any] : [],
+    );
     return { success: true, contracts: contracts.map(serializeContract) };
   } catch (error) {
     return { success: false, contracts: [] };
@@ -197,7 +298,8 @@ export async function fetchContractById(id: string) {
   try {
     const actor = await createBackendActor();
     const result = await actor.get_contract_record(BigInt(id));
-    if (result.length > 0) return { success: true, contract: serializeContract(result[0]!) };
+    if (result.length > 0)
+      return { success: true, contract: serializeContract(result[0]!) };
     return { success: false, error: "Contract not found" };
   } catch (error) {
     return { success: false, error: "Error fetching contract" };
@@ -208,12 +310,12 @@ export async function fetchConfig() {
   try {
     const actor = await createBackendActor();
     const config = await actor.get_config();
-    return { 
-      success: true, 
+    return {
+      success: true,
       config: {
         ...config,
-        voting_period_ns: Number(config.voting_period_ns)
-      } 
+        voting_period_ns: Number(config.voting_period_ns),
+      },
     };
   } catch (error) {
     return { success: false, error: "Failed to fetch config" };
@@ -223,27 +325,36 @@ export async function fetchConfig() {
 export async function fetchGlobalStats() {
   try {
     const actor = await createBackendActor();
-    const proposals = await actor.list_proposals([]); 
-    
-    const total_funded = proposals.reduce((acc, p) => acc + Number(p.budget_amount.length > 0 ? p.budget_amount[0] : 0), 0);
-    const active_projects = proposals.filter(p => 'Active' in p.status).length;
-    
+    const proposals = await actor.list_proposals([]);
+
+    const total_funded = proposals.reduce(
+      (acc, p) =>
+        acc + Number(p.budget_amount.length > 0 ? p.budget_amount[0] : 0),
+      0,
+    );
+    const active_projects = proposals.filter(
+      (p) => "Active" in p.status,
+    ).length;
+
     const fairness_scores = proposals
-      .filter(p => p.fairness_score.length > 0)
-      .map(p => p.fairness_score[0]!);
-    
-    const average_ai_integrity_score = fairness_scores.length > 0 
-      ? Math.round(fairness_scores.reduce((a, b) => a + b, 0) / fairness_scores.length)
-      : 88;
+      .filter((p) => p.fairness_score.length > 0)
+      .map((p) => p.fairness_score[0]!);
+
+    const average_ai_integrity_score =
+      fairness_scores.length > 0
+        ? Math.round(
+            fairness_scores.reduce((a, b) => a + b, 0) / fairness_scores.length,
+          )
+        : 88;
 
     return {
       success: true,
       stats: {
         total_funded,
         active_projects,
-        verified_users: 12400, 
-        average_ai_integrity_score
-      }
+        verified_users: 12400,
+        average_ai_integrity_score,
+      },
     };
   } catch (error) {
     console.error("Failed to fetch global stats:", error);
@@ -265,8 +376,12 @@ function serializeAuditLog(log: AuditLog): SerializedAuditLog {
     id: log.id.toString(),
     timestamp: Number(log.timestamp),
     actor: log.actor.toString(),
-    event_type: typeof log.event_type === 'string' ? log.event_type : Object.keys(log.event_type)[0],
-    proposal_id: log.proposal_id.length > 0 ? log.proposal_id[0]!.toString() : null,
+    event_type:
+      typeof log.event_type === "string"
+        ? log.event_type
+        : Object.keys(log.event_type)[0],
+    proposal_id:
+      log.proposal_id.length > 0 ? log.proposal_id[0]!.toString() : null,
     payload: log.payload,
   };
 }

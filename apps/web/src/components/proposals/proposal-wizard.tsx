@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle2, ChevronRight, ChevronLeft, Building2, MapPin, FileText, Landmark, ShieldCheck, Globe, Loader2, Zap, Info } from "lucide-react";
+import { CheckCircle2, ChevronRight, ChevronLeft, Building2, MapPin, FileText, Landmark, ShieldCheck, Globe, Loader2, Zap, Info, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LocationPicker } from "./location-picker";
 import { submitProposalClient } from "@/lib/api/client-mutations";
@@ -33,8 +33,13 @@ export function ProposalWizard() {
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [direction, setDirection] = useState(1);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   
   const identity = useAuthStore((state) => state.identity);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isInitializing = useAuthStore((state) => state.isInitializing);
+  const userRole = useAuthStore((state) => state.user?.role);
+  const hasProfile = useAuthStore((state) => state.hasProfile);
 
   const form = useForm<ProposalFormValues>({
     resolver: zodResolver(proposalSchema),
@@ -118,12 +123,29 @@ export function ProposalWizard() {
   };
 
   const onSubmit = async (data: ProposalFormValues) => {
+    if (isInitializing) {
+      setSubmitError("Your account is still loading. Please wait a moment and try again.");
+      return;
+    }
+
     if (!identity) {
-      alert("Please login with Internet Identity to submit this proposal.");
+      setSubmitError("Please sign in with Internet Identity to submit this proposal.");
+      return;
+    }
+
+    if (!hasProfile) {
+      setSubmitError("Complete community onboarding before submitting a proposal.");
+      router.push("/onboarding/role");
+      return;
+    }
+
+    if (userRole !== "regional") {
+      setSubmitError("Only community users can submit proposals.");
       return;
     }
 
     setIsSubmitting(true);
+    setSubmitError(null);
     try {
       const category: ProposalCategory = { [data.category]: null } as any;
 
@@ -131,6 +153,7 @@ export function ProposalWizard() {
         ...data,
         category,
         budget_amount: data.budget_amount,
+        approved_company: [],
       });
       
       console.log("Broadcasting successful:", result);
@@ -138,7 +161,19 @@ export function ProposalWizard() {
       router.push(`/dashboard/proposals/${result.id.toString()}`);
     } catch (error) {
       console.error(error);
-      alert("Blockchain communication failed. Please check the console.");
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Blockchain communication failed. Please check the console.";
+      setSubmitError(message);
+
+      if (
+        message.includes("Register before submitting proposals") ||
+        message.includes("Only community users can submit proposals")
+      ) {
+        router.push("/onboarding/role");
+      }
+      
       setIsSubmitting(false);
     }
   };
@@ -227,6 +262,12 @@ export function ProposalWizard() {
       {/* Main Wizard Form Container */}
       <div className="flex-1 w-full max-w-4xl mx-auto">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-12 pb-24">
+          {submitError && (
+            <div className="flex items-start gap-3 rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>{submitError}</p>
+            </div>
+          )}
           <div className="relative min-h-[500px] flex flex-col">
             <AnimatePresence mode="wait" custom={direction} initial={false}>
               {/* STEP 1: Basic Info */}
@@ -566,7 +607,14 @@ export function ProposalWizard() {
                 ) : (
                   <Button 
                     type="submit" 
-                    disabled={isSubmitting || !identity}
+                    disabled={
+                      isSubmitting ||
+                      !identity ||
+                      !isAuthenticated ||
+                      isInitializing ||
+                      !hasProfile ||
+                      userRole !== "regional"
+                    }
                     className="w-full sm:w-auto h-10 px-8 rounded-lg font-bold text-xs shadow-md bg-primary text-primary-foreground hover:opacity-90 transition-all"
                   >
                     {isSubmitting ? (
@@ -586,6 +634,21 @@ export function ProposalWizard() {
              {!identity && currentStep === STEPS.length - 1 && (
                <p className="text-[9px] text-destructive font-bold uppercase text-center mt-2 tracking-widest">
                  Identity Required to Sign Transaction
+               </p>
+             )}
+             {identity && isInitializing && currentStep === STEPS.length - 1 && (
+               <p className="text-[9px] text-muted-foreground font-bold uppercase text-center mt-2 tracking-widest">
+                 Restoring Account Profile
+               </p>
+             )}
+             {identity && !isInitializing && !hasProfile && currentStep === STEPS.length - 1 && (
+               <p className="text-[9px] text-destructive font-bold uppercase text-center mt-2 tracking-widest">
+                 Complete Community Onboarding Before Submitting
+               </p>
+             )}
+             {identity && !isInitializing && hasProfile && userRole !== "regional" && currentStep === STEPS.length - 1 && (
+               <p className="text-[9px] text-destructive font-bold uppercase text-center mt-2 tracking-widest">
+                 Proposal Submission Is For Community Users Only
                </p>
              )}
           </div>

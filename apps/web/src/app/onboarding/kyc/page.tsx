@@ -2,16 +2,16 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { 
-  Building2, 
-  Upload, 
-  CheckCircle2, 
-  AlertCircle, 
+import {
+  Building2,
+  Upload,
+  CheckCircle2,
+  AlertCircle,
   Loader2,
   ArrowLeft,
   ArrowRight,
   FileText,
-  ShieldCheck
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,12 +25,20 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/lib/auth-store";
+import {
+  createMyProfileClient,
+  requestVerificationClient,
+  updateMyProfileClient,
+} from "@/lib/api/client-mutations";
+import { getDefaultDisplayName } from "@/lib/profile-utils";
 import { cn } from "@/lib/utils";
 
 import { loadStripe } from "@stripe/stripe-js";
 
 // Initialize Stripe outside of component to avoid recreating it
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+const stripePromise = loadStripe(
+  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!,
+);
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -47,20 +55,26 @@ import {
 
 const kycSchema = z.object({
   orgName: z.string().min(2, "Organization name must be at least 2 characters"),
-  regNum: z.string().min(5, "Registration number must be at least 5 characters"),
+  regNum: z
+    .string()
+    .min(5, "Registration number must be at least 5 characters"),
   country: z.string().min(2, "Country name must be at least 2 characters"),
 });
 
 type KYCFormValues = z.infer<typeof kycSchema>;
 
-type Step = 'details' | 'upload' | 'processing' | 'complete';
+type Step = "details" | "upload" | "processing" | "complete";
 
 export default function KYCPage() {
   const router = useRouter();
   const setKycStatus = useAuthStore((state) => state.setKycStatus);
   const user = useAuthStore((state) => state.user);
-  const [step, setStep] = useState<Step>('details');
+  const identity = useAuthStore((state) => state.identity);
+  const hasProfile = useAuthStore((state) => state.hasProfile);
+  const initialize = useAuthStore((state) => state.initialize);
+  const [step, setStep] = useState<Step>("details");
   const [isUploading, setIsUploading] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const form = useForm<KYCFormValues>({
     resolver: zodResolver(kycSchema),
@@ -70,31 +84,58 @@ export default function KYCPage() {
       country: "",
     },
   });
-  
+
   // Guard: if no role or wrong role, redirect back
   useEffect(() => {
-    if (!user || user.role !== 'funder') {
-      router.push('/onboarding/role');
+    if (!user || user.role !== "funder") {
+      router.push("/onboarding/role");
     }
   }, [user, router]);
 
-  const handleDetailsSubmit = (values: KYCFormValues) => {
-    console.log("KYC Details:", values);
-    setStep('upload');
+  const handleDetailsSubmit = async (values: KYCFormValues) => {
+    if (!identity || !user) {
+      setSubmitError("Sign in again before continuing.");
+      return;
+    }
+
+    setSubmitError(null);
+
+    try {
+      if (hasProfile) {
+        await updateMyProfileClient(identity, values.orgName, null);
+      } else {
+        await createMyProfileClient(
+          identity,
+          values.orgName || getDefaultDisplayName(user.id),
+          { InvestorUser: null },
+          null,
+        );
+      }
+
+      await initialize();
+    } catch (error) {
+      console.error("Failed to save investor profile:", error);
+      setSubmitError(
+        error instanceof Error ? error.message : "Failed to save your profile.",
+      );
+      return;
+    }
+
+    setStep("upload");
   };
 
   const handleUpload = async () => {
     setIsUploading(true);
     try {
       // Create Stripe Verification Session
-      const res = await fetch('/api/stripe/identity', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: 'funder' }),
+      const res = await fetch("/api/stripe/identity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "funder" }),
       });
-      
+
       const { client_secret, error: serverError } = await res.json();
-      
+
       if (serverError || !client_secret) {
         console.error("Failed to create verification session:", serverError);
         setIsUploading(false);
@@ -113,7 +154,7 @@ export default function KYCPage() {
       } else {
         // Verification submitted successfully!
         setIsUploading(false);
-        setStep('processing');
+        setStep("processing");
       }
     } catch (err) {
       console.error(err);
@@ -121,17 +162,19 @@ export default function KYCPage() {
     }
   };
 
-  const [processingStatus, setProcessingStatus] = useState("Analyzing documents...");
+  const [processingStatus, setProcessingStatus] = useState(
+    "Analyzing documents...",
+  );
 
   useEffect(() => {
-    if (step === 'processing') {
+    if (step === "processing") {
       const statuses = [
         "Analyzing organizational documents...",
         "Cross-referencing global regulatory databases...",
         "Verifying tax-exempt status...",
-        "Finalizing entity reputation score..."
+        "Finalizing entity reputation score...",
       ];
-      
+
       let currentIdx = 0;
       const interval = setInterval(() => {
         currentIdx++;
@@ -141,9 +184,28 @@ export default function KYCPage() {
       }, 1500);
 
       const timer = setTimeout(() => {
-        setKycStatus('verified');
-        setStep('complete');
-        clearInterval(interval);
+        void (async () => {
+          try {
+            if (!identity) {
+              throw new Error("Identity not found.");
+            }
+
+            await requestVerificationClient(identity);
+            await initialize();
+            setKycStatus("verified");
+            setStep("complete");
+          } catch (error) {
+            console.error("Failed to finalize investor verification:", error);
+            setSubmitError(
+              error instanceof Error
+                ? error.message
+                : "Failed to finalize verification.",
+            );
+            setStep("upload");
+          } finally {
+            clearInterval(interval);
+          }
+        })();
       }, 6500);
 
       return () => {
@@ -157,17 +219,23 @@ export default function KYCPage() {
 
   return (
     <div className="w-full max-w-xl space-y-8">
-      {step === 'details' && (
+      {step === "details" && (
         <Card className="border-neutral-200 dark:border-neutral-800">
           <CardHeader>
             <CardTitle className="text-2xl font-bold">Entity Details</CardTitle>
             <CardDescription>
-              Provide information about your organization to begin the KYC process.
+              Provide information about your organization to begin the KYC
+              process.
             </CardDescription>
           </CardHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleDetailsSubmit)}>
               <CardContent className="space-y-4">
+                {submitError && (
+                  <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                    {submitError}
+                  </div>
+                )}
                 <FormField
                   control={form.control}
                   name="orgName"
@@ -175,7 +243,10 @@ export default function KYCPage() {
                     <FormItem>
                       <FormLabel>Organization Name</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. Global Impact Fund" {...field} />
+                        <Input
+                          placeholder="e.g. Global Impact Fund"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -209,7 +280,11 @@ export default function KYCPage() {
                 />
               </CardContent>
               <CardFooter className="flex justify-between border-t pt-6">
-                <Button variant="ghost" type="button" onClick={() => router.push('/onboarding/role')}>
+                <Button
+                  variant="ghost"
+                  type="button"
+                  onClick={() => router.push("/onboarding/role")}
+                >
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Back
                 </Button>
@@ -223,12 +298,15 @@ export default function KYCPage() {
         </Card>
       )}
 
-      {step === 'upload' && (
+      {step === "upload" && (
         <Card className="border-neutral-200 dark:border-neutral-800">
           <CardHeader>
-            <CardTitle className="text-2xl font-bold">Document Upload</CardTitle>
+            <CardTitle className="text-2xl font-bold">
+              Document Upload
+            </CardTitle>
             <CardDescription>
-              Upload your tax-exempt status (e.g. 501(c)(3)) or organizational charter.
+              Upload your tax-exempt status (e.g. 501(c)(3)) or organizational
+              charter.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -237,8 +315,12 @@ export default function KYCPage() {
                 <Upload className="h-8 w-8 text-primary" />
               </div>
               <div className="space-y-1">
-                <p className="font-semibold text-lg">Click to upload or drag and drop</p>
-                <p className="text-sm text-muted-foreground">PDF, PNG, JPG (max. 10MB)</p>
+                <p className="font-semibold text-lg">
+                  Click to upload or drag and drop
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  PDF, PNG, JPG (max. 10MB)
+                </p>
               </div>
             </div>
 
@@ -246,13 +328,19 @@ export default function KYCPage() {
               <FileText className="h-8 w-8 text-muted-foreground" />
               <div className="flex-1">
                 <p className="text-sm font-medium">charter_v2_final.pdf</p>
-                <p className="text-xs text-muted-foreground">Uploaded 2 mins ago</p>
+                <p className="text-xs text-muted-foreground">
+                  Uploaded 2 mins ago
+                </p>
               </div>
               <CheckCircle2 className="h-5 w-5 text-green-500" />
             </div>
           </CardContent>
           <CardFooter className="flex justify-between border-t pt-6">
-            <Button variant="ghost" onClick={() => setStep('details')} disabled={isUploading}>
+            <Button
+              variant="ghost"
+              onClick={() => setStep("details")}
+              disabled={isUploading}
+            >
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back
             </Button>
@@ -273,7 +361,7 @@ export default function KYCPage() {
         </Card>
       )}
 
-      {step === 'processing' && (
+      {step === "processing" && (
         <Card className="border-neutral-200 dark:border-neutral-800 py-16">
           <CardContent className="flex flex-col items-center text-center space-y-8">
             <div className="relative h-32 w-32">
@@ -288,37 +376,45 @@ export default function KYCPage() {
                 {processingStatus}
               </CardTitle>
               <CardDescription className="max-w-sm text-lg leading-relaxed">
-                Our 3-agent AI consensus protocol is currently vetting your organization's credentials against international compliance standards.
+                Our 3-agent AI consensus protocol is currently vetting your
+                organization's credentials against international compliance
+                standards.
               </CardDescription>
             </div>
-            
+
             <div className="w-full max-w-xs space-y-2">
-               <div className="flex justify-between text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                 <span>System Integrity</span>
-                 <span>Vetting in progress</span>
-               </div>
-               <div className="h-1.5 w-full bg-neutral-100 dark:bg-neutral-900 rounded-full overflow-hidden">
-                 <div className="h-full bg-primary animate-pulse" />
-               </div>
+              <div className="flex justify-between text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <span>System Integrity</span>
+                <span>Vetting in progress</span>
+              </div>
+              <div className="h-1.5 w-full bg-neutral-100 dark:bg-neutral-900 rounded-full overflow-hidden">
+                <div className="h-full bg-primary animate-pulse" />
+              </div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {step === 'complete' && (
+      {step === "complete" && (
         <Card className="border-neutral-200 dark:border-neutral-800 overflow-hidden">
           <div className="h-2 bg-green-500" />
           <CardHeader className="text-center pt-12">
             <div className="mx-auto h-20 w-20 rounded-full bg-green-50 dark:bg-green-950/30 flex items-center justify-center mb-6">
               <CheckCircle2 className="h-10 w-10 text-green-500" />
             </div>
-            <CardTitle className="text-3xl font-bold">Verification Successful</CardTitle>
+            <CardTitle className="text-3xl font-bold">
+              Verification Successful
+            </CardTitle>
             <CardDescription className="text-lg">
-              Your entity has been verified. You can now start deploying capital.
+              Your entity has been verified. You can now start deploying
+              capital.
             </CardDescription>
           </CardHeader>
           <CardFooter className="flex flex-col gap-4 pb-12">
-            <Button className="w-full h-12 text-lg font-bold" onClick={() => router.push('/dashboard')}>
+            <Button
+              className="w-full h-12 text-lg font-bold"
+              onClick={() => router.push("/dashboard")}
+            >
               Go to Investor Dashboard
             </Button>
             <p className="text-xs text-muted-foreground text-center">
