@@ -7,7 +7,7 @@ import { Search, Globe, Activity, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { FormEvent, Suspense, useEffect, useState } from "react";
 
-function DashboardExploreContent() {
+function DashboardExplorePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const searchQuery = searchParams.get("q") ?? "";
@@ -49,7 +49,7 @@ function DashboardExploreContent() {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-background">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
       {/* High-Fidelity Header - Stable Grid Layout */}
       <div className="border-b bg-neutral-50/50 dark:bg-neutral-950/50 shrink-0">
         <div className="px-6 py-4 md:px-8 grid grid-cols-1 md:grid-cols-3 items-center gap-6">
@@ -106,7 +106,7 @@ function DashboardExploreContent() {
       </div>
 
       {/* Explorer Interface */}
-      <div className="flex-1 overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden">
         <ProposalExplorer 
           mode="authenticated" 
           proposals={proposals} 
@@ -120,8 +120,8 @@ function DashboardExploreContent() {
 
 export default function DashboardExplorePage() {
   return (
-    <Suspense fallback={<div className="flex-1 bg-background" />}>
-      <DashboardExploreContent />
+    <Suspense fallback={<div className="flex h-full min-h-0 flex-1 bg-background" />}>
+      <DashboardExplorePageContent />
     </Suspense>
   );
 }

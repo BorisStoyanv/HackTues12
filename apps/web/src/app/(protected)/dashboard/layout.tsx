@@ -20,6 +20,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const isExplorerRoute = pathname === "/dashboard/explore";
   
   const getPageTitle = () => {
     if (pathname === "/dashboard") return "Overview";
@@ -35,7 +36,7 @@ export default function DashboardLayout({
   return (
     <SidebarProvider>
       <DashboardSidebar />
-      <div className="flex flex-1 flex-col">
+      <div className="flex h-svh min-h-0 flex-1 flex-col">
         <header className="flex h-14 shrink-0 items-center gap-4 border-b px-4 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 bg-background/80 backdrop-blur-md sticky top-0 z-50">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
@@ -53,7 +54,13 @@ export default function DashboardLayout({
             </BreadcrumbList>
           </Breadcrumb>
         </header>
-        <main className="flex-1 overflow-hidden">
+        <main
+          className={
+            isExplorerRoute
+              ? "min-h-0 flex-1 overflow-hidden"
+              : "min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
+          }
+        >
           {children}
         </main>
       </div>

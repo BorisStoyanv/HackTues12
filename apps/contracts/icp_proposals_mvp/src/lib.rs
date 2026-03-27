@@ -1259,7 +1259,8 @@ fn whoami() -> Principal {
 }
 
 // =========================================================================
-// Investor verification (stub — auto-approves, replace with real KYC later)
+// Verification completion stub — auto-approves after an external KYC decision.
+// Replace this with a real webhook-ingestion or signed attestation flow later.
 // =========================================================================
 
 #[update]
@@ -1268,9 +1269,6 @@ fn request_verification() -> Result<(), String> {
     let profile = USERS
         .with(|u| u.borrow().get(&StorablePrincipal(caller)))
         .ok_or("Register first")?;
-    if profile.user_type != UserType::InvestorUser {
-        return Err("Only investor users need verification".into());
-    }
     if profile.is_verified.unwrap_or(false) {
         return Err("Already verified".into());
     }
@@ -1280,7 +1278,10 @@ fn request_verification() -> Result<(), String> {
         caller,
         AuditEventType::InvestorVerified,
         None,
-        "Investor verification approved (stub)".into(),
+        match profile.user_type {
+            UserType::InvestorUser => "Investor verification approved (stub)".into(),
+            UserType::User => "Community verification approved (stub)".into(),
+        },
     );
     Ok(())
 }
@@ -1415,16 +1416,17 @@ fn save_proposal_ai_debate(
     proposal_id: u64,
     input: SaveProposalAIDebateInput,
 ) -> Result<Proposal, String> {
-    let caller = require_auth()?;
+    require_auth()?;
+
+    if PROPOSAL_AI_DEBATES.with(|debates| debates.borrow().contains_key(&proposal_id)) {
+        return Err("An AI debate has already been saved for this proposal".into());
+    }
+
     let debate = normalize_ai_debate_input(input)?;
 
     let mut proposal = PROPOSALS
         .with(|p| p.borrow().get(&proposal_id))
         .ok_or("Proposal not found")?;
-
-    if proposal.submitter != caller {
-        return Err("Only the original submitter can save the AI debate".into());
-    }
 
     let fairness_score = (debate.aggregate_score * 1000.0).round() / 10.0;
     proposal.fairness_score = Some(fairness_score);

@@ -3,7 +3,6 @@
 import { InteractiveMap } from "@/components/map/interactive-map";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, Globe, ShieldCheck, Users } from "lucide-react";
 import Link from "next/link";
