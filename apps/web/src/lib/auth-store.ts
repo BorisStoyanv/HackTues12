@@ -36,6 +36,7 @@ interface AuthState {
     location?: { city: string; country: string },
   ) => void;
   syncIdentity: (identity: Identity | null, isAuthenticated: boolean) => void;
+  loginAsDev: () => Promise<void>;
 }
 
 let globalAuthClient: AuthClient | null = null;
@@ -234,5 +235,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }));
 
     void get().initialize();
+  },
+
+  loginAsDev: async () => {
+    // Only allow on localhost
+    if (typeof window !== "undefined" && !window.location.hostname.includes("localhost") && !window.location.hostname.includes("127.0.0.1")) {
+      return;
+    }
+
+    try {
+      // Use a fixed "dev" seed to keep the same principal for the dev session
+      // We use a dynamic import to avoid bundling @dfinity/identity in prod if possible
+      const { Ed25519KeyIdentity } = await import("@dfinity/identity");
+      
+      // Fixed 32-byte seed for the dev identity
+      const seed = new Uint8Array(32).fill(0);
+      seed[0] = 1; // Just something unique
+      
+      const identity = Ed25519KeyIdentity.generate(seed);
+      // We have to cast because of slight type mismatches between @dfinity/agent and @icp-sdk/core
+      get().syncIdentity(identity as any, true);
+      
+      console.log("[Auth] Dev bypass active. Principal:", identity.getPrincipal().toString());
+    } catch (error) {
+      console.error("[Auth] Dev bypass failed:", error);
+    }
   },
 }));
