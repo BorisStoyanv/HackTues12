@@ -78,6 +78,8 @@ type ExpertiseFormValues = z.infer<typeof expertiseSchema>;
 
 type Step = "geo" | "location-confirmed" | "verify" | "waiting" | "expertise" | "complete";
 
+import { useVeriffSessionStatus } from "@/hooks/use-veriff-session-status";
+
 export default function VerificationPage() {
   const router = useRouter();
   const setGeoVerified = useAuthStore((state) => state.setGeoVerified);
@@ -86,6 +88,15 @@ export default function VerificationPage() {
   const identity = useAuthStore((state) => state.identity);
   const hasProfile = useAuthStore((state) => state.hasProfile);
   const initialize = useAuthStore((state) => state.initialize);
+  
+  const { pendingSession } = useVeriffSessionStatus();
+
+  // Redirect if session is already active
+  useEffect(() => {
+    if (pendingSession && user?.kyc_status === 'pending') {
+      router.replace('/dashboard/verification/status');
+    }
+  }, [pendingSession, router, user?.kyc_status]);
   
   const [step, setStep] = useState<Step>("geo");
   const [isVerifying, setIsVerifying] = useState(false);

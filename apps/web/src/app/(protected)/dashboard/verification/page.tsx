@@ -4,12 +4,14 @@ import { useAuthStore } from "@/lib/auth-store";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ShieldCheck, UserCheck, MapPin, Award, AlertCircle, Loader2, CheckCircle2, Globe } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ShieldCheck, UserCheck, MapPin, Award, AlertCircle, Loader2, CheckCircle2, Globe, ArrowRight } from "lucide-react";
 import { useState } from "react";
 import { requestVerificationClient } from "@/lib/api/client-mutations";
 import { cn } from "@/lib/utils";
 
 export default function VerificationPage() {
+  const router = useRouter();
   const { user, identity } = useAuthStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -61,14 +63,25 @@ export default function VerificationPage() {
                    </CardTitle>
                 </CardHeader>
                 <CardContent>
-                   <div className="flex items-center gap-4 pt-4 border-t border-neutral-100 dark:border-neutral-900 mt-4">
-                      <div className="h-12 w-12 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shrink-0">
-                         <ShieldCheck className="h-6 w-6 text-primary" />
+                   <div className="flex flex-col gap-4 pt-4 border-t border-neutral-100 dark:border-neutral-900 mt-4">
+                      <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center shrink-0">
+                           <ShieldCheck className="h-6 w-6 text-primary" />
+                        </div>
+                        <div className="space-y-0.5">
+                           <p className="text-sm font-bold tracking-tight">Trust Level 1</p>
+                           <p className="text-xs text-muted-foreground">Standard voting & submission rights enabled.</p>
+                        </div>
                       </div>
-                      <div className="space-y-0.5">
-                         <p className="text-sm font-bold tracking-tight">Trust Level 1</p>
-                         <p className="text-xs text-muted-foreground">Standard voting & submission rights enabled.</p>
-                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="w-full rounded-xl font-bold"
+                        onClick={() => router.push('/dashboard/verification/status')}
+                      >
+                        Track Veriff Session
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
                    </div>
                 </CardContent>
              </Card>
