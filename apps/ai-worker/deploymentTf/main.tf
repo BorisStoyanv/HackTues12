@@ -1,8 +1,19 @@
 locals {
-  merged_metadata = var.ssh_public_key == "" ? var.metadata : merge(
+  normalized_ssh_public_keys = distinct(
+    concat(
+      var.ssh_public_key == "" ? [] : [trimspace(var.ssh_public_key)],
+      [for key in var.ssh_public_keys : trimspace(key) if trimspace(key) != ""]
+    )
+  )
+
+  ssh_keys_metadata_entries = [
+    for key in local.normalized_ssh_public_keys : "${var.ssh_username}:${key}"
+  ]
+
+  merged_metadata = length(local.ssh_keys_metadata_entries) == 0 ? var.metadata : merge(
     var.metadata,
     {
-      "ssh-keys" = "${var.ssh_username}:${var.ssh_public_key}"
+      "ssh-keys" = join("\n", local.ssh_keys_metadata_entries)
     }
   )
 }
@@ -75,15 +86,13 @@ resource "google_compute_firewall" "allow_app" {
   }
 }
 
-resource "google_compute_firewall" "allow_web" {
-  count = var.allow_http_https ? 1 : 0
-
-  name          = "${var.instance_name}-allow-web"
+resource "google_compute_firewall" "allow_http_https_ai_worker" {
+  name          = "allow-http-https-ai-worker"
   network       = var.network
   direction     = "INGRESS"
   priority      = 1000
   source_ranges = ["0.0.0.0/0"]
-  target_tags   = var.tags
+  target_tags   = ["ai-worker"]
 
   allow {
     protocol = "tcp"
