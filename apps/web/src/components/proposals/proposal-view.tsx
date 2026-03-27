@@ -5,12 +5,7 @@ import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   BarChart3,
   AlertTriangle,
@@ -19,9 +14,7 @@ import {
   Clock,
   DollarSign,
   Globe,
-  ShieldCheck,
   TrendingUp,
-  User,
   History,
   CheckCircle2,
   XCircle,
@@ -76,377 +69,225 @@ export function ProposalView({
     proposal.location.city && proposal.location.country
       ? `${proposal.location.city}, ${proposal.location.country}`
       : proposal.location.city || proposal.region_tag;
-  const hasConstraints = proposal.risk_flags.length > 0;
+  const hasConstraints = proposal.risk_flags && proposal.risk_flags.length > 0;
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-background">
-      {/* Clean, Vercel-like Header Section */}
-      <div className="border-b bg-background px-6 py-8 md:px-12 shrink-0 relative overflow-hidden">
-        <div className="max-w-7xl mx-auto relative z-10 space-y-4">
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-3">
-              <Badge className="bg-primary text-primary-foreground px-2.5 py-0.5 rounded-md text-[11px] font-medium border-transparent shadow-sm">
+      {/* Header - Dense, Informative, Vercel-like */}
+      <div className="border-b bg-neutral-50/50 dark:bg-neutral-950/50 px-6 py-6 md:px-8 shrink-0">
+        <div className="w-full flex flex-col lg:flex-row gap-6 justify-between lg:items-start">
+          <div className="space-y-3 flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="bg-primary text-primary-foreground border-transparent px-2.5 py-0.5 rounded text-[10px] uppercase font-black tracking-widest shadow-sm">
                 {statusFormatted}
               </Badge>
-              <Badge
-                variant="outline"
-                className="border-neutral-200 dark:border-neutral-800 px-2.5 py-0.5 rounded-md text-[11px] font-medium bg-background"
-              >
+              <Badge variant="outline" className="border-neutral-200 dark:border-neutral-800 bg-background px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                <Globe className="h-3 w-3 mr-1.5 inline -mt-0.5" />
                 {locationLabel}
               </Badge>
-              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground ml-1">
-                <Clock className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-mono font-medium text-muted-foreground flex items-center gap-1.5 ml-1">
+                <Clock className="h-3 w-3" /> 
                 {new Date(proposal.created_at / 1000000).toLocaleDateString()}
-              </div>
+              </span>
+              {hasConstraints && (
+                <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-500 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest">
+                  <AlertTriangle className="h-3 w-3 mr-1.5 inline -mt-0.5" />
+                  {proposal.risk_flags.length} AI Flags
+                </Badge>
+              )}
             </div>
-
-            <h1 className="text-2xl md:text-5xl font-bold tracking-tight text-foreground leading-snug max-w-4xl">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground leading-snug">
               {proposal.title}
             </h1>
-
-            <div className="flex flex-wrap items-center gap-6 pt-2">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-muted border border-border flex items-center justify-center">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[11px] font-medium text-muted-foreground">
-                    Submitter
-                  </span>
-                  <span className="text-sm font-medium">
-                    @{creatorId.substring(0, 8)}...
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-muted border border-border flex items-center justify-center">
-                  <Globe className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[11px] font-medium text-muted-foreground">
-                    Region
-                  </span>
-                  <span className="text-sm font-medium">{locationLabel}</span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div
-                  className={cn(
-                    "h-8 w-8 rounded-full border flex items-center justify-center",
-                    hasConstraints
-                      ? "bg-rose-50 border-rose-200 dark:bg-rose-950/20 dark:border-rose-900/40"
-                      : "bg-emerald-50 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-900/40",
-                  )}
-                >
-                  {hasConstraints ? (
-                    <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-300" />
-                  ) : (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
-                  )}
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[11px] font-medium text-muted-foreground">
-                    Constraints
-                  </span>
-                  <span
-                    className={cn(
-                      "text-sm font-medium",
-                      hasConstraints
-                        ? "text-rose-700 dark:text-rose-300"
-                        : "text-emerald-700 dark:text-emerald-300",
-                    )}
-                  >
-                    {hasConstraints
-                      ? `${proposal.risk_flags.length} AI constraint${proposal.risk_flags.length === 1 ? "" : "s"}`
-                      : "No AI constraints"}
-                  </span>
-                </div>
-              </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-6 shrink-0 lg:pt-1">
+            <div className="flex flex-col text-left lg:text-right">
+               <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-0.5">Submitter</span>
+               <span className="text-xs font-mono font-bold bg-muted px-2 py-0.5 rounded border border-border">@{creatorId.substring(0, 10)}...</span>
+            </div>
+            <div className="h-8 w-px bg-border hidden sm:block" />
+            <div className="flex flex-col text-left lg:text-right">
+               <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-0.5">Capital Req.</span>
+               <span className="text-lg font-black tracking-tighter text-primary leading-none">
+                 ${proposal.budget_amount.toLocaleString()} <span className="text-[10px] font-bold uppercase text-foreground/50 tracking-widest">{proposal.budget_currency}</span>
+               </span>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto bg-neutral-50/30 dark:bg-neutral-950/30 px-6 py-10 md:px-12">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10">
-          {/* LEFT COLUMN: Depth Details */}
-          <div className="lg:col-span-8">
-            <Tabs
-              defaultValue="overview"
-              className="w-full flex flex-col gap-6"
-            >
-              <TabsList className="w-full flex justify-start border-b border-border rounded-none h-auto bg-transparent p-0 overflow-x-auto scrollbar-hide">
-                {[
-                  "overview",
-                  "debate",
-                  "impact",
-                  "execution",
-                  "financials",
-                  "votes",
-                ].map((tab) => (
-                  <TabsTrigger
-                    key={tab}
-                    value={tab}
-                    className="relative h-10 rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-3 pt-2 font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none capitalize"
-                  >
-                    {tab}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-
-              <div className="w-full mt-4">
-                <TabsContent
-                  value="overview"
-                  className="space-y-8 animate-in fade-in duration-500 m-0"
-                >
-                  <section className="space-y-3">
-                    <h3 className="text-sm font-medium text-muted-foreground">
-                      Executive Summary
-                    </h3>
-                    <p className="text-xl font-normal leading-relaxed text-foreground/90 max-w-4xl whitespace-pre-wrap">
-                      {proposal.description}
-                    </p>
-                  </section>
-
-                  <Separator className="bg-border" />
-
-                  <section className="space-y-4">
-                    <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                      <Briefcase className="w-4 h-4" /> Category
-                    </h4>
-                    <div className="flex items-center gap-3">
-                      <span className="text-base font-medium">
-                        {proposal.category}
-                      </span>
-                      <Badge
-                        variant="secondary"
-                        className="font-mono text-[10px] font-normal"
-                      >
-                        Verified Tag
-                      </Badge>
-                    </div>
-                  </section>
-                </TabsContent>
-
-                <TabsContent
-                  value="debate"
-                  className="space-y-8 animate-in fade-in duration-500 m-0 focus-visible:outline-none"
-                >
-                  <AIDebateLive proposal={proposal} />
-                </TabsContent>
-
-                <TabsContent
-                  value="impact"
-                  className="space-y-8 animate-in fade-in duration-500 m-0"
-                >
-                  <Card className="border-border shadow-sm bg-background">
-                    <CardContent className="p-8 space-y-8">
-                      <div className="space-y-2">
-                        <h3 className="text-lg font-medium tracking-tight">
-                          Projected Impact
-                        </h3>
-                        <p className="text-sm text-muted-foreground leading-relaxed max-w-2xl">
-                          Quantifiable outcomes cross-referenced by our
-                          autonomous protocol.
-                        </p>
+      {/* Body - Full Width Scrollable Grid */}
+      <div className="flex-1 overflow-y-auto px-6 py-8 md:px-8 bg-neutral-50/30 dark:bg-neutral-950/30">
+        <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          
+          {/* Left Side: Continuous Data Feed */}
+          <div className="lg:col-span-8 xl:col-span-9 space-y-10 md:space-y-14">
+             
+             {/* 1. Executive Summary */}
+             <section className="space-y-4">
+                <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                  <Briefcase className="h-4 w-4" /> Overview & Scope
+                </h3>
+                <Card className="border-neutral-200 dark:border-neutral-800 shadow-sm rounded-2xl overflow-hidden bg-background">
+                   <CardContent className="p-6 md:p-8 space-y-6">
+                      <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">{proposal.description}</p>
+                      <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-neutral-100 dark:border-neutral-900">
+                         <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mr-2">Domain Tags:</span>
+                         <Badge variant="secondary" className="text-[10px] font-bold rounded-md px-2.5 py-0.5 uppercase tracking-wider">{proposal.category}</Badge>
                       </div>
-                      <div className="text-base leading-relaxed text-foreground/80 whitespace-pre-wrap">
-                        {proposal.expected_impact}
-                      </div>
-                      <Separator className="bg-border" />
-                      <div className="grid sm:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <ShieldCheck className="h-5 w-5 text-primary" />
-                            <h4 className="font-medium text-sm">
-                              Fairness Score: {proposal.fairness_score}%
-                            </h4>
-                          </div>
-                          <p className="text-xs text-muted-foreground leading-relaxed">
-                            Equitable distribution verified by protocol.
-                          </p>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <TrendingUp className="h-5 w-5 text-muted-foreground" />
-                            <h4 className="font-medium text-sm text-foreground">
-                              Regional ROI
-                            </h4>
-                          </div>
-                          <p className="text-xs text-muted-foreground leading-relaxed">
-                            Direct correlation with local stability.
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
+                   </CardContent>
+                </Card>
+             </section>
 
-                <TabsContent
-                  value="execution"
-                  className="space-y-8 animate-in fade-in duration-500 m-0"
-                >
-                  <Card className="border-border shadow-sm bg-background">
-                    <CardContent className="p-8 space-y-8">
-                      <section className="space-y-4">
-                        <h3 className="text-lg font-medium tracking-tight">
-                          Materialization
-                        </h3>
-                        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                          <Calendar className="w-4 h-4" />
-                          Timeline: {proposal.timeline}
-                        </div>
-                        <div className="text-base leading-relaxed text-foreground/90 whitespace-pre-wrap">
-                          {proposal.execution_plan}
-                        </div>
-                      </section>
-
-                      <Separator className="bg-border" />
-
-                      <div className="flex items-center gap-4">
-                        <div className="h-10 w-10 rounded-full bg-muted border border-border flex items-center justify-center">
-                          <Briefcase className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-xs font-medium text-muted-foreground">
-                            Executor
-                          </span>
-                          <span className="text-sm font-medium">
-                            {proposal.executor_name}
-                          </span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent
-                  value="financials"
-                  className="space-y-8 animate-in fade-in duration-500 m-0"
-                >
-                  <div className="grid lg:grid-cols-3 gap-6">
-                    <Card className="lg:col-span-2 border-border shadow-sm bg-background">
-                      <CardContent className="p-8 space-y-6">
-                        <h3 className="text-lg font-medium tracking-tight">
-                          Budget Allocation
-                        </h3>
-                        <div className="text-sm leading-relaxed font-mono whitespace-pre-wrap p-4 bg-muted/50 rounded-md border border-border">
-                          {proposal.budget_breakdown}
-                        </div>
+             {/* 2. Execution & Financials */}
+             <div className="grid md:grid-cols-2 gap-6">
+                <section className="space-y-4">
+                   <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                     <Calendar className="h-4 w-4" /> Execution Strategy
+                   </h3>
+                   <Card className="border-neutral-200 dark:border-neutral-800 shadow-sm rounded-2xl overflow-hidden h-full bg-background">
+                      <CardContent className="p-6 md:p-8 space-y-5">
+                         <div className="flex flex-col gap-3">
+                           <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-900 pb-3">
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Target Timeline</span>
+                              <span className="text-xs font-bold bg-muted px-2 py-0.5 rounded">{proposal.timeline}</span>
+                           </div>
+                           <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-900 pb-3">
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Lead Executor</span>
+                              <span className="text-xs font-bold truncate max-w-[150px]">{proposal.executor_name}</span>
+                           </div>
+                         </div>
+                         <p className="text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap">{proposal.execution_plan}</p>
                       </CardContent>
-                    </Card>
-                    <div className="space-y-6">
-                      <Card className="border-border shadow-sm bg-background">
-                        <CardContent className="p-6 flex flex-col items-center text-center space-y-2">
-                          <DollarSign className="h-6 w-6 text-muted-foreground" />
-                          <p className="text-xs font-medium text-muted-foreground">
-                            Target Capital
-                          </p>
-                          <p className="text-3xl font-semibold tracking-tight">
-                            ${proposal.budget_amount.toLocaleString()}
-                          </p>
-                          <p className="text-xs font-medium text-muted-foreground">
-                            {proposal.budget_currency}
-                          </p>
-                        </CardContent>
-                      </Card>
-                      <div className="p-5 rounded-lg border border-border bg-muted/50">
-                        <p className="text-xs font-medium text-muted-foreground mb-2">
-                          Protocol Rule
-                        </p>
-                        <p className="text-xs text-muted-foreground leading-relaxed">
-                          Funds pinned to milestones. 66% consensus required for
-                          release.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
+                   </Card>
+                </section>
+                <section className="space-y-4">
+                   <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                     <DollarSign className="h-4 w-4" /> Capital Allocation
+                   </h3>
+                   <Card className="border-neutral-200 dark:border-neutral-800 shadow-sm rounded-2xl overflow-hidden h-full bg-background flex flex-col">
+                      <CardContent className="p-6 md:p-8 space-y-5 flex-1 flex flex-col">
+                         <p className="text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap font-mono flex-1 bg-neutral-50 dark:bg-neutral-900/50 p-4 rounded-xl border border-neutral-100 dark:border-neutral-800">
+                           {proposal.budget_breakdown}
+                         </p>
+                         <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-primary mb-1">Escrow Policy</p>
+                            <p className="text-[10px] text-foreground/80 leading-relaxed font-medium">Funds are cryptographically pinned to verifiable milestones. 66% regional consensus required for release.</p>
+                         </div>
+                      </CardContent>
+                   </Card>
+                </section>
+             </div>
 
-                <TabsContent
-                  value="votes"
-                  className="space-y-8 animate-in fade-in duration-500 m-0"
-                >
-                  <div className="space-y-6">
-                    <h3 className="text-lg font-medium tracking-tight flex items-center gap-2">
-                      <History className="h-4 w-4 text-muted-foreground" />
-                      Voting Audit Trail
-                    </h3>
-                    <div className="border border-border rounded-xl overflow-hidden bg-background">
-                      <table className="w-full text-sm">
-                        <thead className="bg-muted border-b border-border">
+             {/* 3. AI Debate & Risk */}
+             <section className="space-y-4">
+                <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" /> AI Vetting & Consensus
+                </h3>
+                <div className="grid lg:grid-cols-12 gap-6">
+                   <div className="lg:col-span-8 bg-background rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">
+                     <AIDebateLive proposal={proposal} />
+                   </div>
+                   
+                   <div className="lg:col-span-4 flex flex-col gap-6">
+                      <Card className="border border-neutral-200 dark:border-neutral-800 shadow-sm rounded-2xl overflow-hidden bg-background relative group min-h-[160px] flex flex-col justify-center">
+                         <CardContent className="p-6 relative z-10 space-y-1">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Fairness Score</p>
+                            <div className="flex items-baseline gap-2">
+                               <span className="text-5xl font-black tracking-tighter text-foreground">{proposal.fairness_score}%</span>
+                               <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-widest">Protocol Verified</span>
+                            </div>
+                            <p className="text-[10px] leading-relaxed text-muted-foreground font-medium pt-2">Equitable distribution mathematically verified by the OpenFairTrip protocol.</p>
+                         </CardContent>
+                      </Card>
+
+                      {hasConstraints && (
+                         <Card className="border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/20 shadow-sm rounded-2xl overflow-hidden">
+                            <CardContent className="p-6 space-y-3">
+                               <div className="flex items-center gap-2 text-amber-700 dark:text-amber-500">
+                                  <AlertTriangle className="h-4 w-4" />
+                                  <span className="text-[10px] font-black uppercase tracking-widest">Risk Flags</span>
+                               </div>
+                               <ul className="space-y-2">
+                                 {proposal.risk_flags.map((flag, i) => (
+                                   <li key={i} className="text-xs text-amber-800 dark:text-amber-400 font-medium leading-relaxed">• {flag}</li>
+                                 ))}
+                               </ul>
+                            </CardContent>
+                         </Card>
+                      )}
+                   </div>
+                </div>
+             </section>
+             
+             {/* 4. Impact Details */}
+             <section className="space-y-4">
+                <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                  <Globe className="h-4 w-4" /> Expected Impact
+                </h3>
+                <Card className="border-neutral-200 dark:border-neutral-800 shadow-sm rounded-2xl overflow-hidden bg-background">
+                   <CardContent className="p-6 md:p-8">
+                      <p className="text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap">{proposal.expected_impact}</p>
+                   </CardContent>
+                </Card>
+             </section>
+
+             {/* 5. Audit Trail */}
+             <section className="space-y-4">
+                <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                  <History className="h-4 w-4" /> Voting Ledger
+                </h3>
+                <div className="border border-neutral-200 dark:border-neutral-800 shadow-sm rounded-2xl overflow-hidden bg-background">
+                   <div className="overflow-x-auto">
+                     <table className="w-full text-sm">
+                        <thead className="bg-neutral-50/50 dark:bg-neutral-900/50 border-b border-neutral-200 dark:border-neutral-800">
                           <tr>
-                            <th className="text-left px-4 py-3 font-medium text-xs text-muted-foreground">
-                              Voter Principal
-                            </th>
-                            <th className="text-center px-4 py-3 font-medium text-xs text-muted-foreground">
-                              Stance
-                            </th>
-                            <th className="text-right px-4 py-3 font-medium text-xs text-muted-foreground">
-                              Weight ($V_p$)
-                            </th>
-                            <th className="text-right px-4 py-3 font-medium text-xs text-muted-foreground">
-                              Timestamp
-                            </th>
+                            <th className="text-left px-6 py-4 font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Voter Principal</th>
+                            <th className="text-center px-6 py-4 font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Stance</th>
+                            <th className="text-right px-6 py-4 font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Weight (VP)</th>
+                            <th className="text-right px-6 py-4 font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Timestamp</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-border">
-                          {votes.length > 0 ? (
-                            votes.map((vote, i) => (
-                              <tr
-                                key={i}
-                                className="hover:bg-muted/50 transition-colors"
-                              >
-                                <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                                  @{vote.voter.substring(0, 16)}...
+                        <tbody className="divide-y divide-neutral-100 dark:divide-neutral-900">
+                          {votes.length > 0 ? votes.map((vote, i) => (
+                             <tr key={i} className="hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors">
+                                <td className="px-6 py-4 font-mono text-xs font-semibold text-muted-foreground">@{vote.voter.substring(0, 16)}...</td>
+                                <td className="px-6 py-4 text-center">
+                                   {vote.in_favor ? (
+                                      <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-500 font-bold text-[9px] uppercase tracking-widest px-2 py-0.5 rounded">
+                                        <CheckCircle2 className="h-3 w-3 mr-1.5 inline -mt-0.5"/> Approve
+                                      </Badge>
+                                   ) : (
+                                      <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-500 font-bold text-[9px] uppercase tracking-widest px-2 py-0.5 rounded">
+                                        <XCircle className="h-3 w-3 mr-1.5 inline -mt-0.5"/> Reject
+                                      </Badge>
+                                   )}
                                 </td>
-                                <td className="px-4 py-3 text-center">
-                                  {vote.in_favor ? (
-                                    <div className="inline-flex items-center gap-1.5 text-green-600 bg-green-500/10 px-2 py-0.5 rounded-md font-medium text-[10px] uppercase">
-                                      <CheckCircle2 className="h-3 w-3" />{" "}
-                                      Approve
-                                    </div>
-                                  ) : (
-                                    <div className="inline-flex items-center gap-1.5 text-red-600 bg-red-500/10 px-2 py-0.5 rounded-md font-medium text-[10px] uppercase">
-                                      <XCircle className="h-3 w-3" /> Reject
-                                    </div>
-                                  )}
+                                <td className="px-6 py-4 text-right font-mono text-xs font-bold text-primary">{vote.weight.toFixed(1)}</td>
+                                <td className="px-6 py-4 text-right text-muted-foreground text-[10px] uppercase tracking-widest font-medium">
+                                  {new Date(Number(vote.timestamp) / 1000000).toLocaleString()}
                                 </td>
-                                <td className="px-4 py-3 text-right font-medium text-primary font-mono">
-                                  {vote.weight.toFixed(1)}
+                             </tr>
+                          )) : (
+                             <tr>
+                                <td colSpan={4} className="px-6 py-16 text-center">
+                                   <div className="flex flex-col items-center justify-center space-y-2">
+                                     <History className="h-8 w-8 text-muted-foreground opacity-20" />
+                                     <p className="text-sm text-muted-foreground">No consensus data committed to the ledger yet.</p>
+                                   </div>
                                 </td>
-                                <td className="px-4 py-3 text-right text-muted-foreground text-xs">
-                                  {new Date(
-                                    Number(vote.timestamp) / 1000000,
-                                  ).toLocaleString()}
-                                </td>
-                              </tr>
-                            ))
-                          ) : (
-                            <tr>
-                              <td
-                                colSpan={4}
-                                className="px-4 py-8 text-center text-muted-foreground text-sm"
-                              >
-                                No consensus data committed to the ledger for
-                                this project yet.
-                              </td>
-                            </tr>
+                             </tr>
                           )}
                         </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </TabsContent>
-              </div>
-            </Tabs>
+                     </table>
+                   </div>
+                </div>
+             </section>
           </div>
 
-          {/* RIGHT COLUMN: Governance Sidebar */}
-          <div className="lg:col-span-4 space-y-6">
-            <ProposalGovernancePanel id={id} mode={mode} proposal={proposal} />
+          {/* Right Side: Governance Panel - Sticky */}
+          <div className="lg:col-span-4 xl:col-span-3 sticky top-0 space-y-6 self-start">
+             <ProposalGovernancePanel id={id} mode={mode} proposal={proposal} />
           </div>
         </div>
       </div>

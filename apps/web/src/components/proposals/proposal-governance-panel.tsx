@@ -346,33 +346,6 @@ export function ProposalGovernancePanel({
           </Button>
         </div>
 
-        <div className="p-4 rounded-lg bg-muted/50 border border-border space-y-3">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-muted-foreground" />
-            <span className="text-xs font-medium text-muted-foreground">
-              Constraints
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {proposal.risk_flags.length > 0 ? (
-              proposal.risk_flags.map((flag: string) => (
-                <Badge
-                  key={flag}
-                  className="max-w-full whitespace-normal break-words rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-left text-xs font-medium leading-relaxed text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-200"
-                >
-                  {flag}
-                </Badge>
-              ))
-            ) : (
-              <Badge
-                className="max-w-full whitespace-normal break-words rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-left text-xs font-medium leading-relaxed text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-200"
-              >
-                Clean Profile
-              </Badge>
-            )}
-          </div>
-        </div>
-
         {proposal.status === "Active" && (
           <div className="rounded-lg border border-border bg-background p-4 space-y-2">
             <div className="flex items-center gap-2 text-sm font-medium">

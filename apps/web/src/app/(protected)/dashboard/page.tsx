@@ -6,6 +6,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from "@/components/ui/card";
 import {
   ShieldCheck,
@@ -17,8 +18,17 @@ import {
   FileText,
   Briefcase,
   History,
+  Plus,
+  Compass,
+  Zap,
+  Globe,
+  Loader2,
+  Lock,
+  ChevronRight,
+  AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   fetchAllProposals,
   fetchAuditLogs,
@@ -33,6 +43,9 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { motion, AnimatePresence } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 
 type DashboardProfile = {
   reputation: number;
@@ -57,6 +70,50 @@ function formatActivityTime(timestamp: number) {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+/**
+ * Enterprise-grade KPI Card
+ */
+function MetricCard({ title, value, description, icon: Icon, status = "default", href, isLoading }: any) {
+  const statusColors = {
+    default: "text-muted-foreground",
+    success: "text-emerald-500",
+    warning: "text-amber-500",
+    primary: "text-primary",
+  };
+
+  return (
+    <Link href={href} className="group block">
+      <Card className="border-border/40 bg-background/50 backdrop-blur-md transition-all duration-500 hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/5 rounded-2xl overflow-hidden h-full">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between mb-4">
+             <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-colors">
+                <Icon className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+             </div>
+             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 group-hover:text-primary transition-colors">
+                {title}
+             </div>
+          </div>
+          <div className="space-y-1">
+             <div className={cn("text-3xl font-black tracking-tighter tabular-nums", isLoading && "animate-pulse text-muted-foreground/20")}>
+               {value}
+             </div>
+             <p className="text-[11px] font-medium text-muted-foreground leading-relaxed">
+               {description}
+             </p>
+          </div>
+          <div className="mt-6 flex items-center justify-between pt-4 border-t border-border/40">
+             <div className="flex items-center gap-1.5">
+                <div className={cn("h-1.5 w-1.5 rounded-full", status === 'success' ? 'bg-emerald-500 animate-pulse' : 'bg-primary/40')} />
+                <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Live Sync</span>
+             </div>
+             <ArrowRight className="h-3 w-3 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
 }
 
 export default function DashboardPage() {
@@ -160,300 +217,323 @@ export default function DashboardPage() {
     }
   }, [identity, isAuthenticated, user?.home_region, user?.id]);
 
-  if (!user) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center space-y-4 bg-background">
-        <ShieldCheck className="h-12 w-12 text-muted-foreground opacity-20" />
-        <h2 className="text-xl font-medium tracking-tight">Authentication Required</h2>
-        <p className="text-sm text-muted-foreground text-center max-w-sm">
-          Please sign in to access your governance overview.
-        </p>
-      </div>
-    );
-  }
+  const regionLabel = profile?.homeRegion || user?.home_region || user?.detected_location?.city || "Global Layer";
+  const identityTier = (profile?.userType || (user?.role === "funder" ? "InvestorUser" : "User")) === "InvestorUser" ? "Capital Provider" : "Community Node";
 
-  const statCards = [
-    {
-      title: "Voting Power",
-      value: isLoading ? "—" : formatMetric(realVP),
-      description: "Effective weight for decisions",
-      icon: Activity,
-      href: "/dashboard/governance",
-      actionText: "Vote",
-    },
-    {
-      title: "Reputation",
-      value: isLoading ? "—" : formatMetric(profile?.reputation ?? Number(user.reputation)),
-      description: "Base trust score on-chain",
-      icon: TrendingUp,
-      href: "/dashboard/verification",
-      actionText: "Verify",
-    },
-    {
-      title: "Regional Anchor",
-      value: profile?.homeRegion || user.home_region || user.detected_location?.city || "Global",
-      description: "Primary governance zone",
-      icon: MapPin,
-      href: "/dashboard/settings",
-      actionText: "Settings",
-    },
-    {
-      title: "Identity Tier",
-      value: (profile?.userType || (user.role === "funder" ? "InvestorUser" : "User")) === "InvestorUser" ? "Capital Provider" : "Community",
-      description: "Access level on network",
-      icon: ShieldCheck,
-      href: "/dashboard/verification/status",
-      actionText: "Check Status",
-    },
-  ];
+  const kycStatusDisplay = useMemo(() => {
+     if (user?.kyc_status === 'verified') return { label: 'Verified', color: 'text-emerald-500', icon: CheckCircle2 };
+     if (user?.kyc_status === 'pending') return { label: 'Pending', color: 'text-amber-500', icon: Activity };
+     return { label: 'Unverified', color: 'text-rose-500', icon: AlertCircle };
+  }, [user?.kyc_status]);
+
+  if (!user) return null;
 
   return (
-    <div className="flex-1 overflow-y-auto bg-background">
-      <div className="border-b bg-neutral-50/30 dark:bg-neutral-950/30 px-6 py-6 md:px-12 shrink-0">
-        <div className="max-w-screen-2xl mx-auto flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div className="space-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Overview</h1>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span className="flex h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-              Live Sync Active
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-             <div className="hidden sm:block text-right">
-               <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">Principal ID</p>
-               <p className="text-xs font-mono bg-neutral-100 dark:bg-neutral-900 px-2.5 py-1 rounded-md border border-neutral-200 dark:border-neutral-800 text-foreground">
-                 {user.id.substring(0, 16)}...
-               </p>
-             </div>
-          </div>
+    <div className="flex-1 flex flex-col h-full min-h-0 bg-background overflow-hidden relative">
+      
+      {/* Scrollable Container */}
+      <div className="flex-1 overflow-y-auto scroll-smooth">
+        
+        {/* HERO SECTION: WELCOME & IDENTITY */}
+        <div className="border-b bg-neutral-50/50 dark:bg-neutral-950/50 relative overflow-hidden">
+           {/* Abstract decor */}
+           <div className="absolute top-0 right-0 p-20 opacity-[0.03] rotate-12 -z-10">
+              <Globe className="h-64 w-64" />
+           </div>
+
+           <div className="max-w-screen-2xl mx-auto px-6 py-12 md:px-12">
+              <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-10">
+                 <div className="space-y-6">
+                    <div className="flex flex-wrap items-center gap-3">
+                       <Badge className="bg-foreground text-background border-none rounded-full px-4 py-1.5 text-[10px] font-black uppercase tracking-widest shadow-lg">
+                          {identityTier}
+                       </Badge>
+                       <div className="h-8 w-px bg-border/40 mx-2" />
+                       <div className={cn("flex items-center gap-2 text-[10px] font-black uppercase tracking-widest", kycStatusDisplay.color)}>
+                          <kycStatusDisplay.icon className="h-3.5 w-3.5" />
+                          Status: {kycStatusDisplay.label}
+                       </div>
+                    </div>
+
+                    <div className="space-y-2">
+                       <h1 className="text-3xl md:text-4xl font-black tracking-tighter text-foreground leading-tight uppercase">
+                          Account <br />
+                          <span className="text-muted-foreground/30">Overview</span>
+                       </h1>
+                       <p className="text-base font-medium text-muted-foreground flex items-center gap-3 pt-4 border-t border-border/40 mt-6">
+                          Welcome back, <span className="text-foreground font-black uppercase tracking-tight">{user.display_name || "Authorized Node"}</span>
+                          <span className="h-1 w-1 rounded-full bg-border" />
+                          <span className="text-sm font-mono text-muted-foreground/60">@{user.id.substring(0, 10)}...</span>
+                       </p>
+                    </div>
+                 </div>
+
+                 <div className="flex flex-col gap-6 lg:items-end">
+                    <div className="grid grid-cols-2 gap-4 w-full sm:w-auto">
+                       <Button 
+                         className="h-16 px-10 rounded-2xl bg-foreground text-background font-black text-xs uppercase tracking-widest shadow-2xl hover:scale-[1.02] active:scale-95 transition-all group shrink-0"
+                         onClick={() => router.push("/dashboard/proposals/new")}
+                       >
+                         <Plus className="mr-2 h-5 w-5 transition-transform group-hover:rotate-90" />
+                         New Proposal
+                       </Button>
+                       <Button 
+                         variant="outline"
+                         className="h-16 px-10 rounded-2xl border-2 border-border font-black text-xs uppercase tracking-widest hover:bg-muted/50 transition-all active:scale-95 shadow-sm shrink-0"
+                         onClick={() => router.push("/dashboard/explore")}
+                       >
+                         <Compass className="mr-2 h-5 w-5" />
+                         Impact Map
+                       </Button>
+                    </div>
+                    <div className="flex items-center gap-2 px-6 py-3 rounded-xl bg-background border border-border/40 shadow-sm w-fit">
+                       <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                       <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Mainnet Consensus Active</span>
+                    </div>
+                 </div>
+              </div>
+           </div>
         </div>
-      </div>
 
-      <div className="px-6 py-8 md:px-12">
-        <div className="max-w-screen-2xl mx-auto space-y-8">
-          
-          {/* Row 1: Key Metrics */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-            {statCards.map((stat, i) => (
-              <Link key={i} href={stat.href} className="block group">
-                <Card className="border-neutral-200 dark:border-neutral-800 shadow-sm transition-all hover:border-neutral-300 dark:hover:border-neutral-700 h-full flex flex-col justify-between hover:shadow-md">
-                  <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2 p-5">
+        <div className="max-w-screen-2xl mx-auto px-6 py-12 md:px-12 space-y-16 pb-32">
+           
+           {/* SECTION 2: THE CORE LEDGER METRICS */}
+           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <MetricCard 
+                title="Voting Power"
+                value={isLoading ? "—" : formatMetric(realVP)}
+                description="Regional weight coefficient for consensus signing."
+                icon={Zap}
+                status="primary"
+                href="/dashboard/governance"
+                isLoading={isLoading}
+              />
+              <MetricCard 
+                title="Reputation Score"
+                value={isLoading ? "—" : formatMetric(profile?.reputation ?? Number(user.reputation))}
+                description="Immutable trust record based on verified impact."
+                icon={TrendingUp}
+                status="success"
+                href="/dashboard/verification"
+                isLoading={isLoading}
+              />
+              <MetricCard 
+                title="Governance Zone"
+                value={regionLabel}
+                description="Your primary regional anchoring node."
+                icon={MapPin}
+                status="default"
+                href="/dashboard/settings"
+                isLoading={isLoading}
+              />
+              <MetricCard 
+                title="Identity Tier"
+                value={user.kyc_status === "verified" ? "Tier 3" : "Tier 1"}
+                description="Permission level on the OpenFairTrip network."
+                icon={ShieldCheck}
+                status={user.kyc_status === "verified" ? "success" : "warning"}
+                href="/dashboard/verification/status"
+                isLoading={isLoading}
+              />
+           </div>
+
+           {/* SECTION 3: WORKSPACES (THE DATA DEEP DIVE) */}
+           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+              
+              {/* LEFT: ACTIVE CONSENSUS FEED (65%) */}
+              <div className="lg:col-span-8 space-y-8">
+                 <div className="flex items-center justify-between">
                     <div className="space-y-1">
-                      <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-widest">
-                        {stat.title}
-                      </CardTitle>
-                      <div className={cn("text-2xl font-black tracking-tight mt-1", stat.value === "—" && "text-muted-foreground/30 animate-pulse")}>
-                        {stat.value}
-                      </div>
+                       <h3 className="text-xl font-black tracking-tighter uppercase flex items-center gap-3">
+                          <Activity className="h-6 w-6 text-primary" />
+                          Consensus Ledger
+                       </h3>
+                       <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Initialization rounds needing regional validation</p>
                     </div>
-                    <div className="h-8 w-8 rounded-full bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-colors">
-                      <stat.icon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-5 pt-0 mt-auto">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between border-t border-neutral-100 dark:border-neutral-900 pt-4 mt-2 gap-2">
-                       <p className="text-[10px] text-muted-foreground">{stat.description}</p>
-                       <span className="text-[10px] font-bold text-muted-foreground group-hover:text-primary transition-colors flex items-center gap-1 shrink-0">
-                         {stat.actionText} <ArrowRight className="h-3 w-3" />
-                       </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
+                    <Link href="/dashboard/governance" className="group flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary">
+                       Expand Feed <ChevronRight className="h-3 w-3 transition-transform group-hover:translate-x-1" />
+                    </Link>
+                 </div>
 
-          {/* Row 2: Action Center */}
-          <div className="grid gap-6 md:grid-cols-3">
-            {/* Active Proposals */}
-            <Card className="flex flex-col border-neutral-200 dark:border-neutral-800 shadow-sm">
-              <CardHeader className="border-b border-neutral-100 dark:border-neutral-900 bg-neutral-50/50 dark:bg-neutral-900/20 p-4">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <Clock className="h-4 w-4" />
-                    Action Required
-                  </CardTitle>
-                  <Link href="/dashboard/governance" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
-                    View all <ArrowRight className="h-3 w-3" />
-                  </Link>
-                </div>
-              </CardHeader>
-              <CardContent className="flex-1 p-0 overflow-hidden">
-                <div className="divide-y divide-neutral-100 dark:divide-neutral-900 h-full">
-                  {isLoading ? (
-                    <div className="p-4 space-y-4">
-                      {[1, 2].map((i) => <div key={i} className="h-10 bg-neutral-100 dark:bg-neutral-900 rounded-md animate-pulse" />)}
-                    </div>
-                  ) : activeProposals.length > 0 ? (
-                    activeProposals.map((p) => (
-                      <Link key={p.id} href={`/dashboard/proposals/detail?id=${p.id}`} className="flex flex-col gap-1.5 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors group">
-                        <div className="flex items-start justify-between gap-4">
-                          <p className="text-sm font-medium leading-snug group-hover:text-primary transition-colors line-clamp-1">{p.title}</p>
-                          <Badge variant="outline" className="text-[10px] font-mono shrink-0">{p.status}</Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground flex items-center gap-1.5"><MapPin className="h-3 w-3" /> {p.region_tag}</p>
-                      </Link>
-                    ))
-                  ) : (
-                    <div className="p-8 text-center text-sm text-muted-foreground">No active proposals in your region.</div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* My Submissions */}
-            <Card className="flex flex-col border-neutral-200 dark:border-neutral-800 shadow-sm">
-              <CardHeader className="border-b border-neutral-100 dark:border-neutral-900 bg-neutral-50/50 dark:bg-neutral-900/20 p-4">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <Briefcase className="h-4 w-4" />
-                    My Submissions
-                  </CardTitle>
-                  <Link href="/dashboard/proposals/mine" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
-                    View all <ArrowRight className="h-3 w-3" />
-                  </Link>
-                </div>
-              </CardHeader>
-              <CardContent className="flex-1 p-0 overflow-hidden">
-                <div className="divide-y divide-neutral-100 dark:divide-neutral-900 h-full">
-                  {isLoading ? (
-                    <div className="p-4 space-y-4">
-                      {[1, 2].map((i) => <div key={i} className="h-10 bg-neutral-100 dark:bg-neutral-900 rounded-md animate-pulse" />)}
-                    </div>
-                  ) : myProposals.length > 0 ? (
-                    myProposals.map((p) => (
-                      <Link key={p.id} href={`/dashboard/proposals/detail?id=${p.id}`} className="flex items-center justify-between p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors group">
-                        <div className="min-w-0 pr-4">
-                          <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">{p.title}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">${p.budget_amount.toLocaleString()} Budget</p>
-                        </div>
-                        <Badge variant="secondary" className="text-[10px]">{p.status}</Badge>
-                      </Link>
-                    ))
-                  ) : (
-                    <div className="p-8 flex flex-col items-center justify-center text-center space-y-3">
-                      <p className="text-sm text-muted-foreground">You haven't submitted any proposals.</p>
-                      <Link href="/dashboard/proposals/new" className="text-xs font-medium text-foreground hover:underline">Create New Draft</Link>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Contracts */}
-            <Card className="flex flex-col border-neutral-200 dark:border-neutral-800 shadow-sm">
-              <CardHeader className="border-b border-neutral-100 dark:border-neutral-900 bg-neutral-50/50 dark:bg-neutral-900/20 p-4">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <FileText className="h-4 w-4" />
-                    Trust Contracts
-                  </CardTitle>
-                  <Link href="/dashboard/contracts" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
-                    View all <ArrowRight className="h-3 w-3" />
-                  </Link>
-                </div>
-              </CardHeader>
-              <CardContent className="flex-1 p-0 overflow-hidden">
-                <div className="divide-y divide-neutral-100 dark:divide-neutral-900 h-full">
-                  {isLoading ? (
-                    <div className="p-4 space-y-4">
-                      {[1, 2].map((i) => <div key={i} className="h-10 bg-neutral-100 dark:bg-neutral-900 rounded-md animate-pulse" />)}
-                    </div>
-                  ) : myContracts.length > 0 ? (
-                    myContracts.map((c) => (
-                      <Link key={c.proposal_id} href={`/dashboard/contracts/detail?id=${c.proposal_id}`} className="flex flex-col gap-1.5 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors group">
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm font-medium truncate group-hover:text-primary transition-colors pr-2">{c.company_name}</p>
-                          <Badge variant="outline" className={cn("text-[10px] shrink-0", c.status === 'Signed' ? 'border-green-500/50 text-green-600' : '')}>
-                            {c.status}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground font-mono">ID: {c.proposal_id}</p>
-                      </Link>
-                    ))
-                  ) : (
-                    <div className="p-8 text-center text-sm text-muted-foreground">No active contracts found.</div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Row 3: Platform Pulse */}
-          <div className="grid gap-6 lg:grid-cols-3">
-            {/* Global Capital (Stacked to match feed height) */}
-            <div className="lg:col-span-1 flex flex-col gap-6">
-              <Card className="border-neutral-200 dark:border-neutral-800 shadow-sm flex-1 flex flex-col justify-center group">
-                <CardHeader className="p-5 pb-2">
-                  <CardTitle className="text-sm font-semibold flex items-center justify-between text-muted-foreground group-hover:text-foreground transition-colors">
-                    Total Network Budget
-                    <Link href="/dashboard/ledger"><ArrowRight className="h-4 w-4" /></Link>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-5 pt-0">
-                   <p className="text-3xl font-black tracking-tighter">${globalStats.budget.toLocaleString()}</p>
-                   <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground mt-3">Aggregate capital required</p>
-                </CardContent>
-              </Card>
-
-              <Card className="border-neutral-200 dark:border-neutral-800 shadow-sm flex-1 flex flex-col justify-center group">
-                <CardHeader className="p-5 pb-2">
-                  <CardTitle className="text-sm font-semibold flex items-center justify-between text-muted-foreground group-hover:text-foreground transition-colors">
-                    Locked in Escrow
-                    <Link href="/dashboard/ledger"><ArrowRight className="h-4 w-4" /></Link>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-5 pt-0">
-                   <p className="text-3xl font-black tracking-tighter">${globalStats.pledged.toLocaleString()}</p>
-                   <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground mt-3">Cryptographically locked</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Audit Feed */}
-            <Card className="lg:col-span-2 flex flex-col border-neutral-200 dark:border-neutral-800 shadow-sm">
-              <CardHeader className="border-b border-neutral-100 dark:border-neutral-900 bg-neutral-50/50 dark:bg-neutral-900/20 p-4">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <History className="h-4 w-4" />
-                    Live Platform Audit
-                  </CardTitle>
-                  <Link href="/dashboard/audit" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
-                    View Ledger <ArrowRight className="h-3 w-3" />
-                  </Link>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0 flex-1 overflow-hidden">
-                 <div className="divide-y divide-neutral-100 dark:divide-neutral-900">
+                 <div className="grid gap-4">
                     {isLoading ? (
-                      <div className="p-4 space-y-4">
-                        {[1, 2, 3].map((i) => <div key={i} className="h-6 bg-neutral-100 dark:bg-neutral-900 rounded-md animate-pulse" />)}
-                      </div>
-                    ) : globalLogs.length > 0 ? (
-                      globalLogs.map((log) => (
-                        <div key={log.id} className="p-3 md:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors">
-                           <div className="flex items-start gap-3 min-w-0">
-                              <div className="mt-0.5 h-2 w-2 rounded-full bg-neutral-300 dark:bg-neutral-700 shrink-0" />
-                              <div className="min-w-0">
-                                 <p className="text-xs font-medium text-foreground truncate" title={log.payload}>{log.payload}</p>
-                                 <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">{log.event_type} • ID: {log.id}</p>
-                              </div>
-                           </div>
-                           <span className="text-[10px] text-muted-foreground whitespace-nowrap sm:text-right shrink-0">
-                             {formatActivityTime(log.timestamp)}
-                           </span>
-                        </div>
-                      ))
+                       Array(3).fill(0).map((_, i) => <div key={i} className="h-32 rounded-3xl bg-muted/20 animate-pulse border border-border/40" />)
+                    ) : activeProposals.length > 0 ? (
+                       activeProposals.map(p => (
+                          <Link key={p.id} href={`/dashboard/proposals/detail?id=${p.id}`} className="group relative block">
+                             <Card className="border-border/40 bg-background hover:border-primary/30 transition-all duration-500 rounded-[2rem] overflow-hidden shadow-sm hover:shadow-2xl hover:shadow-primary/5">
+                                <div className="p-8 space-y-6">
+                                   <div className="flex items-start justify-between gap-8">
+                                      <div className="space-y-1.5">
+                                         <h4 className="font-bold text-lg leading-tight uppercase group-hover:text-primary transition-colors line-clamp-1">{p.title}</h4>
+                                         <div className="flex items-center gap-3">
+                                            <Badge variant="secondary" className="text-[9px] font-black uppercase bg-muted/50 rounded-full px-3">
+                                               {p.category}
+                                            </Badge>
+                                            <span className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+                                               <MapPin className="h-3 w-3" /> {p.region_tag}
+                                            </span>
+                                         </div>
+                                      </div>
+                                      <div className="text-right shrink-0">
+                                         <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest mb-1">Target</p>
+                                         <p className="text-lg font-black tabular-nums">${p.budget_amount.toLocaleString()}</p>
+                                      </div>
+                                   </div>
+                                   
+                                   <div className="space-y-3 pt-4 border-t border-border/40">
+                                      <div className="flex justify-between text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+                                         <span>Regional Consensus Weight</span>
+                                         <span className="text-primary">{Math.round(p.yes_weight)}% Approved</span>
+                                      </div>
+                                      <Progress value={Math.min(100, p.yes_weight)} className="h-1.5 bg-muted/30" />
+                                   </div>
+                                </div>
+                             </Card>
+                          </Link>
+                       ))
                     ) : (
-                      <div className="p-8 text-center text-sm text-muted-foreground">No recent platform activity.</div>
+                       <div className="py-24 text-center border-2 border-dashed border-border/40 rounded-[3rem] bg-muted/5 space-y-4">
+                          <History className="h-10 w-10 text-muted-foreground/20 mx-auto" />
+                          <p className="text-sm font-medium text-muted-foreground italic">No active regional consensus rounds detected.</p>
+                       </div>
                     )}
                  </div>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+
+              {/* RIGHT: PERSONAL NODE & CONTRACTS (35%) */}
+              <div className="lg:col-span-4 space-y-12">
+                 <div className="space-y-8">
+                    <div className="flex items-center justify-between">
+                       <h3 className="text-lg font-black uppercase tracking-tight flex items-center gap-2">
+                          <Briefcase className="h-4 w-4 text-primary" />
+                          Node Activity
+                       </h3>
+                    </div>
+                    <Card className="border-border/40 rounded-[2rem] overflow-hidden shadow-sm bg-neutral-50/50 dark:bg-neutral-900/30">
+                       <div className="divide-y divide-border/40">
+                          {myProposals.length > 0 ? (
+                             myProposals.map(p => (
+                                <Link key={p.id} href={`/dashboard/proposals/detail?id=${p.id}`} className="flex items-center justify-between p-6 hover:bg-background transition-colors group">
+                                   <div className="space-y-0.5 min-w-0 pr-4">
+                                      <p className="text-sm font-bold truncate group-hover:text-primary transition-colors">{p.title}</p>
+                                      <p className="text-[10px] font-mono text-muted-foreground/60 uppercase">Protocol ID: {p.id}</p>
+                                   </div>
+                                   <Badge variant="outline" className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full border-border/60">{p.status}</Badge>
+                                </Link>
+                             ))
+                          ) : (
+                             <div className="p-12 text-center text-muted-foreground text-xs font-medium italic">
+                                No proposals submitted.
+                             </div>
+                          )}
+                       </div>
+                    </Card>
+                 </div>
+
+                 <div className="space-y-8">
+                    <div className="flex items-center justify-between">
+                       <h3 className="text-lg font-black uppercase tracking-tight flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-primary" />
+                          Trust Ledger
+                       </h3>
+                    </div>
+                    <div className="grid gap-3">
+                       {myContracts.length > 0 ? (
+                          myContracts.map(c => (
+                             <Link key={c.proposal_id} href={`/dashboard/contracts/detail?id=${c.proposal_id}`} className="p-6 rounded-2xl border border-border/40 bg-background hover:border-primary/40 hover:shadow-lg transition-all group">
+                                <div className="flex items-center justify-between mb-2">
+                                   <p className="text-xs font-black uppercase tracking-tight group-hover:text-primary transition-colors truncate pr-4">{c.company_name}</p>
+                                   <Badge variant="outline" className={cn("text-[8px] font-black uppercase border-none px-2 py-0.5 rounded-full", c.status === 'Signed' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600')}>
+                                      {c.status}
+                                   </Badge>
+                                </div>
+                                <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono">
+                                   <span>Prop #{c.proposal_id}</span>
+                                   <span>v1.0.2</span>
+                                </div>
+                             </Link>
+                          ))
+                       ) : (
+                          <div className="p-10 rounded-3xl border border-dashed border-border/60 text-center opacity-40">
+                             <p className="text-[10px] font-black uppercase tracking-widest">Legal agreement stack empty.</p>
+                          </div>
+                       )}
+                    </div>
+                 </div>
+              </div>
+           </div>
+
+           {/* SECTION 4: PLATFORM INTEGRITY (FULL WIDTH) */}
+           <div className="space-y-8 pt-16 border-t border-border/40">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+                 <div className="space-y-1">
+                    <h3 className="text-xl font-black tracking-tighter uppercase flex items-center gap-4">
+                       <ShieldCheck className="h-6 w-6 text-primary animate-pulse" />
+                       Network Integrity
+                    </h3>
+                    <p className="text-xs text-muted-foreground font-bold uppercase tracking-[0.3em]">Real-time immutable transparency of the OpenFairTrip global layer</p>
+                 </div>
+                 
+                 <div className="flex items-center gap-10 px-10 py-6 bg-muted/20 border border-border/40 rounded-[2.5rem] shadow-inner">
+                    <div className="space-y-0.5">
+                       <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-60">Network Cap</p>
+                       <p className="text-xl font-black tracking-tighter">${(globalStats.budget / 1000).toFixed(1)}k</p>
+                    </div>
+                    <div className="h-10 w-px bg-border/40" />
+                    <div className="space-y-0.5">
+                       <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-60">Escrow Value</p>
+                       <p className="text-xl font-black tracking-tighter text-emerald-500">${(globalStats.pledged / 1000).toFixed(1)}k</p>
+                    </div>
+                 </div>
+              </div>
+
+              <Card className="border-border/40 bg-background/50 backdrop-blur-xl rounded-[3rem] overflow-hidden shadow-sm">
+                 <CardHeader className="p-8 border-b border-border/40 bg-neutral-50/50 dark:bg-neutral-900/50">
+                    <div className="flex items-center justify-between">
+                       <CardTitle className="text-[11px] font-black uppercase tracking-[0.3em] flex items-center gap-3">
+                          <History className="h-4 w-4 text-primary" />
+                          Live Transparency Stream
+                       </CardTitle>
+                       <Link href="/dashboard/audit" className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline">
+                          View Protocol Ledger
+                       </Link>
+                    </div>
+                 </CardHeader>
+                 <CardContent className="p-0">
+                    <div className="divide-y divide-border/20">
+                       {isLoading ? (
+                          Array(4).fill(0).map((_, i) => <div key={i} className="h-14 bg-muted/10 animate-pulse" />)
+                       ) : globalLogs.length > 0 ? (
+                          globalLogs.map(log => (
+                             <div key={log.id} className="p-5 px-8 flex items-center justify-between hover:bg-muted/5 transition-colors group">
+                                <div className="flex items-center gap-6 min-w-0">
+                                   <div className="h-2.5 w-2.5 rounded-full bg-primary/20 group-hover:bg-primary group-hover:scale-125 transition-all" />
+                                   <div className="min-w-0 space-y-1">
+                                      <p className="text-sm font-bold truncate text-foreground/80 leading-tight uppercase tracking-tight">{log.payload}</p>
+                                      <p className="text-[10px] font-mono text-muted-foreground/60 uppercase">{log.event_type} • EVENT_ID: {log.id}</p>
+                                   </div>
+                                </div>
+                                <div className="flex flex-col items-end shrink-0 ml-6">
+                                   <span className="text-[10px] font-black text-foreground/40 uppercase tracking-widest whitespace-nowrap">
+                                      {formatActivityTime(log.timestamp)}
+                                   </span>
+                                </div>
+                             </div>
+                          ))
+                       ) : (
+                          <div className="p-20 text-center text-muted-foreground italic text-sm">
+                             Awaiting network initialization events...
+                          </div>
+                       )}
+                    </div>
+                 </CardContent>
+              </Card>
+           </div>
 
         </div>
       </div>
+
     </div>
   );
 }
