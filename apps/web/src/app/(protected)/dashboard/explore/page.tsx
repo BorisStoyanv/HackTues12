@@ -11,6 +11,7 @@ function DashboardExploreContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const searchQuery = searchParams.get("q") ?? "";
+  const initialSelectedId = searchParams.get("id");
   const [inputValue, setInputValue] = useState(searchQuery);
   const [proposals, setProposals] = useState<SerializedProposal[]>([]);
 
@@ -110,6 +111,7 @@ function DashboardExploreContent() {
           mode="authenticated" 
           proposals={proposals} 
           searchQuery={searchQuery}
+          initialSelectedId={initialSelectedId}
         />
       </div>
     </div>
