@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { 
-  MapPin, 
+  Map,
   Map as MapIcon,
   Briefcase, 
   CheckCircle2, 
@@ -24,15 +24,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuthStore } from "@/lib/auth-store";
-import { cn } from "@/lib/utils";
-
-import { loadStripe } from "@stripe/stripe-js";
-
-// Initialize Stripe outside of component to avoid recreating it
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -40,7 +33,6 @@ import * as z from "zod";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -121,45 +113,6 @@ export default function VerificationPage() {
     }
   };
 
-  const handleStripeVerification = async () => {
-    setIsVerifying(true);
-    try {
-      const res = await fetch('/api/stripe/identity', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: 'regional' }),
-      });
-      
-      const { client_secret, error: serverError } = await res.json();
-      
-      if (serverError || !client_secret) {
-        console.error("Failed to create verification session:", serverError);
-        setIsVerifying(false);
-        return;
-      }
-
-      const stripe = await stripePromise;
-      if (!stripe) throw new Error("Stripe failed to initialize");
-
-      const { error } = await stripe.verifyIdentity(client_secret);
-
-      if (error) {
-        console.error("Verification failed or was canceled:", error);
-        setIsVerifying(false);
-      } else {
-        // Mock successful detection from ID
-        setIsVerifying(false);
-        const location = { city: "Berlin", country: "Germany" };
-        setDetectedLocation(location);
-        setGeoVerified(true, location);
-        setStep('location-confirmed');
-      }
-    } catch (err) {
-      console.error(err);
-      setIsVerifying(false);
-    }
-  };
-
   const handleExpertiseSubmit = (values: ExpertiseFormValues) => {
     console.log("Expertise submitted:", values);
     setStep('complete');
@@ -205,20 +158,17 @@ export default function VerificationPage() {
                   </div>
                 </div>
 
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  className="w-full h-12 gap-2"
-                  onClick={handleStripeVerification}
-                  disabled={isVerifying}
-                >
-                  {isVerifying ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <ShieldCheck className="h-4 w-4" />
-                  )}
-                  Verify via Government ID (Stripe Identity)
-                </Button>
+                <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900">
+                  <div className="flex gap-3">
+                    <Map className="h-5 w-5 text-primary shrink-0" />
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold">Automatic ID verification is moving to Veriff</p>
+                      <p className="text-xs text-muted-foreground">
+                        Stripe Identity has been removed from this step. For now, test regional onboarding with the address flow above while we wire Veriff into the geo-specific post-verification step.
+                      </p>
+                    </div>
+                  </div>
+                </div>
 
                 <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 p-4 flex gap-3">
                   <ShieldCheck className="h-5 w-5 text-blue-500 shrink-0" />

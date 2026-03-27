@@ -69,11 +69,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isAuthenticated: true,
       user: {
         id: mockPrincipal,
-        role: 'regional',
-        reputation: 150,
-        kyc_status: 'verified',
-        geo_verified: true,
-        detected_location: { city: 'Sofia', country: 'Bulgaria' }
+        role: null,
+        reputation: 0,
+        kyc_status: 'unverified',
+        geo_verified: false,
       },
     });
   },

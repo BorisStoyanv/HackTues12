@@ -139,11 +139,11 @@ export default function LoginPage() {
 							<button 
 								onClick={() => {
 									useAuthStore.getState().loginMock();
-									router.push("/dashboard");
+									router.push("/onboarding/role");
 								}}
 								className="text-xs text-muted-foreground hover:text-primary transition-colors italic"
 							>
-								[Dev Mode] Skip authentication and go to Dashboard
+								[Dev Mode] Skip authentication and start onboarding
 							</button>
 						</div>
 					</CardFooter>
