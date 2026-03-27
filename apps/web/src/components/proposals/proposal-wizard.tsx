@@ -8,95 +8,102 @@ import { ProposalFormValues, proposalSchema } from "@/lib/validations/proposal";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle2, ChevronRight, ChevronLeft, Building2, MapPin, FileText, Landmark, ShieldCheck } from "lucide-react";
+import { CheckCircle2, ChevronRight, ChevronLeft, Building2, MapPin, FileText, Landmark, ShieldCheck, Globe, Loader2, Zap, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LocationPicker } from "./location-picker";
+import { submitProposalClient } from "@/lib/api/client-mutations";
+import { useAuthStore } from "@/lib/auth-store";
+import { ProposalCategory } from "@/lib/types/api";
 
 const STEPS = [
-  { id: "basic", title: "Basic Info", icon: Building2 },
-  { id: "location", title: "Location Context", icon: MapPin },
-  { id: "data-pack", title: "Deep Data Pack", icon: FileText },
-  { id: "financials", title: "Financials & Timeline", icon: Landmark },
+  { id: "basic", title: "Basic Information", description: "Identity & Type", icon: Building2 },
+  { id: "location", title: "Geographic Context", description: "Mapping & Region", icon: MapPin },
+  { id: "impact", title: "Social Impact", description: "Projected Outcomes", icon: FileText },
+  { id: "execution", title: "Execution Strategy", description: "Logistics & Timeline", icon: Zap },
+  { id: "financials", title: "Financial Model", description: "Budget & Allocation", icon: Landmark },
 ];
 
 export function ProposalWizard() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [direction, setDirection] = useState(1); // 1 for forward, -1 for backward
+  const [direction, setDirection] = useState(1);
+  
+  const identity = useAuthStore((state) => state.identity);
 
   const form = useForm<ProposalFormValues>({
     resolver: zodResolver(proposalSchema),
     defaultValues: {
       title: "",
-      short_description: "",
-      category: "",
-      location: {
-        city: "",
-        country: "",
-        address: "",
-        lat: 0,
-        lng: 0,
-      },
-      data_pack: {
-        problem_statement: "",
-        proposed_solution: "",
-        success_metrics: "",
-      },
-      funding_goal: 0,
-      estimated_duration_months: 1,
+      description: "",
+      region_tag: "",
+      category: "Infrastructure",
+      budget_amount: 0,
+      budget_currency: "USD",
+      budget_breakdown: "",
+      executor_name: "",
+      execution_plan: "",
+      timeline: "",
+      expected_impact: "",
     },
     mode: "onTouched",
   });
 
   const { register, trigger, handleSubmit, formState: { errors }, watch, setValue, control } = form;
 
-  // Persist form state to local storage to prevent data loss
+  // Persist form state
   useEffect(() => {
-    const savedData = localStorage.getItem("proposal_draft");
+    const savedData = localStorage.getItem("proposal_draft_v3");
     if (savedData) {
       try {
-        const parsed = JSON.parse(savedData);
+        const parsed = JSON.parse(savedData) as Partial<ProposalFormValues>;
         Object.entries(parsed).forEach(([key, value]) => {
-          setValue(key as any, value);
+          if (value !== undefined) {
+             setValue(key as keyof ProposalFormValues, value as any);
+          }
         });
       } catch (e) {
-        console.error("Failed to parse saved proposal draft");
+        console.error("Failed to parse draft");
       }
     }
   }, [setValue]);
 
   useEffect(() => {
     const subscription = watch((value) => {
-      localStorage.setItem("proposal_draft", JSON.stringify(value));
+      localStorage.setItem("proposal_draft_v3", JSON.stringify(value));
     });
     return () => subscription.unsubscribe();
   }, [watch]);
 
   const handleNext = async () => {
-    let fieldsToValidate: any[] = [];
+    let fieldsToValidate: (keyof ProposalFormValues)[] = [];
     
-    // Determine which fields to validate based on current step
     switch (currentStep) {
       case 0:
-        fieldsToValidate = ["title", "short_description", "category"];
+        fieldsToValidate = ["title", "category", "description"];
         break;
       case 1:
-        fieldsToValidate = ["location.city", "location.country", "location.address", "location.lat", "location.lng"];
+        fieldsToValidate = ["region_tag"];
         break;
       case 2:
-        fieldsToValidate = ["data_pack.problem_statement", "data_pack.proposed_solution", "data_pack.success_metrics"];
+        fieldsToValidate = ["expected_impact"];
+        break;
+      case 3:
+        fieldsToValidate = ["executor_name", "execution_plan", "timeline"];
+        break;
+      case 4:
+        fieldsToValidate = ["budget_amount", "budget_currency", "budget_breakdown"];
         break;
       default:
         break;
     }
 
-    const isStepValid = await trigger(fieldsToValidate as any);
+    const isStepValid = await trigger(fieldsToValidate);
     if (isStepValid) {
       setDirection(1);
       setCurrentStep((prev) => Math.min(prev + 1, STEPS.length - 1));
@@ -111,356 +118,478 @@ export function ProposalWizard() {
   };
 
   const onSubmit = async (data: ProposalFormValues) => {
+    if (!identity) {
+      alert("Please login with Internet Identity to submit this proposal.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      console.log("Submitted Data:", data);
+      const category: ProposalCategory = { [data.category]: null } as any;
+
+      const result = await submitProposalClient(identity, {
+        ...data,
+        category,
+        budget_amount: data.budget_amount,
+      });
       
-      localStorage.removeItem("proposal_draft"); // Clear draft on success
-      
-      // In a real app, you'd get the ID back from the API
-      const fakeId = "prop-" + Math.random().toString(36).substring(2, 9);
-      router.push(`/proposals/${fakeId}`);
+      console.log("Broadcasting successful:", result);
+      localStorage.removeItem("proposal_draft_v3");
+      router.push(`/dashboard/proposals/${result.id.toString()}`);
     } catch (error) {
       console.error(error);
+      alert("Blockchain communication failed. Please check the console.");
       setIsSubmitting(false);
     }
   };
 
   const variants = {
-    enter: (direction: number) => {
-      return {
-        x: direction > 0 ? 50 : -50,
-        opacity: 0
-      };
-    },
-    center: {
-      zIndex: 1,
-      x: 0,
-      opacity: 1
-    },
-    exit: (direction: number) => {
-      return {
-        zIndex: 0,
-        x: direction < 0 ? 50 : -50,
-        opacity: 0
-      };
-    }
+    enter: (dir: number) => ({ x: dir > 0 ? 15 : -15, opacity: 0 }),
+    center: { x: 0, opacity: 1 },
+    exit: (dir: number) => ({ x: dir < 0 ? 15 : -15, opacity: 0 })
   };
 
   return (
-    <div className="flex flex-col md:flex-row gap-8 w-full max-w-5xl mx-auto">
-      {/* Sidebar Progress */}
-      <div className="w-full md:w-64 shrink-0">
-        <div className="sticky top-24 space-y-8">
-          <div>
-            <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-4">
-              Creation Process
-            </h3>
-            <div className="space-y-4">
-              {STEPS.map((step, index) => {
-                const Icon = step.icon;
-                const isActive = index === currentStep;
-                const isPast = index < currentStep;
-
-                return (
-                  <div key={step.id} className="flex items-center gap-3">
-                    <div
-                      className={cn(
-                        "flex items-center justify-center w-8 h-8 rounded-full border-2 transition-colors",
-                        isActive
-                          ? "border-primary text-primary"
-                          : isPast
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-muted text-muted-foreground"
-                      )}
-                    >
-                      {isPast ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
-                    </div>
-                    <span
-                      className={cn(
-                        "text-sm font-medium transition-colors",
-                        isActive ? "text-foreground" : isPast ? "text-foreground" : "text-muted-foreground"
-                      )}
-                    >
-                      {step.title}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+    <div className="flex flex-col xl:flex-row gap-12 items-start w-full">
+      {/* Refined Step Navigation */}
+      <div className="w-full xl:w-64 shrink-0">
+        <div className="sticky top-24 space-y-6">
+          <div className="space-y-2">
+             <div className="flex items-center justify-between">
+                <h3 className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground/60">
+                  Protocol Stage
+                </h3>
+                <span className="text-[10px] font-mono font-bold text-primary">
+                  {currentStep + 1} / {STEPS.length}
+                </span>
+             </div>
+             <div className="h-1 w-full bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
+                <motion.div 
+                  className="h-full bg-primary"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${((currentStep + 1) / STEPS.length) * 100}%` }}
+                  transition={{ duration: 0.5 }}
+                />
+             </div>
           </div>
 
-          <div className="hidden md:block p-4 bg-muted/50 rounded-lg border border-border/50">
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Your proposal will be evaluated by our AI Integrity agents (Advocate, Skeptic, Analyst) before it opens for funding. Be as thorough as possible.
-            </p>
+          <div className="space-y-0.5">
+            {STEPS.map((step, index) => {
+              const Icon = step.icon;
+              const isActive = index === currentStep;
+              const isPast = index < currentStep;
+
+              return (
+                <div 
+                  key={step.id} 
+                  className={cn(
+                    "flex gap-3 p-2.5 rounded-lg transition-all duration-200 border border-transparent",
+                    isActive ? "bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 shadow-sm" : "opacity-50"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "flex items-center justify-center w-7 h-7 rounded-md border transition-all duration-300 shrink-0",
+                      isActive
+                        ? "bg-primary border-primary text-primary-foreground shadow-sm"
+                        : isPast
+                        ? "bg-green-500/10 border-transparent text-green-500"
+                        : "bg-transparent border-neutral-200 dark:border-neutral-800 text-neutral-400"
+                    )}
+                  >
+                    {isPast ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Icon className="w-3.5 h-3.5" />}
+                  </div>
+                  <div className="flex-1 flex flex-col justify-center min-w-0">
+                    <p className={cn(
+                      "text-xs font-semibold truncate",
+                      isActive ? "text-foreground" : "text-muted-foreground"
+                    )}>
+                      {step.title}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/50">
+             <div className="flex items-center gap-2 mb-2 text-primary">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span className="text-[9px] font-bold uppercase tracking-widest text-foreground">Integrity Note</span>
+             </div>
+             <p className="text-[11px] text-muted-foreground leading-relaxed">
+               All data is immutable once broadcasted. AI agents will cross-reference claims against regional ground-truth.
+             </p>
           </div>
         </div>
       </div>
 
-      {/* Form Content */}
-      <div className="flex-1">
-        <Card className="border-border shadow-sm overflow-hidden">
-          <form onSubmit={handleSubmit(onSubmit)}>
-            <div className="relative min-h-[500px] flex flex-col">
-              <AnimatePresence mode="wait" custom={direction} initial={false}>
-                {/* STEP 1: Basic Info */}
-                {currentStep === 0 && (
-                  <motion.div
-                    key="step0"
-                    custom={direction}
-                    variants={variants}
-                    initial="enter"
-                    animate="center"
-                    exit="exit"
-                    transition={{ duration: 0.3, ease: "easeInOut" }}
-                    className="flex-1"
-                  >
-                    <CardHeader>
-                      <CardTitle>Basic Information</CardTitle>
-                      <CardDescription>
-                        Provide a clear, concise title and summary to help voters understand your project immediately.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="title">Proposal Title</Label>
+      {/* Main Wizard Form Container */}
+      <div className="flex-1 w-full max-w-4xl mx-auto">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-12 pb-24">
+          <div className="relative min-h-[500px] flex flex-col">
+            <AnimatePresence mode="wait" custom={direction} initial={false}>
+              {/* STEP 1: Basic Info */}
+              {currentStep === 0 && (
+                <motion.div
+                  key="step0"
+                  custom={direction}
+                  variants={variants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                  className="flex-1"
+                >
+                  <div className="space-y-10">
+                    <div className="space-y-1">
+                      <h2 className="text-xl font-bold tracking-tight">Classification & Identity</h2>
+                      <p className="text-muted-foreground text-sm">Define the core project identity and classification.</p>
+                    </div>
+
+                    <div className="space-y-8">
+                      <div className="space-y-2.5">
+                        <Label htmlFor="title" className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                           Project Title
+                        </Label>
                         <Input 
                           id="title" 
-                          placeholder="e.g., Clean Water Initiative: Nairobi" 
+                          placeholder="e.g. Urban Solar Grid: Central District" 
                           {...register("title")} 
-                          className={errors.title ? "border-destructive focus-visible:ring-destructive" : ""}
+                          className={cn(
+                            "h-10 text-base font-medium rounded-lg border-neutral-200 dark:border-neutral-800 bg-background focus-visible:ring-1 focus-visible:ring-primary transition-all duration-200",
+                            errors.title ? "border-destructive focus-visible:ring-destructive" : ""
+                          )}
                         />
-                        {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="category">Category</Label>
-                        <Select onValueChange={(val) => {
-                          setValue("category", val as string);
-                          trigger("category");
-                        }} defaultValue={watch("category")} value={watch("category")}>
-                          <SelectTrigger className={errors.category ? "border-destructive focus-visible:ring-destructive" : ""}>
-                            <SelectValue placeholder="Select a category" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="infrastructure">Infrastructure</SelectItem>
-                            <SelectItem value="education">Education</SelectItem>
-                            <SelectItem value="healthcare">Healthcare</SelectItem>
-                            <SelectItem value="environment">Environment</SelectItem>
-                            <SelectItem value="technology">Technology Access</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        {errors.category && <p className="text-xs text-destructive">{errors.category.message}</p>}
+                        {errors.title && <p className="text-[11px] text-destructive font-medium">{errors.title.message}</p>}
                       </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="short_description">Short Description</Label>
+                      <div className="grid md:grid-cols-2 gap-8">
+                         <div className="space-y-2.5">
+                            <Label className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                               Category
+                            </Label>
+                            <Controller
+                              name="category"
+                              control={control}
+                              render={({ field }) => (
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <SelectTrigger className="h-10 rounded-lg border-neutral-200 dark:border-neutral-800 bg-background">
+                                    <SelectValue placeholder="Select Category" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {["Infrastructure", "Marketing", "Events", "Conservation", "Education", "Technology", "Other"].map(cat => (
+                                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            />
+                         </div>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        <Label htmlFor="description" className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                           Executive Summary
+                        </Label>
                         <Textarea 
-                          id="short_description" 
-                          placeholder="Briefly describe what you aim to achieve... (max 200 characters)" 
-                          className={cn("resize-none h-24", errors.short_description ? "border-destructive focus-visible:ring-destructive" : "")}
-                          {...register("short_description")} 
+                          id="description" 
+                          placeholder="What specific problem are you solving? Summarize project objectives..." 
+                          className={cn(
+                            "min-h-[140px] p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-background text-sm leading-relaxed transition-all resize-none focus-visible:ring-1",
+                            errors.description ? "border-destructive focus-visible:ring-destructive" : ""
+                          )}
+                          {...register("description")} 
                         />
-                        {errors.short_description && <p className="text-xs text-destructive">{errors.short_description.message}</p>}
+                        <div className="flex justify-between items-center px-1">
+                           {errors.description ? <p className="text-[11px] text-destructive font-medium">{errors.description.message}</p> : <div />}
+                           <p className="text-[10px] font-mono text-muted-foreground">{(watch("description") || "").length} / 1000</p>
+                        </div>
                       </div>
-                    </CardContent>
-                  </motion.div>
-                )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
 
-                {/* STEP 2: Location Context */}
-                {currentStep === 1 && (
-                  <motion.div
-                    key="step1"
-                    custom={direction}
-                    variants={variants}
-                    initial="enter"
-                    animate="center"
-                    exit="exit"
-                    transition={{ duration: 0.3, ease: "easeInOut" }}
-                    className="flex-1"
-                  >
-                    <CardHeader>
-                      <CardTitle>Location Context</CardTitle>
-                      <CardDescription>
-                        Where will this project be executed? Accurate geographic data helps route your proposal to relevant regional voters and funders.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <Controller
-                        name="location"
-                        control={control}
-                        render={({ field }) => (
-                          <LocationPicker 
-                            value={field.value} 
-                            onChange={(val) => {
-                               field.onChange(val);
-                               trigger("location"); // Re-validate on change
-                            }}
-                            error={errors.location?.message || errors.location?.address?.message || errors.location?.lat?.message}
-                          />
-                        )}
-                      />
-                      
-                      {/* Detailed hidden errors display if needed, though they are bubbled up */}
-                      {errors.location?.address && <p className="text-xs text-destructive mt-1">{errors.location.address.message}</p>}
-                      {errors.location?.lat && <p className="text-xs text-destructive">{errors.location.lat.message}</p>}
-                    </CardContent>
-                  </motion.div>
-                )}
+              {/* STEP 2: Location */}
+              {currentStep === 1 && (
+                <motion.div
+                  key="step1"
+                  custom={direction}
+                  variants={variants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                  className="flex-1"
+                >
+                  <div className="space-y-10">
+                    <div className="space-y-1">
+                      <h2 className="text-xl font-bold tracking-tight">Geographic Anchor</h2>
+                      <p className="text-muted-foreground text-sm">Specify the impact zone to reach relevant regional voters.</p>
+                    </div>
 
-                {/* STEP 3: Deep Data Pack */}
-                {currentStep === 2 && (
-                  <motion.div
-                    key="step2"
-                    custom={direction}
-                    variants={variants}
-                    initial="enter"
-                    animate="center"
-                    exit="exit"
-                    transition={{ duration: 0.3, ease: "easeInOut" }}
-                    className="flex-1"
-                  >
-                    <CardHeader>
-                      <CardTitle>Deep Data Pack</CardTitle>
-                      <CardDescription>
-                        This data will be parsed directly by our AI Integrity agents during the debate phase. Use structured, factual language.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                      <div className="space-y-2">
-                        <Label htmlFor="data_pack.problem_statement">Problem Statement</Label>
+                    <div className="space-y-8">
+                      <div className="p-1 border border-neutral-200 dark:border-neutral-800 rounded-2xl bg-neutral-50 dark:bg-neutral-950 overflow-hidden shadow-sm">
+                        <Controller
+                          name="location"
+                          control={control}
+                          render={({ field }) => (
+                            <LocationPicker 
+                              value={{
+                                formatted_address: field.value?.formatted_address || "",
+                                city: field.value?.city || "",
+                                country: field.value?.country || "",
+                                lat: field.value?.lat || 0,
+                                lng: field.value?.lng || 0
+                              }} 
+                              onChange={(val) => {
+                                 field.onChange(val);
+                                 setValue("region_tag", val.city ? val.city.toLowerCase().replace(/\s+/g, '_') : "global");
+                                 trigger("location");
+                              }}
+                              error={errors.location?.message}
+                            />
+                          )}
+                        />
+                      </div>
+
+                      <div className="space-y-2.5">
+                        <Label htmlFor="region_tag" className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                           <Globe className="w-3 h-3" />
+                           Region Tag
+                        </Label>
+                        <Input 
+                          id="region_tag" 
+                          placeholder="e.g. sofia_center" 
+                          className="h-10 rounded-lg border-neutral-200 dark:border-neutral-800 font-mono text-sm bg-background"
+                          {...register("region_tag")} 
+                        />
+                        {errors.region_tag && <p className="text-[11px] text-destructive font-medium">{errors.region_tag.message}</p>}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* STEP 3: Impact */}
+              {currentStep === 2 && (
+                <motion.div
+                  key="step2"
+                  custom={direction}
+                  variants={variants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                  className="flex-1"
+                >
+                  <div className="space-y-10">
+                    <div className="space-y-1">
+                      <h2 className="text-xl font-bold tracking-tight">Social Impact</h2>
+                      <p className="text-muted-foreground text-sm">Define positive externalities and measurable outcomes.</p>
+                    </div>
+
+                    <div className="space-y-8">
+                      <div className="space-y-2.5">
+                        <Label htmlFor="expected_impact" className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                           Measurable Outcomes & KPIs
+                        </Label>
                         <Textarea 
-                          id="data_pack.problem_statement" 
-                          placeholder="Detail the exact problem this project solves. Provide statistics or ground-truth context if available..." 
-                          className={cn("min-h-32", errors.data_pack?.problem_statement ? "border-destructive focus-visible:ring-destructive" : "")}
-                          {...register("data_pack.problem_statement")} 
+                          id="expected_impact" 
+                          placeholder="How exactly does the community benefit? Provide specific data points..." 
+                          className={cn(
+                            "min-h-[220px] p-5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-background text-sm leading-relaxed resize-none transition-all duration-200 focus-visible:ring-1",
+                            errors.expected_impact ? "border-destructive focus-visible:ring-destructive" : ""
+                          )}
+                          {...register("expected_impact")} 
                         />
-                        {errors.data_pack?.problem_statement && <p className="text-xs text-destructive">{errors.data_pack.problem_statement.message}</p>}
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="data_pack.proposed_solution">Proposed Solution & Execution</Label>
-                        <Textarea 
-                          id="data_pack.proposed_solution" 
-                          placeholder="How will you solve the problem? What are the immediate execution steps?" 
-                          className={cn("min-h-32", errors.data_pack?.proposed_solution ? "border-destructive focus-visible:ring-destructive" : "")}
-                          {...register("data_pack.proposed_solution")} 
-                        />
-                        {errors.data_pack?.proposed_solution && <p className="text-xs text-destructive">{errors.data_pack.proposed_solution.message}</p>}
+                        {errors.expected_impact && <p className="text-[11px] text-destructive font-medium mt-1">{errors.expected_impact.message}</p>}
                       </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="data_pack.success_metrics">Measurable Success Metrics</Label>
-                        <Textarea 
-                          id="data_pack.success_metrics" 
-                          placeholder="e.g., Provide clean water access to 5,000 residents measured by smart meters installed..." 
-                          className={cn("min-h-24", errors.data_pack?.success_metrics ? "border-destructive focus-visible:ring-destructive" : "")}
-                          {...register("data_pack.success_metrics")} 
-                        />
-                        {errors.data_pack?.success_metrics && <p className="text-xs text-destructive">{errors.data_pack.success_metrics.message}</p>}
+                      <div className="p-4 rounded-xl bg-blue-50/50 dark:bg-blue-950/10 border border-blue-100 dark:border-blue-900/30 flex gap-4">
+                         <ShieldCheck className="w-4 h-4 text-blue-500 shrink-0" />
+                         <p className="text-xs text-blue-800/80 dark:text-blue-300/80 leading-relaxed">
+                           Claims will be cross-referenced by our AI Analyst against regional data.
+                         </p>
                       </div>
-                    </CardContent>
-                  </motion.div>
-                )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
 
-                {/* STEP 4: Financials & Timeline */}
-                {currentStep === 3 && (
-                  <motion.div
-                    key="step3"
-                    custom={direction}
-                    variants={variants}
-                    initial="enter"
-                    animate="center"
-                    exit="exit"
-                    transition={{ duration: 0.3, ease: "easeInOut" }}
-                    className="flex-1"
-                  >
-                    <CardHeader>
-                      <CardTitle>Financials & Timeline</CardTitle>
-                      <CardDescription>
-                        Define the required capital and the expected duration for project completion. Funds are held in escrow and released per milestone.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="funding_goal">Funding Goal (USD)</Label>
+              {/* STEP 4: Execution */}
+              {currentStep === 3 && (
+                <motion.div
+                  key="step3"
+                  custom={direction}
+                  variants={variants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                  className="flex-1"
+                >
+                  <div className="space-y-10">
+                    <div className="space-y-1">
+                      <h2 className="text-xl font-bold tracking-tight">Strategy & Timeline</h2>
+                      <p className="text-muted-foreground text-sm">Who will execute the project and when will milestones be reached?</p>
+                    </div>
+
+                    <div className="space-y-8">
+                      <div className="grid md:grid-cols-2 gap-8">
+                         <div className="space-y-2.5">
+                            <Label htmlFor="executor_name" className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Executor Identity</Label>
+                            <Input id="executor_name" placeholder="Lead organization or individual" className="h-10 px-4 rounded-lg border-neutral-200 dark:border-neutral-800 bg-background text-sm" {...register("executor_name")} />
+                            {errors.executor_name && <p className="text-[11px] text-destructive font-medium">{errors.executor_name.message}</p>}
+                         </div>
+                         <div className="space-y-2.5">
+                            <Label htmlFor="timeline" className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Timeline</Label>
+                            <Input id="timeline" placeholder="e.g. 6 months" className="h-10 px-4 rounded-lg border-neutral-200 dark:border-neutral-800 bg-background text-sm" {...register("timeline")} />
+                            {errors.timeline && <p className="text-[11px] text-destructive font-medium">{errors.timeline.message}</p>}
+                         </div>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        <Label htmlFor="execution_plan" className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Operational Roadmap</Label>
+                        <Textarea 
+                          id="execution_plan" 
+                          placeholder="Step-by-step roadmap including technical milestones..." 
+                          className="min-h-[180px] p-5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-background text-sm leading-relaxed resize-none focus-visible:ring-1" 
+                          {...register("execution_plan")} 
+                        />
+                        {errors.execution_plan && <p className="text-[11px] text-destructive font-medium mt-1">{errors.execution_plan.message}</p>}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* STEP 5: Financials */}
+              {currentStep === 4 && (
+                <motion.div
+                  key="step4"
+                  custom={direction}
+                  variants={variants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                  className="flex-1"
+                >
+                  <div className="space-y-10">
+                    <div className="space-y-1">
+                      <h2 className="text-xl font-bold tracking-tight">Financial Model</h2>
+                      <p className="text-muted-foreground text-sm">Specify the capital requirement and budget breakdown.</p>
+                    </div>
+
+                    <div className="space-y-8">
+                      <div className="grid md:grid-cols-3 gap-8 items-end">
+                        <div className="md:col-span-2 space-y-2.5">
+                          <Label htmlFor="budget_amount" className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Funding Target</Label>
                           <div className="relative">
-                            <span className="absolute left-3 top-2.5 text-muted-foreground">$</span>
+                            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">$</span>
                             <Input 
-                              id="funding_goal" 
+                              id="budget_amount" 
                               type="number"
                               placeholder="0.00" 
-                              className={cn("pl-7", errors.funding_goal ? "border-destructive focus-visible:ring-destructive" : "")}
-                              {...register("funding_goal", { valueAsNumber: true })} 
+                              className="h-11 pl-8 text-lg font-bold border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 rounded-lg"
+                              {...register("budget_amount", { valueAsNumber: true })} 
                             />
                           </div>
-                          {errors.funding_goal && <p className="text-xs text-destructive">{errors.funding_goal.message}</p>}
+                          {errors.budget_amount && <p className="text-[11px] text-destructive font-medium">{errors.budget_amount.message}</p>}
                         </div>
                         
-                        <div className="space-y-2">
-                          <Label htmlFor="estimated_duration_months">Estimated Duration (Months)</Label>
+                        <div className="space-y-2.5 pb-0.5">
+                          <Label htmlFor="budget_currency" className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Currency</Label>
                           <Input 
-                            id="estimated_duration_months" 
-                            type="number"
-                            placeholder="e.g., 6" 
-                            {...register("estimated_duration_months", { valueAsNumber: true })} 
-                            className={errors.estimated_duration_months ? "border-destructive focus-visible:ring-destructive" : ""}
+                            id="budget_currency" 
+                            placeholder="e.g. USD" 
+                            className="h-11 px-4 rounded-lg border border-neutral-200 dark:border-neutral-800 font-semibold"
+                            {...register("budget_currency")} 
                           />
-                          {errors.estimated_duration_months && <p className="text-xs text-destructive">{errors.estimated_duration_months.message}</p>}
                         </div>
                       </div>
-                      
-                      {errors.root && (
-                         <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-destructive text-sm mt-2">
-                            {errors.root.message}
-                         </div>
-                      )}
 
-                      <div className="mt-8 p-4 bg-primary/5 border border-primary/20 rounded-lg text-sm text-foreground space-y-2">
-                        <h4 className="font-semibold flex items-center gap-2">
-                          <ShieldCheck className="w-4 h-4 text-primary" /> Integrity Agreement
-                        </h4>
-                        <p className="text-muted-foreground text-xs leading-relaxed">
-                          By submitting this proposal, you agree to OpenFairTrip's transparent ledger policies. 
-                          If approved, funds will be programmatically released based on the success metrics provided above. 
-                          Any fraudulent reporting detected by regional verifiers will severely impact your cryptographic reputation score ($V_p$).
-                        </p>
+                      <div className="space-y-2.5">
+                        <Label htmlFor="budget_breakdown" className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Budget Breakdown</Label>
+                        <Textarea 
+                          id="budget_breakdown" 
+                          placeholder="Itemized allocation: 40% Infrastructure, 30% Labor, etc." 
+                          className="min-h-[140px] p-5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-background text-sm leading-relaxed resize-none focus-visible:ring-1" 
+                          {...register("budget_breakdown")} 
+                        />
+                        {errors.budget_breakdown && <p className="text-[11px] text-destructive font-medium mt-1">{errors.budget_breakdown.message}</p>}
                       </div>
-                    </CardContent>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <CardFooter className="flex justify-between border-t pt-6 pb-6 mt-auto">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleBack}
-                disabled={currentStep === 0 || isSubmitting}
-              >
-                <ChevronLeft className="w-4 h-4 mr-2" />
-                Back
-              </Button>
-              
-              {currentStep < STEPS.length - 1 ? (
-                <Button type="button" onClick={handleNext}>
-                  Continue
-                  <ChevronRight className="w-4 h-4 ml-2" />
-                </Button>
-              ) : (
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "Submitting securely..." : "Submit Proposal"}
-                  {!isSubmitting && <CheckCircle2 className="w-4 h-4 ml-2" />}
-                </Button>
+                      
+                      <div className="p-4 rounded-xl bg-primary/[0.02] border border-primary/10 flex items-center gap-4">
+                         <div className="h-10 w-10 rounded-lg bg-primary flex items-center justify-center shrink-0 shadow-md">
+                            <ShieldCheck className="w-5 h-5 text-primary-foreground" />
+                         </div>
+                         <div className="space-y-0.5">
+                            <h4 className="text-xs font-bold text-foreground tracking-tight">Protocol Agreement</h4>
+                            <p className="text-[10px] text-muted-foreground leading-relaxed">
+                              Funds released via milestone verification. Transparency is enforced at the ledger level.
+                            </p>
+                         </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
               )}
-            </CardFooter>
-          </form>
-        </Card>
+            </AnimatePresence>
+          </div>
+
+          {/* Navigation Controls */}
+          <div className="sticky bottom-6 z-10 pt-4">
+             <div className="p-2.5 rounded-xl bg-background/80 backdrop-blur-md border border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row justify-between items-center gap-3 shadow-lg">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={handleBack}
+                  disabled={currentStep === 0 || isSubmitting}
+                  className="h-10 px-5 rounded-lg font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-all text-xs"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5 mr-1.5" />
+                  Back
+                </Button>
+                
+                {currentStep < STEPS.length - 1 ? (
+                  <Button 
+                    type="button" 
+                    onClick={handleNext}
+                    className="w-full sm:w-auto h-10 px-8 rounded-lg font-bold text-xs bg-foreground text-background hover:bg-foreground/90 transition-all"
+                  >
+                    Continue
+                    <ChevronRight className="w-3.5 h-3.5 ml-1.5" />
+                  </Button>
+                ) : (
+                  <Button 
+                    type="submit" 
+                    disabled={isSubmitting || !identity}
+                    className="w-full sm:w-auto h-10 px-8 rounded-lg font-bold text-xs shadow-md bg-primary text-primary-foreground hover:opacity-90 transition-all"
+                  >
+                    {isSubmitting ? (
+                      <div className="flex items-center gap-2">
+                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                         Broadcasting...
+                      </div>
+                    ) : (
+                      <>
+                        Commit Proposal
+                        <CheckCircle2 className="w-3.5 h-3.5 ml-1.5" />
+                      </>
+                    )}
+                  </Button>
+                )}
+             </div>
+             {!identity && currentStep === STEPS.length - 1 && (
+               <p className="text-[9px] text-destructive font-bold uppercase text-center mt-2 tracking-widest">
+                 Identity Required to Sign Transaction
+               </p>
+             )}
+          </div>
+        </form>
       </div>
     </div>
   );

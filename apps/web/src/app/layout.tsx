@@ -12,6 +12,7 @@ export const metadata: Metadata = {
 };
 
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthInitializer } from "@/components/auth-initializer";
 
 export default function RootLayout({
   children,
@@ -23,11 +24,13 @@ export default function RootLayout({
       <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
+          defaultTheme="light"
           enableSystem
           disableTransitionOnChange
         >
-          <TooltipProvider>{children}</TooltipProvider>
+          <AuthInitializer>
+            <TooltipProvider>{children}</TooltipProvider>
+          </AuthInitializer>
         </ThemeProvider>
       </body>
     </html>

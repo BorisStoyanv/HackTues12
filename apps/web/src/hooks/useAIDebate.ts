@@ -1,0 +1,135 @@
+"use client";
+
+import { useState, useCallback, useRef } from "react";
+import { SerializedProposal } from "@/lib/actions/proposals";
+
+export interface DebateEvent {
+  event: string;
+  data: any;
+}
+
+export interface DebateState {
+  isStreaming: boolean;
+  events: DebateEvent[];
+  error: string | null;
+  result: any | null;
+}
+
+export function useAIDebate() {
+  const [state, setState] = useState<DebateState>({
+    isStreaming: false,
+    events: [],
+    error: null,
+    result: null,
+  });
+
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const startDebate = useCallback(async (proposal: SerializedProposal) => {
+    setState({
+      isStreaming: true,
+      events: [],
+      error: null,
+      result: null,
+    });
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    try {
+      console.log(`[AI Debate] Connecting to local proxy...`);
+      
+      const response = await fetch(`/api/ai/debate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "text/event-stream",
+        },
+        body: JSON.stringify({
+          proposal: {
+            name: proposal.title,
+            location: proposal.region_tag,
+            category: proposal.category,
+            info: proposal.description,
+            neededFunds: proposal.budget_amount,
+            currency: proposal.budget_currency,
+          },
+        }),
+        signal: abortController.signal,
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`AI Worker error (${response.status}): ${text || response.statusText}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("Body reader not available");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || ""; // Keep the last partial line in buffer
+
+        let currentEvent = "";
+        for (const line of lines) {
+          const trimmedLine = line.trim();
+          if (!trimmedLine) continue;
+
+          if (trimmedLine.startsWith("event: ")) {
+            currentEvent = trimmedLine.replace("event: ", "").trim();
+          } else if (trimmedLine.startsWith("data: ")) {
+            const dataStr = trimmedLine.replace("data: ", "").trim();
+            try {
+              const data = JSON.parse(dataStr);
+              console.log(`[AI Debate] Received event: ${currentEvent}`, data);
+              
+              if (currentEvent === "debate_completed") {
+                setState(prev => ({ ...prev, result: data }));
+              }
+              
+              if (currentEvent === "error") {
+                setState(prev => ({ ...prev, error: data.message || "Unknown AI error" }));
+              }
+
+              setState(prev => ({
+                ...prev,
+                events: [...prev.events, { event: currentEvent, data }],
+              }));
+            } catch (e) {
+              console.error("[AI Debate] Failed to parse SSE data", e, dataStr);
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      if (err.name === "AbortError") {
+        console.log("[AI Debate] Protocol aborted by user");
+      } else {
+        console.error("[AI Debate] Protocol error:", err);
+        setState(prev => ({ ...prev, error: err.message || "Failed to connect to AI worker" }));
+      }
+    } finally {
+      setState(prev => ({ ...prev, isStreaming: false }));
+    }
+  }, []);
+
+  const stopDebate = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  }, []);
+
+  return {
+    ...state,
+    startDebate,
+    stopDebate,
+  };
+}
