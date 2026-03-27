@@ -76,7 +76,7 @@ function ContractDetailContent() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-background pb-20">
+    <div className="h-full flex flex-col overflow-y-auto bg-background pb-20">
       <div className="border-b bg-neutral-50/30 dark:bg-neutral-950/30 px-6 py-4 md:px-8 shrink-0">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
