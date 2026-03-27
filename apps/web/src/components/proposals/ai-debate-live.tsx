@@ -1,292 +1,554 @@
 "use client";
 
-import { useEffect, useMemo, useState, useRef } from "react";
-import { useAIDebate } from "@/hooks/useAIDebate";
-import { SerializedProposal } from "@/lib/actions/proposals";
-import { Badge } from "@/components/ui/badge";
-import { 
-  MessageSquare, 
-  ShieldCheck, 
-  Loader2, 
-  Activity, 
-  Search, 
-  AlertCircle,
-  Cpu,
-  ArrowRight,
-  TrendingUp,
-  Scale,
-  Globe
+import { useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "framer-motion";
+import {
+  Activity,
+  BadgeAlert,
+  BrainCircuit,
+  CheckCircle2,
+  Globe,
+  MessageSquare,
+  Search,
+  ShieldCheck,
 } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { SerializedProposal } from "@/lib/actions/proposals";
 import { cn } from "@/lib/utils";
-import { motion, AnimatePresence } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import Link from "next/link";
 
 interface TypewriterProps {
-  text: string;
+  text?: string;
   speed?: number;
-  onComplete?: () => void;
   className?: string;
+  showCursor?: boolean;
+  onComplete?: () => void;
 }
 
-function Typewriter({ text = "", speed = 10, onComplete, className }: TypewriterProps) {
+function Typewriter({
+  text = "",
+  speed = 8,
+  className,
+  showCursor = true,
+  onComplete,
+}: TypewriterProps) {
   const [displayedText, setDisplayedText] = useState("");
   const index = useRef(0);
+  const completed = useRef(false);
 
   useEffect(() => {
     setDisplayedText("");
     index.current = 0;
+    completed.current = false;
   }, [text]);
 
   useEffect(() => {
-    if (index.current < text.length) {
-      const timeout = setTimeout(() => {
-        setDisplayedText((prev) => prev + text[index.current]);
-        index.current++;
-      }, speed);
-      return () => clearTimeout(timeout);
-    } else if (onComplete) {
-      onComplete();
+    if (index.current >= text.length) {
+      if (!completed.current) {
+        completed.current = true;
+        onComplete?.();
+      }
+      return;
     }
-  }, [displayedText, text, speed, onComplete]);
 
-  return <p className={className}>{displayedText}<span className="inline-block w-1 h-3 ml-0.5 bg-primary animate-pulse" /></p>;
+    const timeout = window.setTimeout(() => {
+      setDisplayedText((prev) => prev + text[index.current]);
+      index.current += 1;
+    }, speed);
+
+    return () => window.clearTimeout(timeout);
+  }, [displayedText, onComplete, speed, text]);
+
+  return (
+    <p className={className}>
+      {displayedText}
+      {showCursor ? (
+        <span className="ml-0.5 inline-block h-3 w-1 animate-pulse bg-primary" />
+      ) : null}
+    </p>
+  );
 }
 
-interface AIDebateLiveProps {
-  proposal: SerializedProposal;
-  onComplete?: (result: any) => void;
+type DebateTimelineItem =
+  | {
+      kind: "research";
+      searchText: string;
+      geoHint: string | null;
+    }
+  | {
+      kind: "message";
+      round: number;
+      side: "left" | "right";
+      agent: string;
+      text: string;
+      accent: string;
+      bubbleClassName: string;
+    }
+  | {
+      kind: "verdict";
+      round: number;
+      winner: string;
+      score: number;
+      rationale: string;
+    }
+  | {
+      kind: "final";
+      aggregateScore: number;
+      fundingPriorityScore: number;
+      fundingRecommendation: string;
+      rationale: string;
+      criteria: {
+        popularity: number;
+        tourism_attendance: number;
+        neglect_and_age: number;
+        potential_tourism_benefit: number;
+      };
+    };
+
+function formatPercent(value: number) {
+  return `${Math.round(value * 100)}%`;
 }
 
-export function AIDebateLive({ proposal, onComplete }: AIDebateLiveProps) {
-  const { startDebate, isStreaming, events, error, result } = useAIDebate();
-  const [started, setStarted] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+function getRecommendationPresentation(recommendation: string) {
+  switch (recommendation) {
+    case "fund":
+      return {
+        label: "Leaning Supportive",
+        headline: "AI debate leans toward backing this proposal",
+        description:
+          "The saved exchange ended with a supportive recommendation, while still leaving the final decision to voters.",
+        badgeClassName: "bg-emerald-500 text-white",
+        panelClassName:
+          "border-emerald-200 bg-emerald-50/80 text-emerald-950 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-100",
+      };
+    case "reject":
+      return {
+        label: "Leaning Cautious",
+        headline: "AI debate leans against backing this proposal right now",
+        description:
+          "The debate surfaced enough unresolved concerns that the current recommendation is to hold back support.",
+        badgeClassName: "bg-rose-500 text-white",
+        panelClassName:
+          "border-rose-200 bg-rose-50/80 text-rose-950 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-100",
+      };
+    default:
+      return {
+        label: "Needs Stronger Case",
+        headline: "AI debate suggests waiting for stronger evidence",
+        description:
+          "The models see potential here, but think the proposal would benefit from clearer evidence before support.",
+        badgeClassName: "bg-amber-500 text-white",
+        panelClassName:
+          "border-amber-200 bg-amber-50/80 text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-100",
+      };
+  }
+}
+
+export function AIDebateLive({ proposal }: { proposal: SerializedProposal }) {
+  const savedDebate = proposal.ai_debate;
+
+  const timeline = useMemo<DebateTimelineItem[]>(() => {
+    if (!savedDebate) {
+      return [];
+    }
+
+    return [
+      {
+        kind: "research",
+        searchText: savedDebate.search_text,
+        geoHint: savedDebate.geo_hint_display_name,
+      },
+      ...savedDebate.rounds.flatMap((round) => [
+        {
+          kind: "message" as const,
+          round: round.round,
+          side: "left" as const,
+          agent: "Advocate",
+          text: round.advocate_statement,
+          accent: "text-emerald-600",
+          bubbleClassName:
+            "border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/40 dark:bg-emerald-950/20",
+        },
+        {
+          kind: "message" as const,
+          round: round.round,
+          side: "right" as const,
+          agent: "Skeptic",
+          text: round.skeptic_statement,
+          accent: "text-rose-600",
+          bubbleClassName:
+            "border-rose-200 bg-rose-50/70 dark:border-rose-900/40 dark:bg-rose-950/20",
+        },
+        {
+          kind: "verdict" as const,
+          round: round.round,
+          winner: round.winner,
+          score: round.score,
+          rationale: round.rationale,
+        },
+      ]),
+      {
+        kind: "final",
+        aggregateScore: savedDebate.aggregate_score,
+        fundingPriorityScore: savedDebate.funding_priority_score,
+        fundingRecommendation: savedDebate.funding_recommendation,
+        rationale: savedDebate.rationale,
+        criteria: savedDebate.criteria_ratings,
+      },
+    ];
+  }, [savedDebate]);
+
+  const [visibleCount, setVisibleCount] = useState(0);
+  const advanceTimeoutRef = useRef<number | null>(null);
+
+  const recommendationPresentation = useMemo(
+    () =>
+      getRecommendationPresentation(
+        savedDebate?.funding_recommendation ?? "defer",
+      ),
+    [savedDebate?.funding_recommendation],
+  );
 
   useEffect(() => {
-    if (!started) {
-      startDebate(proposal);
-      setStarted(true);
+    if (!timeline.length) {
+      setVisibleCount(0);
+      return;
     }
-  }, [proposal, startDebate, started]);
+
+    setVisibleCount(1);
+
+    return () => {
+      if (advanceTimeoutRef.current !== null) {
+        window.clearTimeout(advanceTimeoutRef.current);
+        advanceTimeoutRef.current = null;
+      }
+    };
+  }, [timeline]);
+
+  const currentItem =
+    visibleCount > 0 ? timeline[Math.min(visibleCount - 1, timeline.length - 1)] : null;
 
   useEffect(() => {
-    if (result && onComplete) {
-      onComplete(result);
+    if (!currentItem || currentItem.kind === "message" || visibleCount >= timeline.length) {
+      return;
     }
-  }, [result, onComplete]);
 
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+    const delay = currentItem.kind === "research" ? 900 : currentItem.kind === "verdict" ? 1400 : 0;
+    if (delay === 0) {
+      return;
     }
-  }, [events]);
 
-  const currentStatus = useMemo(() => {
-    const lastEvent = events[events.length - 1];
-    if (!lastEvent) return "Initializing Connection...";
-    
-    switch (lastEvent.event) {
-      case "connected": return "Node Connection Active";
-      case "debate_started": return "Protocol Initialized";
-      case "internet_evidence": return "Evidence Mining...";
-      case "round_started": return `Round ${lastEvent.data.round} Started`;
-      case "round_statements": return `Streaming Arguments...`;
-      case "round_completed": return `Round ${lastEvent.data.round} Consensus`;
-      case "debate_completed": return "Protocol Concluded";
-      default: return lastEvent.event.replace("_", " ");
+    advanceTimeoutRef.current = window.setTimeout(() => {
+      setVisibleCount((prev) => Math.min(prev + 1, timeline.length));
+    }, delay);
+
+    return () => {
+      if (advanceTimeoutRef.current !== null) {
+        window.clearTimeout(advanceTimeoutRef.current);
+        advanceTimeoutRef.current = null;
+      }
+    };
+  }, [currentItem, timeline.length, visibleCount]);
+
+  const advanceAfterMessage = (index: number) => {
+    if (index !== visibleCount - 1 || visibleCount >= timeline.length) {
+      return;
     }
-  }, [events]);
 
-  const statements = useMemo(() => {
-    return events
-      .filter(e => e.event === "round_statements")
-      .flatMap(e => [
-        { agent: "Advocate", text: e.data.advocateStatement || e.data.advocate || "", round: e.data.round, color: "text-blue-500", bgColor: "bg-blue-500" },
-        { agent: "Skeptic", text: e.data.skepticStatement || e.data.skeptic || "", round: e.data.round, color: "text-red-500", bgColor: "bg-red-500" }
-      ]);
-  }, [events]);
+    if (advanceTimeoutRef.current !== null) {
+      window.clearTimeout(advanceTimeoutRef.current);
+    }
 
-  if (error) {
+    advanceTimeoutRef.current = window.setTimeout(() => {
+      setVisibleCount((prev) => Math.min(prev + 1, timeline.length));
+    }, 450);
+  };
+
+  if (!savedDebate) {
     return (
-      <div className="p-8 text-center border border-dashed border-destructive/20 rounded-2xl bg-destructive/5 animate-in fade-in duration-500">
-        <AlertCircle className="h-8 w-8 mx-auto text-destructive mb-3" />
-        <h4 className="text-lg font-bold text-destructive">Connection Interrupted</h4>
-        <p className="text-muted-foreground mt-2 text-sm max-w-xs mx-auto">{error}</p>
-        <Button 
-          variant="outline" 
-          size="sm"
-          className="mt-6 rounded-lg"
-          onClick={() => {
-            setStarted(false);
-            startDebate(proposal);
-          }}
-        >
-          Retry Protocol
-        </Button>
+      <div className="rounded-3xl border border-dashed border-neutral-200 bg-neutral-50/70 p-8 text-center dark:border-neutral-800 dark:bg-neutral-900/40">
+        <BadgeAlert className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+        <h3 className="text-lg font-semibold tracking-tight">
+          No saved AI debate yet
+        </h3>
+        <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+          This proposal does not have a persisted debate transcript yet. New
+          proposals will save the full AI debate during creation and replay it
+          here for every viewer.
+        </p>
       </div>
     );
   }
 
   return (
     <div className="space-y-8">
-      {/* Header Status - More subtle */}
-      <div className="flex items-center justify-between p-4 md:p-6 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800">
+      <div className="flex flex-col gap-4 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-950 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-4">
-          <div className={cn(
-            "h-10 w-10 rounded-xl flex items-center justify-center transition-all duration-500",
-            isStreaming ? "bg-primary text-primary-foreground" : "bg-green-500 text-white"
-          )}>
-             {isStreaming ? (
-               <Cpu className="h-5 w-5 animate-spin" />
-             ) : (
-               <ShieldCheck className="h-5 w-5" />
-             )}
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
+            <BrainCircuit className="h-5 w-5" />
           </div>
-          <div className="space-y-0.5">
-            <h3 className="text-sm font-bold uppercase tracking-tight">Autonomous Consensus Engine</h3>
-            <p className="text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-2">
-               <Activity className="h-2.5 w-2.5" />
-               {currentStatus}
+          <div className="space-y-1">
+            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-primary">
+              Saved Debate Replay
+            </p>
+            <h3 className="text-base font-semibold tracking-tight">
+              One AI debate, persisted on-chain for every viewer
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Advocate: {savedDebate.models.advocate} | Skeptic:{" "}
+              {savedDebate.models.skeptic} | Judge: {savedDebate.models.judge}
             </p>
           </div>
         </div>
-        <div className="hidden sm:flex items-center gap-4">
-           <div className="flex gap-1">
-              {[1, 2, 3].map((r) => {
-                 const isCompleted = events.some(e => e.event === "round_completed" && e.data.round === r);
-                 const isActive = events.some(e => e.event === "round_started" && e.data.round === r);
-                 return (
-                   <div 
-                     key={r} 
-                     className={cn(
-                       "h-1 w-6 rounded-full transition-all duration-500",
-                       isCompleted ? "bg-green-500" : isActive ? "bg-primary animate-pulse" : "bg-neutral-200 dark:bg-neutral-800"
-                     )} 
-                   />
-                 );
-              })}
-           </div>
+        <Badge
+          variant="outline"
+          className="w-fit rounded-full border-neutral-200 bg-neutral-50 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] dark:border-neutral-800 dark:bg-neutral-900"
+        >
+          Saved{" "}
+          {new Date(savedDebate.saved_at / 1000000).toLocaleString(undefined, {
+            dateStyle: "medium",
+            timeStyle: "short",
+          })}
+        </Badge>
+      </div>
+
+      <div
+        className={cn(
+          "rounded-2xl border p-5 shadow-sm",
+          recommendationPresentation.panelClassName,
+        )}
+      >
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="space-y-2">
+            <p className="text-[10px] font-black uppercase tracking-[0.25em] opacity-70">
+              AI takeaway
+            </p>
+            <h3 className="text-xl font-bold tracking-tight">
+              {recommendationPresentation.headline}
+            </h3>
+            <p className="max-w-2xl text-sm leading-relaxed opacity-80">
+              {recommendationPresentation.description}
+            </p>
+          </div>
+          <div className="space-y-2 md:text-right">
+            <Badge className={cn("border-none px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em]", recommendationPresentation.badgeClassName)}>
+              {recommendationPresentation.label}
+            </Badge>
+            <p className="text-sm font-medium opacity-80">
+              Debate score: {formatPercent(savedDebate.aggregate_score)}
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Main Stream Area */}
-      <div className="relative pl-10 border-l border-neutral-100 dark:border-neutral-800 space-y-12 py-2 ml-4">
-        
-        {/* Research Step */}
-        {events.some(e => e.event === "internet_evidence") && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="relative">
-            <div className="absolute -left-[51px] top-0 h-10 w-10 rounded-full bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-800 flex items-center justify-center shadow-sm">
-               <Search className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <div className="space-y-4">
-               <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Ph-0: Neural Search</span>
-               <div className="p-5 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800">
-                  <p className="text-sm leading-relaxed text-muted-foreground italic">
-                    Cross-referencing global data packs to validate socio-economic claims for <span className="text-foreground font-semibold">{proposal.title}</span>.
+      <div className="space-y-5">
+        {timeline.slice(0, visibleCount).map((item, index) => {
+          const isLatest = index === visibleCount - 1;
+
+          if (item.kind === "research") {
+            return (
+              <motion.div
+                key={`research-${index}`}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-2xl border border-neutral-200 bg-neutral-50/80 p-5 dark:border-neutral-800 dark:bg-neutral-900/60"
+              >
+                <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                  <Search className="h-3.5 w-3.5" />
+                  Internet evidence
+                </div>
+                <div className="space-y-3 text-sm text-foreground/85">
+                  <p className="flex items-start gap-2">
+                    <Activity className="mt-0.5 h-4 w-4 text-primary" />
+                    <span>
+                      Query used: <span className="font-medium">{item.searchText}</span>
+                    </span>
                   </p>
-               </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Dynamic Statements */}
-        {statements.map((stmt, i) => (
-          <motion.div 
-            key={`${stmt.agent}-${stmt.round}-${i}`}
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="relative"
-          >
-            <div className={cn(
-              "absolute -left-[51px] top-0 h-10 w-10 rounded-full border-2 border-background flex items-center justify-center shadow-md",
-              stmt.bgColor
-            )}>
-               <MessageSquare className="h-4 w-4 text-white" />
-            </div>
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <span className={cn("text-xs font-bold uppercase tracking-widest", stmt.color)}>
-                  Agent: {stmt.agent}
-                </span>
-                <Badge variant="outline" className="text-[9px] font-black h-4 px-2 rounded-sm bg-background">Round {stmt.round}</Badge>
-              </div>
-              <div className="p-6 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm hover:shadow-md transition-shadow">
-                <Typewriter 
-                  text={stmt.text} 
-                  speed={8}
-                  className="text-base leading-relaxed text-foreground/80 font-medium"
-                />
-              </div>
-            </div>
-          </motion.div>
-        ))}
-
-        {/* Final Synthesis */}
-        {result && (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="relative pt-6"
-          >
-            <div className="absolute -left-[51px] top-6 h-10 w-10 rounded-full bg-green-500 border border-background flex items-center justify-center shadow-lg z-20">
-               <ShieldCheck className="h-5 w-5 text-white" />
-            </div>
-            <div className="space-y-6">
-              <div className="flex items-center gap-3">
-                 <span className="text-[10px] font-black uppercase tracking-[0.3em] text-green-500">Final Verification Log</span>
-                 <div className="h-px flex-1 bg-green-500/20" />
-              </div>
-              
-              <div className="p-8 rounded-3xl bg-neutral-900 text-white shadow-xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-8 opacity-5">
-                   <ShieldCheck className="h-32 w-32" />
+                  {item.geoHint ? (
+                    <p className="flex items-start gap-2 text-muted-foreground">
+                      <Globe className="mt-0.5 h-4 w-4" />
+                      <span>Geo hint: {item.geoHint}</span>
+                    </p>
+                  ) : null}
                 </div>
-                
-                <div className="relative z-10 space-y-8">
-                   <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
-                      <div className="space-y-2">
-                         <p className="text-[9px] font-black uppercase tracking-widest text-green-400">Integrity Metric</p>
-                         <h4 className="text-5xl font-black italic tracking-tighter">
-                            {Math.round((result.aggregate_score ?? result.aggregateScore ?? 0) * 100)}%
-                         </h4>
-                      </div>
-                      <div className="flex flex-col items-end gap-3">
-                         <Badge className="bg-green-500 text-white font-bold border-none px-4 py-1 text-[10px] rounded-lg tracking-widest uppercase">
-                            Status: PASSED
-                         </Badge>
-                         <p className="text-[10px] font-bold uppercase opacity-50 tracking-widest">
-                            Priority: {((result.funding_priority_score ?? result.fundingPriorityScore ?? 0) * 100).toFixed(0)}/100
-                         </p>
-                      </div>
-                   </div>
+              </motion.div>
+            );
+          }
 
-                   <div className="space-y-4 pt-4 border-t border-white/10">
-                      <p className="text-lg leading-relaxed font-medium text-white/90 italic">
-                        "{result.final_summary}"
+          if (item.kind === "message") {
+            return (
+              <motion.div
+                key={`${item.agent}-${item.round}-${index}`}
+                initial={{ opacity: 0, x: item.side === "left" ? -16 : 16 }}
+                animate={{ opacity: 1, x: 0 }}
+                className={cn(
+                  "flex",
+                  item.side === "left" ? "justify-start" : "justify-end",
+                )}
+              >
+                <div className="max-w-3xl space-y-2">
+                  <div
+                    className={cn(
+                      "flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em]",
+                      item.side === "left" ? "justify-start" : "justify-end",
+                      item.accent,
+                    )}
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    <span>{item.agent}</span>
+                    <Badge
+                      variant="outline"
+                      className="rounded-full px-2 py-0 text-[10px] font-semibold"
+                    >
+                      Round {item.round}
+                    </Badge>
+                  </div>
+                  <div
+                    className={cn(
+                      "rounded-3xl border px-5 py-4 shadow-sm",
+                      item.bubbleClassName,
+                    )}
+                  >
+                    {isLatest ? (
+                      <Typewriter
+                        text={item.text}
+                        speed={6}
+                        className="text-sm leading-relaxed text-foreground/90 md:text-[15px]"
+                        showCursor
+                        onComplete={() => advanceAfterMessage(index)}
+                      />
+                    ) : (
+                      <p className="text-sm leading-relaxed text-foreground/90 md:text-[15px]">
+                        {item.text}
                       </p>
-                   </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            );
+          }
 
-                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                      <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-                         <p className="text-[9px] font-bold uppercase tracking-widest text-green-400 mb-2">Strategy</p>
-                         <p className="text-sm font-bold uppercase">{result.funding_recommendation}</p>
-                      </div>
-                      <div className="p-4 rounded-xl bg-white/5 border border-white/10 flex flex-col justify-center">
-                         <Link href="/audit" className="text-xs font-bold flex items-center gap-2 hover:text-green-400">
-                            Cryptographic Audit Hash <ArrowRight className="h-3 w-3" />
-                         </Link>
-                      </div>
-                   </div>
+          if (item.kind === "verdict") {
+            return (
+              <motion.div
+                key={`verdict-${item.round}`}
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="mx-auto max-w-2xl rounded-2xl border border-neutral-200 bg-background p-5 text-center shadow-sm dark:border-neutral-800"
+              >
+                <div className="mb-2 flex items-center justify-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Round {item.round} judge note
+                </div>
+                <p className="text-sm font-semibold text-foreground">
+                  Winner:{" "}
+                  <span className="capitalize">
+                    {item.winner === "tie" ? "Tie" : item.winner}
+                  </span>{" "}
+                  ({formatPercent(item.score)})
+                </p>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  {item.rationale}
+                </p>
+              </motion.div>
+            );
+          }
+
+          return (
+            <motion.div
+              key={`final-${index}`}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-3xl border border-neutral-900 bg-neutral-950 p-6 text-white shadow-2xl"
+            >
+              <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+                <div className="space-y-2">
+                  <p className="text-[10px] font-black uppercase tracking-[0.25em] text-emerald-400">
+                    Final verdict
+                  </p>
+                  <h4 className="text-4xl font-black tracking-tight">
+                    {formatPercent(item.aggregateScore)}
+                  </h4>
+                  <p className="text-sm text-white/70">
+                    Aggregate support score from the saved debate
+                  </p>
+                </div>
+                <div className="space-y-3 text-right">
+                  <Badge
+                    className={cn(
+                      "rounded-full border-none px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-white",
+                      recommendationPresentation.badgeClassName,
+                    )}
+                  >
+                    {recommendationPresentation.label}
+                  </Badge>
+                  <p className="text-sm text-white/80">
+                    Funding priority:{" "}
+                    <span className="font-semibold">
+                      {formatPercent(item.fundingPriorityScore)}
+                    </span>
+                  </p>
                 </div>
               </div>
-            </div>
-          </motion.div>
-        )}
-        
-        <div ref={scrollRef} className="h-4" />
+
+              <p className="mt-6 text-base leading-relaxed text-white/90">
+                {item.rationale}
+              </p>
+
+              <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/50">
+                  Gentle recommendation
+                </p>
+                <p className="mt-2 text-lg font-semibold text-white">
+                  {recommendationPresentation.headline}
+                </p>
+              </div>
+
+              <div className="mt-6 grid gap-3 md:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/50">
+                    Popularity
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatPercent(item.criteria.popularity)}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/50">
+                    Tourism Attendance
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatPercent(item.criteria.tourism_attendance)}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/50">
+                    Neglect And Age
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatPercent(item.criteria.neglect_and_age)}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/50">
+                    Tourism Benefit
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatPercent(item.criteria.potential_tourism_benefit)}
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          );
+        })}
       </div>
+
+      {visibleCount >= timeline.length ? (
+        <div className="flex items-center justify-center gap-2 text-xs font-medium text-emerald-600">
+          <CheckCircle2 className="h-4 w-4" />
+          Saved debate replay complete
+        </div>
+      ) : null}
     </div>
   );
 }

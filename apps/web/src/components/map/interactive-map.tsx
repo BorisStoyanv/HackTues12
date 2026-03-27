@@ -44,7 +44,7 @@ interface InteractiveMapProps {
 }
 
 export function InteractiveMap({
-	proposals,
+	proposals = [],
 	interactive = true,
 	onBoundingBoxChange,
 	onProposalSelect,
@@ -54,6 +54,7 @@ export function InteractiveMap({
 }: InteractiveMapProps) {
 	const mapRef = useRef<MapRef>(null);
 	const { resolvedTheme } = useTheme();
+	const safeProposals = Array.isArray(proposals) ? proposals : [];
 
 	const [viewState, setViewState] = useState<Partial<ViewState>>({
 		longitude: 23.3219,
@@ -64,15 +65,15 @@ export function InteractiveMap({
 	const [isDetailSheetOpen, setIsDetailSheetOpen] = useState(false);
 
 	const geoJsonData = useMemo(
-		() => convertProposalsToGeoJSON(proposals),
-		[proposals],
+		() => convertProposalsToGeoJSON(safeProposals),
+		[safeProposals],
 	);
 
 	const selectedProposal = useMemo(
-		() => proposals.find((p) => p.id === selectedProposalId),
-		[proposals, selectedProposalId],
+		() => safeProposals.find((p) => p && p.id === selectedProposalId),
+		[safeProposals, selectedProposalId],
 	);
-	const selectedProposalLocationLabel = selectedProposal
+	const selectedProposalLocationLabel = selectedProposal?.location
 		? selectedProposal.location.city && selectedProposal.location.country
 			? `${selectedProposal.location.city}, ${selectedProposal.location.country}`
 			: selectedProposal.location.city || selectedProposal.region_tag
@@ -87,16 +88,22 @@ export function InteractiveMap({
 		setViewState(evt.viewState);
 	}, []);
 
+	const lastBboxRef = useRef<string>("");
+
 	const onMoveEnd = useCallback(() => {
 		if (onBoundingBoxChange && mapRef.current) {
 			const bounds = mapRef.current.getMap().getBounds();
 			if (bounds) {
-				onBoundingBoxChange([
-					bounds.getWest(),
-					bounds.getSouth(),
-					bounds.getEast(),
-					bounds.getNorth(),
-				]);
+				const west = bounds.getWest();
+				const south = bounds.getSouth();
+				const east = bounds.getEast();
+				const north = bounds.getNorth();
+				
+				const currentBbox = `${west},${south},${east},${north}`;
+				if (currentBbox !== lastBboxRef.current) {
+					lastBboxRef.current = currentBbox;
+					onBoundingBoxChange([west, south, east, north]);
+				}
 			}
 		}
 	}, [onBoundingBoxChange]);
@@ -147,17 +154,25 @@ export function InteractiveMap({
 	}, []);
 
 	useEffect(() => {
-		if (selectedProposal && mapRef.current) {
-			mapRef.current.flyTo({
-				center: [
-					selectedProposal.location.lng,
-					selectedProposal.location.lat,
-				],
-				zoom: 12,
-				duration: 800,
-			});
+		if (!selectedProposalId || !mapRef.current) return;
+
+		const proposal = proposals.find((p) => p.id === selectedProposalId);
+		if (proposal?.location) {
+			const { lng, lat } = proposal.location;
+			if (typeof lng === "number" && typeof lat === "number") {
+				// Avoid redundant flyTo if we're already very close to the target
+				const currentCenter = mapRef.current.getCenter();
+				const dist = Math.abs(currentCenter.lng - lng) + Math.abs(currentCenter.lat - lat);
+				if (dist > 0.001) {
+					mapRef.current.flyTo({
+						center: [lng, lat],
+						zoom: 12,
+						duration: 800,
+					});
+				}
+			}
 		}
-	}, [selectedProposalId]);
+	}, [selectedProposalId, proposals]);
 
 	return (
 		<div
@@ -268,7 +283,7 @@ export function InteractiveMap({
 					</div>
 				)}
 
-				{interactive && selectedProposal && (
+				{interactive && selectedProposal?.location && (
 					<Popup
 						longitude={selectedProposal.location.lng}
 						latitude={selectedProposal.location.lat}

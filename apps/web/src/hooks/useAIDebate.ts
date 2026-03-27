@@ -37,10 +37,19 @@ export function useAIDebate() {
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
     let connectionTimedOut = false;
-    const timeoutId = window.setTimeout(() => {
-      connectionTimedOut = true;
-      abortController.abort();
-    }, 12000);
+    const idleTimeoutMs = 30000;
+    let timeoutId: number | null = null;
+    const resetTimeout = () => {
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+      timeoutId = window.setTimeout(() => {
+        connectionTimedOut = true;
+        abortController.abort();
+      }, idleTimeoutMs);
+    };
+
+    resetTimeout();
 
     try {
       const baseUrl = AI_WORKER_URL;
@@ -73,6 +82,8 @@ export function useAIDebate() {
         throw new Error(`AI Worker error (${response.status}): ${text || response.statusText}`);
       }
 
+      resetTimeout();
+
       const reader = response.body?.getReader();
       if (!reader) throw new Error("Body reader not available");
 
@@ -82,6 +93,8 @@ export function useAIDebate() {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
+
+        resetTimeout();
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
@@ -143,7 +156,9 @@ export function useAIDebate() {
         setState(prev => ({ ...prev, error: err.message || "Failed to connect to AI worker" }));
       }
     } finally {
-      window.clearTimeout(timeoutId);
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
       setState(prev => ({ ...prev, isStreaming: false }));
     }
   }, []);
