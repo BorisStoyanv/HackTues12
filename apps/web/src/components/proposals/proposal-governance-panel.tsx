@@ -100,7 +100,7 @@ export function ProposalGovernancePanel({
   ];
 
   return (
-    <Card className="border-border shadow-sm rounded-xl overflow-hidden sticky top-24 bg-background">
+    <Card className="border-border shadow-sm rounded-xl overflow-hidden bg-background lg:sticky lg:top-24">
       <CardHeader className="p-6 pb-4 border-b border-border">
         <CardTitle className="text-lg font-medium tracking-tight">
           Governance Status
@@ -139,11 +139,11 @@ export function ProposalGovernancePanel({
             <div className="relative pt-5">
               <div className="relative h-3 overflow-hidden rounded-full bg-muted">
                 <div
-                  className="absolute inset-y-0 left-0 rounded-full bg-emerald-500/90"
+                  className="pointer-events-none absolute inset-y-0 left-0 rounded-full bg-emerald-500/90"
                   style={{ width: `${Math.min(metrics.supportPercent, 100)}%` }}
                 />
                 <div
-                  className="absolute inset-y-0 right-0 rounded-full bg-red-500/85"
+                  className="pointer-events-none absolute inset-y-0 right-0 rounded-full bg-red-500/85"
                   style={{ width: `${Math.min(metrics.oppositionPercent, 100)}%` }}
                 />
               </div>
@@ -159,7 +159,7 @@ export function ProposalGovernancePanel({
               ].map((marker) => (
                 <div
                   key={`${marker.label}-${marker.value}`}
-                  className="absolute top-0 -translate-x-1/2"
+                  className="pointer-events-none absolute top-0 -translate-x-1/2"
                   style={{ left: `${marker.value}%` }}
                 >
                   <div className="flex flex-col items-center gap-1">
@@ -237,13 +237,13 @@ export function ProposalGovernancePanel({
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="relative z-10 grid grid-cols-2 gap-3">
                 <Button
                   type="button"
                   disabled={voteButtonsDisabled}
                   onClick={() => handleVote(true)}
                   className={cn(
-                    "h-12 justify-start rounded-xl border",
+                    "h-12 touch-manipulation justify-start rounded-xl border",
                     viewerVote?.inFavor
                       ? "bg-emerald-600 text-white hover:bg-emerald-600"
                       : "bg-background text-foreground hover:bg-emerald-500/10",
@@ -261,7 +261,7 @@ export function ProposalGovernancePanel({
                   disabled={voteButtonsDisabled}
                   onClick={() => handleVote(false)}
                   className={cn(
-                    "h-12 justify-start rounded-xl border",
+                    "h-12 touch-manipulation justify-start rounded-xl border",
                     viewerVote && !viewerVote.inFavor
                       ? "bg-red-600 text-white hover:bg-red-600"
                       : "bg-background text-foreground hover:bg-red-500/10",
@@ -358,16 +358,14 @@ export function ProposalGovernancePanel({
               proposal.risk_flags.map((flag: string) => (
                 <Badge
                   key={flag}
-                  variant="secondary"
-                  className="text-xs font-normal"
+                  className="max-w-full whitespace-normal break-words rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-left text-xs font-medium leading-relaxed text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-200"
                 >
                   {flag}
                 </Badge>
               ))
             ) : (
               <Badge
-                variant="secondary"
-                className="text-xs font-normal bg-green-500/10 text-green-700 dark:text-green-400 hover:bg-green-500/20"
+                className="max-w-full whitespace-normal break-words rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-left text-xs font-medium leading-relaxed text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-200"
               >
                 Clean Profile
               </Badge>

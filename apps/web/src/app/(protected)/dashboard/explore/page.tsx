@@ -32,8 +32,9 @@ function DashboardExploreContent() {
   }, []);
 
   // Platform-wide metrics for the explorer
-  const activeNodes = proposals.reduce((acc, p) => acc + (p.voter_count || 0), 0);
-  const totalPledged = proposals.reduce((acc, p) => acc + (p.budget_amount || 0), 0);
+  const safeProposals = Array.isArray(proposals) ? proposals : [];
+  const activeNodes = safeProposals.reduce((acc, p) => acc + (p?.voter_count || 0), 0);
+  const totalPledged = safeProposals.reduce((acc, p) => acc + (p?.budget_amount || 0), 0);
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

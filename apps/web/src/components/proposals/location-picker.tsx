@@ -2,12 +2,13 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import Map, { Marker, NavigationControl } from "react-map-gl/mapbox";
-import type { MapRef, ViewState } from "react-map-gl/mapbox";
+import type { MapMouseEvent, MapRef, ViewState } from "react-map-gl/mapbox";
 import { useTheme } from "next-themes";
 import { Input } from "@/components/ui/input";
 import { MapPin, Search, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MAPBOX_API_KEY } from "@/lib/env";
+import { reverseGeocodeCoordinates } from "@/lib/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 interface LocationData {
@@ -24,25 +25,13 @@ interface LocationPickerProps {
   error?: string;
 }
 
-interface MapboxFeature {
-  id: string;
-  place_name: string;
-  text: string;
-  place_type?: string[];
-  center: [number, number];
-  context?: {
-    id: string;
-    text: string;
-  }[];
+interface GeocodeResult {
+  city: string;
+  country: string;
+  lat: number;
+  lng: number;
+  formattedAddress: string;
 }
-
-const FEATURE_PRIORITY: Record<string, number> = {
-  locality: 0,
-  place: 1,
-  neighborhood: 2,
-  address: 3,
-  poi: 4,
-};
 
 export function LocationPicker({ value, onChange, error }: LocationPickerProps) {
   const { resolvedTheme } = useTheme();
@@ -50,7 +39,12 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
   
   const [searchQuery, setSearchQuery] = useState(value.formatted_address || "");
   const [isSearching, setIsSearching] = useState(false);
+<<<<<<< HEAD
+  const [searchResults, setSearchResults] = useState<GeocodeResult[]>([]);
+=======
+  const [isResolvingPin, setIsResolvingPin] = useState(false);
   const [searchResults, setSearchResults] = useState<MapboxFeature[]>([]);
+>>>>>>> origin/Boris
   const [showResults, setShowResults] = useState(false);
 
   // Initialize viewState based on value or default to a global view
@@ -86,20 +80,14 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
 
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        const token = MAPBOX_API_KEY;
-        if (!token) throw new Error("Mapbox token missing");
-
-        const res = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&types=locality,place,address,poi,neighborhood&limit=8`
-        );
-        const data = await res.json();
-        const features = Array.isArray(data.features) ? data.features : [];
-        features.sort((left: MapboxFeature, right: MapboxFeature) => {
-          const leftType = left.place_type?.[0] || "poi";
-          const rightType = right.place_type?.[0] || "poi";
-          return (FEATURE_PRIORITY[leftType] ?? 99) - (FEATURE_PRIORITY[rightType] ?? 99);
+        const res = await fetch("/api/geocode", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ address: query }),
         });
-        setSearchResults(features);
+        
+        const data = await res.json();
+        setSearchResults(data.results || []);
       } catch (err) {
         console.error("Geocoding error:", err);
       } finally {
@@ -108,46 +96,10 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
     }, 500);
   };
 
-  // Extract City and Country from Mapbox Context
-  const parseContext = (feature: MapboxFeature) => {
-    const featureType = feature.place_type?.[0] ?? "";
-    const exactLabel = feature.text || "";
-    let locality = "";
-    let place = "";
-    let country = "";
+  const handleSelectResult = (result: GeocodeResult) => {
+    const { lat, lng, city, country, formattedAddress } = result;
 
-    if (feature.context) {
-      for (const item of feature.context) {
-        if (item.id.startsWith("locality")) {
-          locality = item.text;
-        }
-        if (item.id.startsWith("place")) {
-          place = item.text;
-        }
-        if (item.id.startsWith("country")) {
-          country = item.text;
-        }
-      }
-    }
-
-    let city =
-      featureType === "locality" || featureType === "place"
-        ? exactLabel
-        : locality || place || exactLabel;
-
-    // Fallbacks if contexts aren't perfect
-    if (!city) city = "Unknown City";
-    if (!country) country = "Unknown Country";
-
-    return { city, country };
-  };
-
-  const handleSelectResult = (feature: MapboxFeature) => {
-    const [lng, lat] = feature.center;
-    const { city, country } = parseContext(feature);
-    const formatted_address = feature.place_name;
-
-    setSearchQuery(formatted_address);
+    setSearchQuery(formattedAddress);
     setShowResults(false);
     
     // Update map view
@@ -162,7 +114,7 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
     }
 
     onChange({
-      formatted_address,
+      formatted_address: formattedAddress,
       city,
       country,
       lat,
@@ -170,47 +122,79 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
     });
   };
 
+  const resolveAndSetLocation = useCallback(
+    async (lng: number, lat: number) => {
+      setIsResolvingPin(true);
+      setViewState((prev) => ({ ...prev, longitude: lng, latitude: lat }));
+      try {
+        const resolved = await reverseGeocodeCoordinates(lng, lat);
+        setSearchQuery(resolved.formatted_address);
+        onChange(resolved);
+      } catch (err) {
+        console.error("Reverse geocoding error:", err);
+        onChange({
+          formatted_address: value.formatted_address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+          city: value.city || "Pinned location",
+          country: value.country || "Unknown Country",
+          lat,
+          lng,
+        });
+      } finally {
+        setIsResolvingPin(false);
+      }
+    },
+    [onChange, value.city, value.country, value.formatted_address],
+  );
+
   // Reverse geocode when dragging the marker
+  // Note: Using the same /api/geocode route but with lat,lng coordinates if Google supports it,
+  // or we might need a separate reverse geocode route. For now, we'll just update coordinates.
   const handleMarkerDragEnd = async (e: { lngLat: { lng: number; lat: number } }) => {
     const lng = e.lngLat.lng;
     const lat = e.lngLat.lat;
+<<<<<<< HEAD
 
     setViewState((prev) => ({ ...prev, longitude: lng, latitude: lat }));
 
     try {
-      const token = MAPBOX_API_KEY;
-      if (!token) return;
-
-      const res = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}&types=locality,place,address,poi,neighborhood&limit=1`
-      );
-      const data = await res.json();
-      
-      if (data.features && data.features.length > 0) {
-        const feature = data.features[0];
-        const { city, country } = parseContext(feature);
-        const formatted_address = feature.place_name;
-        
-        setSearchQuery(formatted_address);
-        onChange({ formatted_address, city, country, lat, lng });
-      } else {
-        onChange({ ...value, lat, lng });
-      }
+      // For now, we update the lat/lng only as reverse geocoding via address string might be inaccurate.
+      // In a real scenario, we'd use lat,lng in the geocode API.
+      onChange({ ...value, lat, lng });
     } catch (err) {
-      console.error("Reverse geocoding error:", err);
+      console.error("Marker drag error:", err);
       onChange({ ...value, lat, lng });
     }
+=======
+    await resolveAndSetLocation(lng, lat);
+>>>>>>> origin/Boris
   };
+
+  const handleMapClick = useCallback(async (event: MapMouseEvent) => {
+    const lng = event.lngLat.lng;
+    const lat = event.lngLat.lat;
+    setViewState((prev) => ({ ...prev, longitude: lng, latitude: lat }));
+    if (mapRef.current) {
+      mapRef.current.flyTo({ center: [lng, lat], zoom: Math.max(Number(viewState.zoom || 12), 12) });
+    }
+    await resolveAndSetLocation(lng, lat);
+  }, [resolveAndSetLocation, viewState.zoom]);
 
   // Sync prop value to internal view state (e.g. initial load or programmatic changes)
   useEffect(() => {
-    if (value.lat && value.lng && (value.lat !== viewState.latitude || value.lng !== viewState.longitude)) {
-       setViewState((prev) => ({ ...prev, longitude: value.lng, latitude: value.lat, zoom: 14 }));
-       if (value.formatted_address && value.formatted_address !== searchQuery) {
-         setSearchQuery(value.formatted_address);
-       }
+    if (value.lat && value.lng) {
+      const latDiff = Math.abs(value.lat - (viewState.latitude || 0));
+      const lngDiff = Math.abs(value.lng - (viewState.longitude || 0));
+      
+      // Only sync if there is a significant difference to avoid loops
+      if (latDiff > 0.0001 || lngDiff > 0.0001) {
+        setViewState((prev) => ({ ...prev, longitude: value.lng, latitude: value.lat, zoom: 14 }));
+      }
+
+      if (value.formatted_address && value.formatted_address !== searchQuery) {
+        setSearchQuery(value.formatted_address);
+      }
     }
-  }, [value]);
+  }, [value.lat, value.lng, value.formatted_address]);
 
   return (
     <div className="space-y-4">
@@ -237,14 +221,14 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
 
         {showResults && searchResults.length > 0 && (
           <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-md shadow-lg overflow-hidden z-50 max-h-60 overflow-y-auto">
-            {searchResults.map((result) => (
+            {searchResults.map((result, idx) => (
               <button
-                key={result.id}
+                key={`${result.formattedAddress}-${idx}`}
                 type="button"
                 className="w-full text-left px-4 py-2 text-sm hover:bg-muted/50 focus:bg-muted/50 focus:outline-none transition-colors"
                 onClick={() => handleSelectResult(result)}
               >
-                {result.place_name}
+                {result.formattedAddress}
               </button>
             ))}
           </div>
@@ -256,8 +240,13 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
           ref={mapRef}
           {...viewState}
           onMove={(e) => setViewState(e.viewState)}
+          onClick={handleMapClick}
           mapStyle={mapStyle}
           mapboxAccessToken={MAPBOX_API_KEY}
+          onError={(e) => {
+            // Suppress Mapbox GL JS errors from flooding the console if the token is invalid or tiles fail to load
+            console.warn("Mapbox warning/error suppressed:", e.error?.message || "Unknown Mapbox error");
+          }}
         >
           <NavigationControl position="bottom-right" />
           
@@ -274,10 +263,16 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
           ) : (
              <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-background/50 backdrop-blur-[1px]">
                 <p className="text-sm font-medium bg-background px-4 py-2 rounded-full shadow-sm border">
-                   Search for a location to place a pin
+                   Search or click anywhere on the map to place a pin
                 </p>
              </div>
           )}
+
+          <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-full border bg-background/90 px-3 py-1.5 text-[11px] font-medium text-muted-foreground shadow-sm">
+            {isResolvingPin
+              ? "Resolving pinned location..."
+              : "Click map to drop a pin, or drag the marker to refine it"}
+          </div>
         </Map>
       </div>
       

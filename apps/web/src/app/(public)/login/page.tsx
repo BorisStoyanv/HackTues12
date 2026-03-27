@@ -5,13 +5,12 @@ import {
 	Card,
 	CardContent,
 	CardDescription,
-	CardFooter,
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
 import { useAuthStore } from "@/lib/auth-store";
 import { useInternetIdentity } from "ic-use-internet-identity";
-import { AlertCircle, Landmark } from "lucide-react";
+import { AlertCircle, Landmark, Shield, Lock, Zap } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -47,100 +46,108 @@ export default function LoginPage() {
 	}, [hasProfile, isAuthenticated, isInitializing, router]);
 
 	return (
-		<div className="flex min-h-screen items-center justify-center bg-background px-4">
-			<div className="w-full max-w-md space-y-8">
-				<div className="flex flex-col items-center text-center">
-					<Link href="/" className="flex items-center gap-2 mb-6">
-						<Landmark className="h-8 w-8 text-primary" />
-						<span className="text-2xl font-bold tracking-tight">
-							OpenFairTrip
-						</span>
+		<div className="flex min-h-screen items-center justify-center bg-background selection:bg-foreground selection:text-background font-sans antialiased text-foreground px-4 relative">
+			{/* Background Grid Pattern - Very subtle */}
+			<div className="fixed inset-0 -z-10 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:40px_40px]" />
+
+			<div className="w-full max-w-[400px] space-y-10">
+				<div className="flex flex-col items-center text-center space-y-6">
+					<Link href="/" className="transition-opacity hover:opacity-80 active:scale-95">
+						<div className="bg-foreground text-background rounded-lg p-2 shadow-sm">
+							<Landmark className="h-6 w-6" />
+						</div>
 					</Link>
+					<div className="space-y-1">
+						<h1 className="text-2xl font-semibold tracking-tight">OpenFairTrip</h1>
+						<p className="text-xs text-muted-foreground font-medium uppercase tracking-[0.2em]">
+							Protocol Access
+						</p>
+					</div>
 				</div>
 
-				<Card className="border-neutral-200 dark:border-neutral-800 shadow-lg">
-					<CardHeader className="space-y-1 text-center">
-						<CardTitle className="text-2xl font-bold">
-							Sign in
+				<Card className="border-border/60 bg-background shadow-sm rounded-xl overflow-hidden">
+					<CardHeader className="space-y-1 text-center pt-8 pb-4">
+						<CardTitle className="text-xl font-medium tracking-tight">
+							Authentication
 						</CardTitle>
-						<CardDescription>
-							Continue with Internet Identity
+						<CardDescription className="text-sm font-medium text-muted-foreground/60">
+							Identify via decentralized provider
 						</CardDescription>
 					</CardHeader>
-					<CardContent className="grid gap-4">
+					<CardContent className="grid gap-6 px-8 pb-8">
 						{isError && (
-							<div className="flex items-start gap-3 rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-								<AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+							<div className="flex items-start gap-3 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 text-[11px] text-destructive animate-in fade-in zoom-in-95 font-medium">
+								<AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
 								<p>
-									{error?.message ??
-										"Internet Identity login failed. Check popup blocking and try again."}
+									{error?.message ?? "Authentication failed. Please retry."}
 								</p>
 							</div>
 						)}
 						<Button
 							variant="default"
-							className="h-12 text-base font-semibold"
+							className="h-12 text-sm font-semibold rounded-lg bg-foreground text-background hover:bg-foreground/90 transition-all shadow-sm"
 							onClick={() => iiLogin()}
 							disabled={isLoggingIn}
 						>
 							{isLoggingIn ? (
-								<div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+								<div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
 							) : (
-								<>
-									<div className="mr-2 h-5 w-5 rounded-full bg-white flex items-center justify-center overflow-hidden">
-										{/* ICP Placeholder logo */}
-										<span className="text-[10px] text-black font-black">
-											∞
-										</span>
-									</div>
+								<span className="flex items-center gap-2">
 									Continue with Internet Identity
-								</>
+								</span>
 							)}
 						</Button>
 
 						{isLocal && (
-							<Button
-								variant="outline"
-								className="h-10 text-xs font-bold border-dashed border-primary/30 hover:border-primary/60 hover:bg-primary/5 transition-all text-primary/70"
-								onClick={() => loginAsDev()}
-							>
-								Developer Bypass (Local Only)
-							</Button>
+							<div className="flex flex-col gap-3 pt-2">
+								<div className="flex items-center gap-3">
+									<div className="h-px flex-1 bg-border/40" />
+									<span className="text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/40">Lab</span>
+									<div className="h-px flex-1 bg-border/40" />
+								</div>
+								<div className="grid grid-cols-2 gap-3">
+									<Button
+										variant="outline"
+										className="h-9 text-[10px] font-bold border-border/60 hover:bg-muted/30 transition-all uppercase tracking-widest rounded-lg"
+										onClick={() => loginAsDev(false)}
+									>
+										Stored
+									</Button>
+									<Button
+										variant="outline"
+										className="h-9 text-[10px] font-bold border-border/60 hover:bg-muted/30 transition-all uppercase tracking-widest rounded-lg"
+										onClick={() => loginAsDev(true)}
+									>
+										Fresh
+									</Button>
+								</div>
+							</div>
 						)}
 
-						<div className="flex flex-wrap items-center justify-center gap-1 text-sm text-muted-foreground">
-							By continuing, you agree to our{" "}
-							<Link
-								href="/terms"
-								className="underline hover:text-primary underline-offset-4"
-							>
-								Terms of Service
+						<div className="text-[10px] font-medium text-muted-foreground/50 leading-relaxed text-center px-2">
+							By connecting, you accept the protocol&apos;s{" "}
+							<Link href="/terms" className="text-foreground hover:underline underline-offset-4 transition-colors">
+								Terms
 							</Link>{" "}
 							and{" "}
-							<Link
-								href="/privacy"
-								className="underline hover:text-primary underline-offset-4"
-							>
-								Privacy Policy
+							<Link href="/privacy" className="text-foreground hover:underline underline-offset-4 transition-colors">
+								Policy
 							</Link>
 							.
 						</div>
 					</CardContent>
-					<CardFooter className="flex flex-col items-center justify-center gap-4">
-						<div className="pt-2 border-t w-full text-center">
-							<button
-								onClick={() => {
-									loginMock();
-									router.push("/onboarding/role");
-								}}
-								className="text-xs text-muted-foreground hover:text-primary transition-colors italic"
-							>
-								[Dev Mode] Skip authentication and start
-								onboarding
-							</button>
-						</div>
-					</CardFooter>
 				</Card>
+
+				<div className="flex items-center justify-center gap-6 text-muted-foreground/30">
+					<div className="flex items-center gap-1.5">
+						<Shield className="h-3 w-3" />
+						<span className="text-[9px] font-bold uppercase tracking-[0.1em]">ZK Proofs</span>
+					</div>
+					<div className="flex items-center gap-1.5">
+						<Lock className="h-3 w-3" />
+						<span className="text-[9px] font-bold uppercase tracking-[0.1em]">Secured</span>
+					</div>
+				</div>
 			</div>
 		</div>
 	);

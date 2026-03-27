@@ -22,10 +22,11 @@ interface ProposalExplorerProps {
 }
 
 export function ProposalExplorer({
-  proposals,
+  proposals = [],
   mode,
   searchQuery = "",
 }: ProposalExplorerProps) {
+  const safeProposals = Array.isArray(proposals) ? proposals : [];
   const [selectedProposalId, setSelectedProposalId] = useState<string | null>(
     null,
   );
@@ -34,17 +35,17 @@ export function ProposalExplorer({
   >(null);
 
   const linkPrefix =
-    mode === "authenticated" ? "/dashboard/proposals" : "/proposals";
+    mode === "authenticated" ? "/dashboard/proposals/detail" : "/proposals";
 
   // Filter proposals based on bounding box and search query
   const visibleProposals = useMemo(() => {
-    let filtered = proposals;
+    let filtered = safeProposals;
 
     if (searchQuery) {
       filtered = filtered.filter(
         (p) =>
-          p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (p.location?.city || "")
+          p?.title?.toLowerCase()?.includes(searchQuery.toLowerCase()) ||
+          (p?.location?.city || "")
             .toLowerCase()
             .includes(searchQuery.toLowerCase()),
       );
@@ -53,17 +54,25 @@ export function ProposalExplorer({
     if (boundingBox) {
       const [west, south, east, north] = boundingBox;
       filtered = filtered.filter((p) => {
+        if (!p?.location) return false;
         const { lng, lat } = p.location;
-        return lng >= west && lng <= east && lat >= south && lat <= north;
+        return (
+          typeof lng === "number" &&
+          typeof lat === "number" &&
+          lng >= west &&
+          lng <= east &&
+          lat >= south &&
+          lat <= north
+        );
       });
     }
 
     return filtered;
-  }, [proposals, boundingBox, searchQuery]);
+  }, [safeProposals, boundingBox, searchQuery]);
 
   const selectedProposal = useMemo(
-    () => proposals.find((p) => p.id === selectedProposalId),
-    [proposals, selectedProposalId],
+    () => safeProposals.find((p) => p.id === selectedProposalId),
+    [safeProposals, selectedProposalId],
   );
 
   return (

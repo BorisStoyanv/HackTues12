@@ -1,28 +1,83 @@
 export const idlFactory = ({ IDL }) => {
+  const UserType = IDL.Variant({
+    Community: IDL.Null,
+    Investor: IDL.Null,
+  });
+
+  const UserProfile = IDL.Record({
+    user_type: UserType,
+    reputation: IDL.Float64,
+    home_region: IDL.Opt(IDL.Text),
+    last_activity_ts: IDL.Nat64,
+    activity_count: IDL.Nat32,
+    vote_count: IDL.Nat32,
+    is_local_verified: IDL.Bool,
+    has_expert_standing: IDL.Bool,
+    concluded_votes: IDL.Nat32,
+    accurate_votes: IDL.Nat32,
+  });
+
+  const ProposalKind = IDL.Variant({
+    OpenFunding: IDL.Null,
+    ProgramAllocation: IDL.Null,
+  });
+
   const ProposalStatus = IDL.Variant({
-    QuorumNotMet: IDL.Null,
     Active: IDL.Null,
+    QuorumNotMet: IDL.Null,
+    Rejected: IDL.Null,
     AwaitingFunding: IDL.Null,
     Backed: IDL.Null,
-    Rejected: IDL.Null,
+  });
+
+  const EscrowState = IDL.Variant({
+    Held: IDL.Null,
+    Released: IDL.Null,
+    Refunded: IDL.Null,
+  });
+
+  const EscrowAgreement = IDL.Record({
+    funder: IDL.Principal,
+    beneficiary: IDL.Principal,
+    amount_e8s: IDL.Nat64,
+    transfer_fee_e8s: IDL.Nat64,
+    escrow_subaccount_hex: IDL.Text,
+    deposit_block_index: IDL.Nat64,
+    state: EscrowState,
+    deposit_reference: IDL.Opt(IDL.Text),
+    release_reference: IDL.Opt(IDL.Text),
+    refund_reference: IDL.Opt(IDL.Text),
+    deposited_at: IDL.Nat64,
+    released_at: IDL.Opt(IDL.Nat64),
+    refunded_at: IDL.Opt(IDL.Nat64),
+    release_block_index: IDL.Opt(IDL.Nat64),
+    refund_block_index: IDL.Opt(IDL.Nat64),
+  });
+
+  const EscrowAccountView = IDL.Record({
+    proposal_id: IDL.Nat64,
+    ledger_canister_id: IDL.Principal,
+    account_owner: IDL.Principal,
+    subaccount_hex: IDL.Text,
+    account_id_hex: IDL.Text,
+    requested_amount_e8s: IDL.Nat64,
+    suggested_transfer_fee_e8s: IDL.Nat64,
+    suggested_deposit_e8s: IDL.Nat64,
   });
 
   const ProposalCategory = IDL.Variant({
     Infrastructure: IDL.Null,
-    Technology: IDL.Null,
-    Other: IDL.Null,
-    Events: IDL.Null,
-    Marketing: IDL.Null,
-    Conservation: IDL.Null,
     Education: IDL.Null,
+    Environment: IDL.Null,
+    Technology: IDL.Null,
+    Healthcare: IDL.Null,
   });
 
   const Proposal = IDL.Record({
     id: IDL.Nat64,
-    status: ProposalStatus,
-    fairness_score: IDL.Opt(IDL.Float64),
-    title: IDL.Text,
+    kind: ProposalKind,
     submitter: IDL.Principal,
+    beneficiary: IDL.Principal,
     execution_plan: IDL.Opt(IDL.Text),
     risk_flags: IDL.Vec(IDL.Text),
     yes_weight: IDL.Float64,
@@ -41,107 +96,71 @@ export const idlFactory = ({ IDL }) => {
     budget_amount: IDL.Opt(IDL.Float64),
     no_weight: IDL.Float64,
     region_tag: IDL.Text,
-    timeline: IDL.Opt(IDL.Text),
+    title: IDL.Text,
+    budget_description: IDL.Text,
+    requested_funding_e8s: IDL.Nat64,
+    fairness_score: IDL.Opt(IDL.Float64),
+    funding_program_id: IDL.Opt(IDL.Nat64),
+    status: ProposalStatus,
+    escrow: IDL.Opt(EscrowAgreement),
   });
 
   const Vote = IDL.Record({
-    weight: IDL.Float64,
+    proposal_id: IDL.Nat64,
     voter: IDL.Principal,
     in_favor: IDL.Bool,
-    proposal_id: IDL.Nat64,
+    weight: IDL.Float64,
     timestamp: IDL.Nat64,
   });
 
-  const ContractStatus = IDL.Variant({
-    Draft: IDL.Null,
-    Rejected: IDL.Null,
-    PendingSignatures: IDL.Null,
-    Signed: IDL.Null,
-    Expired: IDL.Null,
-  });
-
-  const ContractParty = IDL.Record({
-    legal_name: IDL.Text,
-    representative_name: IDL.Text,
-    representative_principal: IDL.Opt(IDL.Principal),
-    registration_id: IDL.Text,
-  });
-
-  const SignatureMode = IDL.Variant({
-    OnChainAck: IDL.Null,
-    ExternalQualifiedSignature: IDL.Null,
-  });
-
-  const ContractRecord = IDL.Record({
-    external_envelope_id: IDL.Opt(IDL.Text),
-    status: ContractStatus,
-    external_provider: IDL.Opt(IDL.Text),
-    updated_at: IDL.Nat64,
-    milestone_hash: IDL.Opt(IDL.Text),
-    document_hash: IDL.Text,
-    document_uri: IDL.Text,
-    investor_ack_at: IDL.Opt(IDL.Nat64),
-    external_signed_at: IDL.Opt(IDL.Nat64),
-    signature_mode: SignatureMode,
-    created_at: IDL.Nat64,
-    created_by: IDL.Principal,
-    company: ContractParty,
-    proposal_id: IDL.Nat64,
-    investor_principal: IDL.Principal,
-    company_ack_at: IDL.Opt(IDL.Nat64),
-  });
-
   const AuditEventType = IDL.Variant({
-    InvestorContractAcked: IDL.Null,
-    ReputationPenalized: IDL.Null,
     UserRegistered: IDL.Null,
-    InvestorVerified: IDL.Null,
-    ExternalSignatureRecorded: IDL.Null,
+    AttributeVerified: IDL.Null,
+    ProposalSubmitted: IDL.Null,
+    AiScoreIngested: IDL.Null,
+    VoteCast: IDL.Null,
     ProposalFinalized: IDL.Null,
     ProposalBacked: IDL.Null,
-    CompanyContractAcked: IDL.Null,
-    ContractCreated: IDL.Null,
+    EscrowReleased: IDL.Null,
+    EscrowRefunded: IDL.Null,
     ReputationAwarded: IDL.Null,
-    ProposalSubmitted: IDL.Null,
-    VoteCast: IDL.Null,
+    ReputationPenalized: IDL.Null,
   });
 
   const AuditEvent = IDL.Record({
     id: IDL.Nat64,
-    actor: IDL.Principal,
-    proposal_id: IDL.Opt(IDL.Nat64),
     timestamp: IDL.Nat64,
+    actor: IDL.Principal,
     event_type: AuditEventType,
+    proposal_id: IDL.Opt(IDL.Nat64),
     payload: IDL.Text,
   });
 
-  const Config = IDL.Record({
-    majority_threshold: IDL.Float64,
-    quorum_percent: IDL.Float64,
-    voting_period_ns: IDL.Nat64,
-    quorum_min_region_size: IDL.Nat32,
-    absolute_majority: IDL.Float64,
+  const CanisterSettings = IDL.Record({
+    controller: IDL.Principal,
+    ledger_canister_id: IDL.Principal,
+    quorum_basis_points: IDL.Nat16,
+    approval_basis_points: IDL.Nat16,
+    active_window_ns: IDL.Nat64,
+    voting_window_ns: IDL.Nat64,
+    small_region_cutoff: IDL.Nat32,
+    small_region_min_votes: IDL.Nat32,
   });
 
-  const ProposalPhase = IDL.Record({
-    proposal_id: IDL.Nat64,
-    proposal_status: ProposalStatus,
-    phase_label: IDL.Text,
-    contract_status: IDL.Opt(ContractStatus),
-  });
-
-  const ResultProposalPhase = IDL.Variant({
-    Ok: ProposalPhase,
+  const ResultEscrowAccountView = IDL.Variant({
+    Ok: EscrowAccountView,
     Err: IDL.Text,
   });
 
   return IDL.Service({
-    get_audit_log: IDL.Func([IDL.Nat32, IDL.Nat32], [IDL.Vec(AuditEvent)], ["query"]),
-    get_config: IDL.Func([], [Config], ["query"]),
-    get_proposal_phase: IDL.Func([IDL.Nat64], [ResultProposalPhase], ["query"]),
-    get_proposal_votes: IDL.Func([IDL.Nat64], [IDL.Vec(Vote)], ["query"]),
-    get_region_total_vp: IDL.Func([IDL.Text], [IDL.Float64], ["query"]),
-    list_contracts: IDL.Func([IDL.Opt(ContractStatus)], [IDL.Vec(ContractRecord)], ["query"]),
-    list_proposals: IDL.Func([IDL.Opt(ProposalStatus)], [IDL.Vec(Proposal)], ["query"]),
+    get_my_profile: IDL.Func([], [IDL.Opt(UserProfile)], ["query"]),
+    get_proposal_escrow_account: IDL.Func([IDL.Nat64], [ResultEscrowAccountView], ["query"]),
+    get_proposal_view: IDL.Func([IDL.Nat64], [IDL.Opt(Proposal)], ["query"]),
+    get_quorum_snapshot: IDL.Func([IDL.Text], [IDL.Nat32], ["query"]),
+    get_settings_view: IDL.Func([], [CanisterSettings], ["query"]),
+    get_user: IDL.Func([IDL.Principal], [IDL.Opt(UserProfile)], ["query"]),
+    list_audit_events: IDL.Func([IDL.Opt(IDL.Nat64)], [IDL.Vec(AuditEvent)], ["query"]),
+    list_proposals: IDL.Func([], [IDL.Vec(Proposal)], ["query"]),
+    list_votes: IDL.Func([IDL.Nat64], [IDL.Vec(Vote)], ["query"]),
   });
 };

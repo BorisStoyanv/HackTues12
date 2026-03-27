@@ -154,6 +154,60 @@ pub struct SubmitProposalInput {
     pub location: Option<ProposalLocation>,
 }
 
+#[derive(Clone, Debug, CandidType, Deserialize)]
+pub struct ProposalAIDebateModels {
+    pub advocate: String,
+    pub skeptic: String,
+    pub judge: String,
+}
+
+#[derive(Clone, Debug, CandidType, Deserialize)]
+pub struct ProposalAIDebateCriteriaRatings {
+    pub popularity: f64,
+    pub tourism_attendance: f64,
+    pub neglect_and_age: f64,
+    pub potential_tourism_benefit: f64,
+}
+
+#[derive(Clone, Debug, CandidType, Deserialize)]
+pub struct ProposalAIDebateRound {
+    pub round: u32,
+    pub advocate_statement: String,
+    pub skeptic_statement: String,
+    pub winner: String,
+    pub score: f64,
+    pub rationale: String,
+}
+
+#[derive(Clone, Debug, CandidType, Deserialize)]
+pub struct ProposalAIDebate {
+    pub models: ProposalAIDebateModels,
+    pub search_text: String,
+    pub geo_hint_display_name: Option<String>,
+    pub rounds: Vec<ProposalAIDebateRound>,
+    pub aggregate_score: f64,
+    pub judge_reported_aggregate_score: f64,
+    pub funding_priority_score: f64,
+    pub funding_recommendation: String,
+    pub rationale: String,
+    pub criteria_ratings: ProposalAIDebateCriteriaRatings,
+    pub saved_at: u64,
+}
+
+#[derive(Clone, Debug, CandidType, Deserialize)]
+pub struct SaveProposalAIDebateInput {
+    pub models: ProposalAIDebateModels,
+    pub search_text: String,
+    pub geo_hint_display_name: Option<String>,
+    pub rounds: Vec<ProposalAIDebateRound>,
+    pub aggregate_score: f64,
+    pub judge_reported_aggregate_score: f64,
+    pub funding_priority_score: f64,
+    pub funding_recommendation: String,
+    pub rationale: String,
+    pub criteria_ratings: ProposalAIDebateCriteriaRatings,
+}
+
 // =========================================================================
 // Vote types
 // =========================================================================
@@ -425,6 +479,19 @@ impl Storable for ContractRecord {
     }
 }
 
+impl Storable for ProposalAIDebate {
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 65536,
+        is_fixed_size: false,
+    };
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
+        Cow::Owned(Encode!(self).unwrap())
+    }
+    fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+}
+
 // =========================================================================
 // Stable memory
 // =========================================================================
@@ -434,6 +501,7 @@ const PROPOSALS_MEM_ID: MemoryId = MemoryId::new(1);
 const VOTES_MEM_ID: MemoryId = MemoryId::new(2);
 const AUDIT_MEM_ID: MemoryId = MemoryId::new(3);
 const CONTRACTS_MEM_ID: MemoryId = MemoryId::new(4);
+const PROPOSAL_AI_DEBATES_MEM_ID: MemoryId = MemoryId::new(5);
 
 thread_local! {
     static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
@@ -449,6 +517,8 @@ thread_local! {
         RefCell::new(StableBTreeMap::init(MEMORY_MANAGER.with(|m| m.borrow().get(AUDIT_MEM_ID))));
     static CONTRACTS: RefCell<StableBTreeMap<u64, ContractRecord, Memory>> =
         RefCell::new(StableBTreeMap::init(MEMORY_MANAGER.with(|m| m.borrow().get(CONTRACTS_MEM_ID))));
+    static PROPOSAL_AI_DEBATES: RefCell<StableBTreeMap<u64, ProposalAIDebate, Memory>> =
+        RefCell::new(StableBTreeMap::init(MEMORY_MANAGER.with(|m| m.borrow().get(PROPOSAL_AI_DEBATES_MEM_ID))));
 
     static NEXT_PROPOSAL_ID: RefCell<u64> = RefCell::new(1);
     static NEXT_EVENT_ID: RefCell<u64> = RefCell::new(1);
@@ -491,15 +561,19 @@ fn require_auth() -> Result<Principal, String> {
     Ok(caller)
 }
 
-fn norm_required(value: &str, name: &str) -> Result<String, String> {
+fn norm_required_len(value: &str, name: &str, max_chars: usize) -> Result<String, String> {
     let s = value.trim().to_string();
     if s.is_empty() {
         return Err(format!("{name} must not be empty"));
     }
-    if s.chars().count() > 1000 {
-        return Err(format!("{name} must be 1000 characters or fewer"));
+    if s.chars().count() > max_chars {
+        return Err(format!("{name} must be {max_chars} characters or fewer"));
     }
     Ok(s)
+}
+
+fn norm_required(value: &str, name: &str) -> Result<String, String> {
+    norm_required_len(value, name, 1000)
 }
 
 fn norm_opt(value: Option<String>) -> Option<String> {
@@ -554,6 +628,136 @@ fn normalize_location(location: Option<ProposalLocation>) -> Result<Option<Propo
             }))
         }
     }
+}
+
+fn normalize_unit_score(value: f64, name: &str) -> Result<f64, String> {
+    if !value.is_finite() {
+        return Err(format!("{name} must be a finite number"));
+    }
+
+    Ok(value.clamp(0.0, 1.0))
+}
+
+fn normalize_round_winner(value: &str) -> Result<String, String> {
+    let winner = norm_required_len(value, "ai_debate.rounds.winner", 32)?.to_lowercase();
+    match winner.as_str() {
+        "advocate" | "skeptic" | "tie" => Ok(winner),
+        _ => Err("ai_debate.rounds.winner must be advocate, skeptic, or tie".into()),
+    }
+}
+
+fn normalize_funding_recommendation(value: &str) -> Result<String, String> {
+    let recommendation =
+        norm_required_len(value, "ai_debate.funding_recommendation", 32)?.to_lowercase();
+    match recommendation.as_str() {
+        "fund" | "defer" | "reject" => Ok(recommendation),
+        _ => Err("ai_debate.funding_recommendation must be fund, defer, or reject".into()),
+    }
+}
+
+fn derive_ai_risk_flags(debate: &ProposalAIDebate) -> Vec<String> {
+    let mut flags = Vec::new();
+
+    if debate.funding_recommendation == "reject" {
+        flags.push("AI judge recommends rejecting this proposal".to_string());
+    } else if debate.funding_recommendation == "defer" {
+        flags.push("AI judge recommends deferring until stronger evidence is provided".to_string());
+    }
+
+    if debate.aggregate_score < 0.45 {
+        flags.push("AI confidence in the proposal is currently weak".to_string());
+    }
+
+    if debate.criteria_ratings.potential_tourism_benefit < 0.4 {
+        flags.push("Projected tourism upside appears limited".to_string());
+    }
+
+    if debate.criteria_ratings.tourism_attendance > 0.7 {
+        flags.push("Existing tourism attendance is already strong, reducing urgency".to_string());
+    }
+
+    flags.truncate(3);
+    flags
+}
+
+fn normalize_ai_debate_input(input: SaveProposalAIDebateInput) -> Result<ProposalAIDebate, String> {
+    let rounds = input
+        .rounds
+        .into_iter()
+        .map(|round| {
+            if round.round == 0 {
+                return Err("ai_debate.rounds.round must start at 1".into());
+            }
+
+            Ok(ProposalAIDebateRound {
+                round: round.round,
+                advocate_statement: norm_required_len(
+                    &round.advocate_statement,
+                    "ai_debate.rounds.advocate_statement",
+                    6000,
+                )?,
+                skeptic_statement: norm_required_len(
+                    &round.skeptic_statement,
+                    "ai_debate.rounds.skeptic_statement",
+                    6000,
+                )?,
+                winner: normalize_round_winner(&round.winner)?,
+                score: normalize_unit_score(round.score, "ai_debate.rounds.score")?,
+                rationale: norm_required_len(&round.rationale, "ai_debate.rounds.rationale", 4000)?,
+            })
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+
+    if rounds.is_empty() {
+        return Err("ai_debate.rounds must not be empty".into());
+    }
+    if rounds.len() > 12 {
+        return Err("ai_debate.rounds must contain 12 rounds or fewer".into());
+    }
+
+    Ok(ProposalAIDebate {
+        models: ProposalAIDebateModels {
+            advocate: norm_required_len(&input.models.advocate, "ai_debate.models.advocate", 128)?,
+            skeptic: norm_required_len(&input.models.skeptic, "ai_debate.models.skeptic", 128)?,
+            judge: norm_required_len(&input.models.judge, "ai_debate.models.judge", 128)?,
+        },
+        search_text: norm_required_len(&input.search_text, "ai_debate.search_text", 512)?,
+        geo_hint_display_name: input
+            .geo_hint_display_name
+            .map(|value| norm_required_len(&value, "ai_debate.geo_hint_display_name", 512))
+            .transpose()?,
+        rounds,
+        aggregate_score: normalize_unit_score(input.aggregate_score, "ai_debate.aggregate_score")?,
+        judge_reported_aggregate_score: normalize_unit_score(
+            input.judge_reported_aggregate_score,
+            "ai_debate.judge_reported_aggregate_score",
+        )?,
+        funding_priority_score: normalize_unit_score(
+            input.funding_priority_score,
+            "ai_debate.funding_priority_score",
+        )?,
+        funding_recommendation: normalize_funding_recommendation(&input.funding_recommendation)?,
+        rationale: norm_required_len(&input.rationale, "ai_debate.rationale", 6000)?,
+        criteria_ratings: ProposalAIDebateCriteriaRatings {
+            popularity: normalize_unit_score(
+                input.criteria_ratings.popularity,
+                "ai_debate.criteria_ratings.popularity",
+            )?,
+            tourism_attendance: normalize_unit_score(
+                input.criteria_ratings.tourism_attendance,
+                "ai_debate.criteria_ratings.tourism_attendance",
+            )?,
+            neglect_and_age: normalize_unit_score(
+                input.criteria_ratings.neglect_and_age,
+                "ai_debate.criteria_ratings.neglect_and_age",
+            )?,
+            potential_tourism_benefit: normalize_unit_score(
+                input.criteria_ratings.potential_tourism_benefit,
+                "ai_debate.criteria_ratings.potential_tourism_benefit",
+            )?,
+        },
+        saved_at: ic_cdk::api::time(),
+    })
 }
 
 fn validate_profile(
@@ -1188,6 +1392,11 @@ fn get_proposal(id: u64) -> Option<Proposal> {
 }
 
 #[query]
+fn get_proposal_ai_debate(id: u64) -> Option<ProposalAIDebate> {
+    PROPOSAL_AI_DEBATES.with(|debates| debates.borrow().get(&id))
+}
+
+#[query]
 fn list_proposals(status_filter: Option<ProposalStatus>) -> Vec<Proposal> {
     PROPOSALS.with(|p| {
         p.borrow()
@@ -1199,6 +1408,32 @@ fn list_proposals(status_filter: Option<ProposalStatus>) -> Vec<Proposal> {
             })
             .collect()
     })
+}
+
+#[update]
+fn save_proposal_ai_debate(
+    proposal_id: u64,
+    input: SaveProposalAIDebateInput,
+) -> Result<Proposal, String> {
+    let caller = require_auth()?;
+    let debate = normalize_ai_debate_input(input)?;
+
+    let mut proposal = PROPOSALS
+        .with(|p| p.borrow().get(&proposal_id))
+        .ok_or("Proposal not found")?;
+
+    if proposal.submitter != caller {
+        return Err("Only the original submitter can save the AI debate".into());
+    }
+
+    let fairness_score = (debate.aggregate_score * 1000.0).round() / 10.0;
+    proposal.fairness_score = Some(fairness_score);
+    proposal.risk_flags = derive_ai_risk_flags(&debate);
+
+    PROPOSALS.with(|p| p.borrow_mut().insert(proposal_id, proposal.clone()));
+    PROPOSAL_AI_DEBATES.with(|debates| debates.borrow_mut().insert(proposal_id, debate));
+
+    Ok(proposal)
 }
 
 // =========================================================================

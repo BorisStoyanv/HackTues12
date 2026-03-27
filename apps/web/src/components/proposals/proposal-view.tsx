@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   BarChart3,
+  AlertTriangle,
   Briefcase,
   Calendar,
   Clock,
@@ -28,6 +29,7 @@ import {
 import Link from "next/link";
 
 import { SerializedProposal, SerializedVote } from "@/lib/actions/proposals";
+import { cn } from "@/lib/utils";
 import { AIDebateLive } from "./ai-debate-live";
 import { ProposalGovernancePanel } from "./proposal-governance-panel";
 
@@ -74,6 +76,7 @@ export function ProposalView({
     proposal.location.city && proposal.location.country
       ? `${proposal.location.city}, ${proposal.location.country}`
       : proposal.location.city || proposal.region_tag;
+  const hasConstraints = proposal.risk_flags.length > 0;
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-background">
@@ -125,6 +128,40 @@ export function ProposalView({
                     Region
                   </span>
                   <span className="text-sm font-medium">{locationLabel}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div
+                  className={cn(
+                    "h-8 w-8 rounded-full border flex items-center justify-center",
+                    hasConstraints
+                      ? "bg-rose-50 border-rose-200 dark:bg-rose-950/20 dark:border-rose-900/40"
+                      : "bg-emerald-50 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-900/40",
+                  )}
+                >
+                  {hasConstraints ? (
+                    <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-300" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
+                  )}
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    Constraints
+                  </span>
+                  <span
+                    className={cn(
+                      "text-sm font-medium",
+                      hasConstraints
+                        ? "text-rose-700 dark:text-rose-300"
+                        : "text-emerald-700 dark:text-emerald-300",
+                    )}
+                  >
+                    {hasConstraints
+                      ? `${proposal.risk_flags.length} AI constraint${proposal.risk_flags.length === 1 ? "" : "s"}`
+                      : "No AI constraints"}
+                  </span>
                 </div>
               </div>
             </div>
@@ -197,10 +234,7 @@ export function ProposalView({
                   value="debate"
                   className="space-y-8 animate-in fade-in duration-500 m-0 focus-visible:outline-none"
                 >
-                  <AIDebateLive
-                    proposal={proposal}
-                    onComplete={(res) => console.log("Debate synced", res)}
-                  />
+                  <AIDebateLive proposal={proposal} />
                 </TabsContent>
 
                 <TabsContent
