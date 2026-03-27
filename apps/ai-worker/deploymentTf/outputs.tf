@@ -40,5 +40,5 @@ output "http_https_firewall_rule_name" {
 
 output "app_url" {
   description = "Public URL of the app endpoint"
-  value       = var.assign_public_ip ? "http://${google_compute_instance.vm.network_interface[0].access_config[0].nat_ip}:${var.app_port}" : null
+  value       = "https://ai.open-ft.app"
 }

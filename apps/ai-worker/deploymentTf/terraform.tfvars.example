@@ -24,9 +24,41 @@ assign_public_ip = true
 #   "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... second@email"
 # ]
 
-# Optional startup script
-# startup_script = <<-EOT
-#   #!/bin/bash
-#   apt-get update -y
-#   apt-get install -y docker.io
-# EOT
+# Optional startup script for production (Nginx + SSL)
+startup_script = <<-EOT
+  #!/bin/bash
+  set -e
+  apt-get update -y
+  apt-get install -y nginx certbot python3-certbot-nginx curl git
+
+  # Create nginx config for ai.open-ft.app
+  cat <<EOF > /etc/nginx/sites-available/ai-worker
+  server {
+      listen 80;
+      server_name ai.open-ft.app;
+
+      location / {
+          proxy_pass http://localhost:8080;
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade \$http_upgrade;
+          proxy_set_header Connection 'upgrade';
+          proxy_set_header Host \$host;
+          proxy_cache_bypass \$http_upgrade;
+          
+          # SSE specific headers
+          proxy_set_header Connection '';
+          proxy_buffering off;
+          proxy_cache off;
+          chunked_transfer_encoding off;
+          proxy_read_timeout 10m;
+      }
+  }
+  EOF
+
+  ln -sf /etc/nginx/sites-available/ai-worker /etc/nginx/sites-enabled/
+  rm -f /etc/nginx/sites-enabled/default
+  systemctl restart nginx
+
+  # Instructions for SSL (Requires manual run after DNS is pointed)
+  # certbot --nginx -d ai.open-ft.app --non-interactive --agree-tos -m your-email@example.com
+EOT

@@ -1,0 +1,238 @@
+{
+  "users": [
+    {
+      "user_id": "rkyz5-gnyu5-nx5bb-j3uiy-h6azc-m6oyh-5vi5v-rnvsh-lexq6-pzno4-cqe",
+      "display_name": "Boris",
+      "home_region": "Sofia",
+      "country": "Bulgaria",
+      "reputation": 35.0,
+      "verified": true,
+      "investor": false
+    },
+    {
+      "user_id": "letnw-v2ye3-7h2we-sb5fo-6b7ul-3h6gk-s4l7d-6ta2n-ahnvi-s7iip-sae",
+      "display_name": "Anton",
+      "home_region": "Sofia",
+      "country": "Bulgaria",
+      "reputation": 8.0,
+      "verified": false,
+      "investor": false
+    },
+    {
+      "user_id": "yxgk3-l4vkq-mnrty-mqtef-cuuz2-s5tfi-7u465-bfqqy-rzmir-nkubf-bqe",
+      "display_name": "Ivan",
+      "home_region": "Sofia",
+      "country": "Bulgaria",
+      "reputation": 14.0,
+      "verified": true,
+      "investor": true
+    },
+    {
+      "user_id": "q6l3r-h7eok-afo9q-fjp2d-zd6cw-tgbnh-q8vye-3y4xt-z7zld-6g4kv-jae",
+      "display_name": "Mira",
+      "home_region": "Plovdiv",
+      "country": "Bulgaria",
+      "reputation": 21.0,
+      "verified": true,
+      "investor": false
+    }
+  ],
+  "proposals": [
+    {
+      "proposal_id": "1",
+      "title": "Funding za mozuka na borislav",
+      "category": "Technology",
+      "region_tag": "Sofia",
+      "country": "Bulgaria",
+      "tags": ["music", "hardware", "creator"],
+      "risk_score": 0.62,
+      "funding_goal": 1200.0,
+      "funded_amount": 1200.0,
+      "quality_score": 0.67,
+      "status": "AwaitingFunding",
+      "created_at": "2026-03-26T16:00:00Z"
+    },
+    {
+      "proposal_id": "2",
+      "title": "Sofia Community Events Hub",
+      "category": "Events",
+      "region_tag": "Sofia",
+      "country": "Bulgaria",
+      "tags": ["community", "events", "local"],
+      "risk_score": 0.28,
+      "funding_goal": 2200.0,
+      "funded_amount": 2200.0,
+      "quality_score": 0.89,
+      "status": "Backed",
+      "created_at": "2026-03-26T17:00:00Z"
+    },
+    {
+      "proposal_id": "3",
+      "title": "Bulgarian Climate Sensor Mesh",
+      "category": "Climate",
+      "region_tag": "Sofia",
+      "country": "Bulgaria",
+      "tags": ["climate", "iot", "data"],
+      "risk_score": 0.57,
+      "funding_goal": 4800.0,
+      "funded_amount": 1600.0,
+      "quality_score": 0.92,
+      "status": "Active",
+      "created_at": "2026-03-26T19:00:00Z"
+    },
+    {
+      "proposal_id": "4",
+      "title": "Plovdiv Youth Robotics Lab",
+      "category": "Education",
+      "region_tag": "Plovdiv",
+      "country": "Bulgaria",
+      "tags": ["education", "robotics", "students"],
+      "risk_score": 0.35,
+      "funding_goal": 3600.0,
+      "funded_amount": 900.0,
+      "quality_score": 0.86,
+      "status": "Active",
+      "created_at": "2026-03-25T12:00:00Z"
+    },
+    {
+      "proposal_id": "5",
+      "title": "EU Civic AI Grant Matcher",
+      "category": "Technology",
+      "region_tag": "EU",
+      "country": "European Union",
+      "tags": ["ai", "civic", "funding"],
+      "risk_score": 0.71,
+      "funding_goal": 5500.0,
+      "funded_amount": 1200.0,
+      "quality_score": 0.83,
+      "status": "Active",
+      "created_at": "2026-03-26T20:30:00Z"
+    },
+    {
+      "proposal_id": "6",
+      "title": "Sofia Safe Bike Corridors",
+      "category": "Infrastructure",
+      "region_tag": "Sofia",
+      "country": "Bulgaria",
+      "tags": ["mobility", "safety", "transport"],
+      "risk_score": 0.19,
+      "funding_goal": 7000.0,
+      "funded_amount": 4200.0,
+      "quality_score": 0.94,
+      "status": "Active",
+      "created_at": "2026-03-26T13:00:00Z"
+    },
+    {
+      "proposal_id": "7",
+      "title": "Sofia Open Data Air Quality Dashboards",
+      "category": "Climate",
+      "region_tag": "Sofia",
+      "country": "Bulgaria",
+      "tags": ["climate", "data", "dashboard"],
+      "risk_score": 0.33,
+      "funding_goal": 3100.0,
+      "funded_amount": 600.0,
+      "quality_score": 0.96,
+      "status": "Active",
+      "created_at": "2026-03-26T21:25:00Z"
+    }
+  ],
+  "votes": [
+    {
+      "user_id": "rkyz5-gnyu5-nx5bb-j3uiy-h6azc-m6oyh-5vi5v-rnvsh-lexq6-pzno4-cqe",
+      "proposal_id": "1",
+      "in_favor": true,
+      "weight": 0.55,
+      "timestamp": "2026-03-26T16:10:00Z"
+    },
+    {
+      "user_id": "rkyz5-gnyu5-nx5bb-j3uiy-h6azc-m6oyh-5vi5v-rnvsh-lexq6-pzno4-cqe",
+      "proposal_id": "2",
+      "in_favor": true,
+      "weight": 2.97,
+      "timestamp": "2026-03-26T17:15:00Z"
+    },
+    {
+      "user_id": "letnw-v2ye3-7h2we-sb5fo-6b7ul-3h6gk-s4l7d-6ta2n-ahnvi-s7iip-sae",
+      "proposal_id": "3",
+      "in_favor": true,
+      "weight": 1.20,
+      "timestamp": "2026-03-26T20:45:00Z"
+    },
+    {
+      "user_id": "q6l3r-h7eok-afo9q-fjp2d-zd6cw-tgbnh-q8vye-3y4xt-z7zld-6g4kv-jae",
+      "proposal_id": "4",
+      "in_favor": true,
+      "weight": 1.80,
+      "timestamp": "2026-03-25T15:00:00Z"
+    }
+  ],
+  "fundings": [
+    {
+      "user_id": "yxgk3-l4vkq-mnrty-mqtef-cuuz2-s5tfi-7u465-bfqqy-rzmir-nkubf-bqe",
+      "proposal_id": "2",
+      "amount": 2200.0,
+      "timestamp": "2026-03-26T17:40:00Z"
+    },
+    {
+      "user_id": "yxgk3-l4vkq-mnrty-mqtef-cuuz2-s5tfi-7u465-bfqqy-rzmir-nkubf-bqe",
+      "proposal_id": "3",
+      "amount": 500.0,
+      "timestamp": "2026-03-26T21:20:00Z"
+    },
+    {
+      "user_id": "q6l3r-h7eok-afo9q-fjp2d-zd6cw-tgbnh-q8vye-3y4xt-z7zld-6g4kv-jae",
+      "proposal_id": "4",
+      "amount": 900.0,
+      "timestamp": "2026-03-25T16:20:00Z"
+    },
+    {
+      "user_id": "yxgk3-l4vkq-mnrty-mqtef-cuuz2-s5tfi-7u465-bfqqy-rzmir-nkubf-bqe",
+      "proposal_id": "7",
+      "amount": 600.0,
+      "timestamp": "2026-03-26T21:28:00Z"
+    }
+  ],
+  "impressions": [
+    {
+      "user_id": "rkyz5-gnyu5-nx5bb-j3uiy-h6azc-m6oyh-5vi5v-rnvsh-lexq6-pzno4-cqe",
+      "proposal_id": "3",
+      "dwell_seconds": 52,
+      "intent_score": 0.88,
+      "timestamp": "2026-03-26T21:10:00Z"
+    },
+    {
+      "user_id": "rkyz5-gnyu5-nx5bb-j3uiy-h6azc-m6oyh-5vi5v-rnvsh-lexq6-pzno4-cqe",
+      "proposal_id": "6",
+      "dwell_seconds": 31,
+      "intent_score": 0.46,
+      "timestamp": "2026-03-26T20:05:00Z"
+    },
+    {
+      "user_id": "letnw-v2ye3-7h2we-sb5fo-6b7ul-3h6gk-s4l7d-6ta2n-ahnvi-s7iip-sae",
+      "proposal_id": "2",
+      "dwell_seconds": 45,
+      "intent_score": 0.71,
+      "timestamp": "2026-03-26T18:20:00Z"
+    },
+    {
+      "user_id": "rkyz5-gnyu5-nx5bb-j3uiy-h6azc-m6oyh-5vi5v-rnvsh-lexq6-pzno4-cqe",
+      "proposal_id": "7",
+      "dwell_seconds": 61,
+      "intent_score": 0.91,
+      "timestamp": "2026-03-26T21:29:00Z"
+    }
+  ],
+  "follows": [
+    {
+      "follower_id": "rkyz5-gnyu5-nx5bb-j3uiy-h6azc-m6oyh-5vi5v-rnvsh-lexq6-pzno4-cqe",
+      "target_id": "yxgk3-l4vkq-mnrty-mqtef-cuuz2-s5tfi-7u465-bfqqy-rzmir-nkubf-bqe",
+      "timestamp": "2026-03-26T18:00:00Z"
+    },
+    {
+      "follower_id": "letnw-v2ye3-7h2we-sb5fo-6b7ul-3h6gk-s4l7d-6ta2n-ahnvi-s7iip-sae",
+      "target_id": "rkyz5-gnyu5-nx5bb-j3uiy-h6azc-m6oyh-5vi5v-rnvsh-lexq6-pzno4-cqe",
+      "timestamp": "2026-03-26T18:30:00Z"
+    }
+  ]
+}

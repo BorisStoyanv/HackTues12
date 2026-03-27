@@ -10,12 +10,13 @@ import {
   History,
   Settings,
   ShieldCheck,
-  ChevronLeft,
-  ChevronRight,
   Landmark,
-  ExternalLink,
-  LifeBuoy,
-  Send,
+  LogOut,
+  Briefcase,
+  FileText,
+  UserCheck,
+  Activity,
+  CreditCard
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -28,134 +29,161 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarProvider,
-  SidebarTrigger,
   SidebarRail,
-  useSidebar,
 } from "@/components/ui/sidebar";
 import { useAuthStore } from "@/lib/auth-store";
 
-const navItems = [
+const mainNavItems = [
   {
-    title: "Dashboard",
+    title: "Overview",
     href: "/dashboard",
     icon: LayoutDashboard,
   },
   {
-    title: "Explore",
+    title: "Explore Map",
     href: "/dashboard/explore",
     icon: Globe,
   },
+];
+
+const proposalItems = [
   {
-    title: "New Proposal",
-    href: "/proposals/new",
+    title: "Submit Proposal",
+    href: "/dashboard/proposals/new",
     icon: FilePlus,
   },
   {
-    title: "Voting History",
-    href: "/history",
+    title: "Active Governance",
+    href: "/dashboard/governance",
+    icon: Activity,
+  },
+  {
+    title: "My Submissions",
+    href: "/dashboard/proposals/mine",
+    icon: Briefcase,
+  },
+];
+
+const platformItems = [
+  {
+    title: "Impact Ledger",
+    href: "/dashboard/ledger",
+    icon: FileText,
+  },
+  {
+    title: "Trust Contracts",
+    href: "/dashboard/contracts",
+    icon: CreditCard,
+  },
+  {
+    title: "Audit Logs",
+    href: "/dashboard/audit",
     icon: History,
   },
 ];
 
-const secondaryItems = [
-  {
-    title: "Settings",
-    href: "/settings",
-    icon: Settings,
-  },
+const accountItems = [
   {
     title: "Identity Status",
-    href: "/onboarding/status",
-    icon: ShieldCheck,
+    href: "/dashboard/verification",
+    icon: UserCheck,
+  },
+  {
+    title: "Account Settings",
+    href: "/dashboard/settings",
+    icon: Settings,
   },
 ];
 
 export function DashboardSidebar() {
   const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
+
+  const NavGroup = ({ title, items }: { title: string; items: typeof mainNavItems }) => (
+    <div className="py-2">
+      <div className="px-4 mb-2 group-data-[collapsible=icon]:hidden">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+          {title}
+        </p>
+      </div>
+      <SidebarMenu className="px-2 space-y-0.5">
+        {items.map((item) => {
+          const isActive = pathname === item.href;
+          return (
+            <SidebarMenuItem key={item.href}>
+              <SidebarMenuButton
+                isActive={isActive}
+                tooltip={item.title}
+                className={cn(
+                  "h-9 transition-colors rounded-md px-3",
+                  isActive 
+                    ? "bg-neutral-100 dark:bg-neutral-900 text-foreground" 
+                    : "text-muted-foreground hover:text-foreground hover:bg-neutral-50 dark:hover:bg-neutral-950"
+                )}
+                render={(props) => (
+                  <Link href={item.href} {...props}>
+                    <item.icon className={cn("h-4 w-4 shrink-0 transition-colors", isActive ? "text-primary" : "text-muted-foreground/60")} />
+                    <span className={cn("text-sm transition-colors", isActive ? "font-semibold" : "font-medium")}>
+                      {item.title}
+                    </span>
+                  </Link>
+                )}
+              />
+            </SidebarMenuItem>
+          );
+        })}
+      </SidebarMenu>
+    </div>
+  );
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-neutral-200 dark:border-neutral-800">
-      <SidebarHeader className="h-14 flex items-center px-4 border-b">
-        <Link href="/" className="flex items-center gap-2">
-          <Landmark className="h-5 w-5 text-primary shrink-0" />
-          <span className="font-bold tracking-tight truncate group-data-[collapsible=icon]:hidden">
+    <Sidebar collapsible="icon" className="border-r border-neutral-200 dark:border-neutral-800 bg-background">
+      <SidebarHeader className="h-14 flex items-center px-4">
+        <Link href="/" className="flex items-center gap-2.5">
+          <div className="h-6 w-6 rounded-lg bg-foreground dark:bg-white flex items-center justify-center shrink-0">
+             <Landmark className="h-3.5 w-3.5 text-background dark:text-black" />
+          </div>
+          <span className="font-bold text-base tracking-tight truncate group-data-[collapsible=icon]:hidden">
             OpenFairTrip
           </span>
         </Link>
       </SidebarHeader>
       
-      <SidebarContent>
-        <SidebarMenu className="px-2 pt-4">
-          {navItems.map((item) => (
-            <SidebarMenuItem key={item.href}>
-              <SidebarMenuButton
-                isActive={pathname === item.href}
-                tooltip={item.title}
-                className={cn(
-                  "transition-colors",
-                  pathname === item.href 
-                    ? "bg-primary/5 text-primary font-semibold" 
-                    : "hover:bg-neutral-100 dark:hover:bg-neutral-900"
-                )}
-                render={(props) => (
-                  <Link href={item.href} {...props}>
-                    <item.icon className="h-4 w-4" />
-                    <span>{item.title}</span>
-                  </Link>
-                )}
-              />
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
-
-        <div className="mt-8 px-4 mb-2 group-data-[collapsible=icon]:hidden">
-           <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-             Account & Security
-           </p>
-        </div>
-
-        <SidebarMenu className="px-2">
-          {secondaryItems.map((item) => (
-            <SidebarMenuItem key={item.href}>
-              <SidebarMenuButton
-                isActive={pathname === item.href}
-                tooltip={item.title}
-                className={cn(
-                  "transition-colors",
-                  pathname === item.href 
-                    ? "bg-primary/5 text-primary font-semibold" 
-                    : "hover:bg-neutral-100 dark:hover:bg-neutral-900"
-                )}
-                render={(props) => (
-                  <Link href={item.href} {...props}>
-                    <item.icon className="h-4 w-4" />
-                    <span>{item.title}</span>
-                  </Link>
-                )}
-              />
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
+      <SidebarContent className="scrollbar-hide py-2">
+        <NavGroup title="Main" items={mainNavItems} />
+        <NavGroup title="Governance" items={proposalItems} />
+        <NavGroup title="Platform" items={platformItems} />
+        <NavGroup title="Account" items={accountItems} />
       </SidebarContent>
 
-      <SidebarFooter className="border-t p-2">
+      <SidebarFooter className="border-t border-neutral-200 dark:border-neutral-800 p-2">
         <SidebarMenu>
           <SidebarMenuItem>
-            <div className="flex items-center gap-3 px-2 py-2 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center">
-              <div className="h-8 w-8 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center border shrink-0">
-                <span className="text-xs font-bold">{user?.email?.[0].toUpperCase() || "U"}</span>
-              </div>
-              <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
-                <span className="text-xs font-semibold truncate leading-tight">
-                  {user?.email || "User Account"}
-                </span>
-                <span className="text-[10px] text-muted-foreground truncate uppercase tracking-tighter">
-                  {user?.role || "Citizen"}
-                </span>
-              </div>
-            </div>
+             <div className="flex items-center justify-between group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-4 p-2">
+                <div className="flex items-center gap-3 overflow-hidden min-w-0">
+                  <div className="h-8 w-8 rounded-md bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 flex items-center justify-center shrink-0 shadow-sm">
+                    <span className="text-[10px] font-bold">{user?.id?.[0].toUpperCase() || "U"}</span>
+                  </div>
+                  <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
+                    <span className="text-xs font-bold truncate leading-tight tracking-tight text-foreground">
+                      {user?.id ? `@${user.id.substring(0, 8)}...` : "Initializing"}
+                    </span>
+                    <span className="text-[9px] text-muted-foreground truncate uppercase font-bold tracking-widest mt-0.5">
+                      {user?.role || "Resident"}
+                    </span>
+                  </div>
+                </div>
+                
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-8 w-8 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-all"
+                  onClick={() => logout()}
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                </Button>
+             </div>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

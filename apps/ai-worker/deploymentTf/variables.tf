@@ -148,6 +148,12 @@ variable "app_port" {
   default     = 8080
 }
 
+variable "allow_http_https" {
+  description = "Whether to allow standard HTTP (80) and HTTPS (443) traffic"
+  type        = bool
+  default     = true
+}
+
 variable "app_source_ranges" {
   description = "Source CIDR blocks allowed for app ingress"
   type        = list(string)

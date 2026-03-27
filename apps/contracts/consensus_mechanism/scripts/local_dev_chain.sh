@@ -6,7 +6,6 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LEDGER_CANISTER_ID="ryjl3-tyaaa-aaaaa-aaaba-cai"
 CONSENSUS_CANISTER="consensus_mechanism"
 NNS_TEST_IDENTITY="ident-1"
-NNS_TEST_PEM="$ROOT_DIR/ledger/ident-1.pem"
 NETWORKS_JSON="$HOME/.config/dfx/networks.json"
 NETWORKS_JSON_BACKUP="$HOME/.config/dfx/networks.json.codex-backup"
 TOP_UP_AMOUNT_ICP="20"
@@ -151,16 +150,9 @@ reset_replica() {
 }
 
 ensure_nns_test_identity() {
-  mkdir -p "$(dirname "$NNS_TEST_PEM")"
-  cat >"$NNS_TEST_PEM" <<'EOF'
------BEGIN EC PRIVATE KEY-----
-MHQCAQEEICJxApEbuZznKFpV+VKACRK30i6+7u5Z13/DOl18cIC+oAcGBSuBBAAK
-oUQDQgAEPas6Iag4TUx+Uop+3NhE6s3FlayFtbwdhRVjvOar0kPTfE/N8N6btRnd
-74ly5xXEBNSXiENyxhEuzOZrIWMCNQ==
------END EC PRIVATE KEY-----
-EOF
-
-  dfx identity import "$NNS_TEST_IDENTITY" "$NNS_TEST_PEM" --storage-mode plaintext --force >/dev/null 2>&1 || true
+  if ! dfx identity list | awk '{print $1}' | grep -qx "$NNS_TEST_IDENTITY"; then
+    dfx identity new "$NNS_TEST_IDENTITY" --storage-mode plaintext >/dev/null
+  fi
 }
 
 ledger_ready() {

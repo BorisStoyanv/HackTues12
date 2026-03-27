@@ -1,18 +1,20 @@
-"use client";
-
 import { ProposalExplorer } from "@/components/explorer/proposal-explorer";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { buttonVariants } from "@/components/ui/button";
 import {
-  Filter,
   Landmark,
-  Search,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { fetchAllProposals } from "@/lib/actions/proposals";
 
-export default function PublicExplorePage() {
-  const [searchQuery, setSearchQuery] = useState("");
+export default async function PublicExplorePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const { q: searchQuery = "" } = await searchParams;
+  const result = await fetchAllProposals();
+  
+  const proposals = result.success && result.proposals ? result.proposals : [];
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
@@ -27,25 +29,16 @@ export default function PublicExplorePage() {
               </span>
             </Link>
             <div className="h-4 w-px bg-border hidden sm:block" />
-            <div className="relative w-64 hidden md:block">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search projects or cities..."
-                className="pl-9 h-9 bg-muted/50 border-none focus-visible:ring-1"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+            <form action="/explore" className="relative w-64 hidden md:block">
+               <input
+                name="q"
+                defaultValue={searchQuery}
+                placeholder="Search projects..."
+                className="pl-3 h-9 w-full rounded-md bg-muted/50 border-none text-sm focus:ring-1 focus:ring-primary outline-none"
               />
-            </div>
+            </form>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1.5"
-            >
-              <Filter className="h-3.5 w-3.5" />
-              Filters
-            </Button>
             <Link
               href="/login"
               className={buttonVariants({
@@ -60,7 +53,11 @@ export default function PublicExplorePage() {
       </header>
 
       <main className="relative flex-1 overflow-hidden">
-         <ProposalExplorer mode="public" searchQuery={searchQuery} />
+         <ProposalExplorer 
+           proposals={proposals} 
+           mode="public" 
+           searchQuery={searchQuery} 
+         />
       </main>
     </div>
   );
