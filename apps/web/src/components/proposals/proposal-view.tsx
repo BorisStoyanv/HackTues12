@@ -1,296 +1,463 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
-  Card,
-  CardContent,
-} from "@/components/ui/card";
-import {
-  BarChart3,
-  AlertTriangle,
-  Briefcase,
-  Calendar,
-  Clock,
-  DollarSign,
-  Globe,
-  TrendingUp,
-  History,
-  CheckCircle2,
-  XCircle,
+	BarChart3,
+	Briefcase,
+	Calendar,
+	ChevronLeft,
+	ChevronRight,
+	DollarSign,
+	FileText,
+	Globe,
+	Info,
+	LayoutDashboard,
+	TrendingUp,
 } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+	Sheet,
+	SheetContent,
+	SheetHeader,
+	SheetTitle,
+	SheetTrigger,
+} from "@/components/ui/sheet";
+
+import { useProposalGovernance } from "@/hooks/use-proposal-governance";
 import { SerializedProposal, SerializedVote } from "@/lib/actions/proposals";
-import { cn } from "@/lib/utils";
+import { getProposalVotingMetrics } from "@/lib/proposals/voting";
 import { AIDebateLive } from "./ai-debate-live";
-import { ProposalGovernancePanel } from "./proposal-governance-panel";
+import {
+	ProtocolRules,
+	TurnoutWidget,
+	VoterInsight,
+	VotingProgress,
+} from "./governance-widgets";
+import { ProposalActionCard } from "./proposal-action-card";
 
 interface ProposalViewProps {
-  id: string;
-  mode: "public" | "authenticated";
-  initialData?: SerializedProposal;
-  votes?: SerializedVote[];
+	id: string;
+	mode: "public" | "authenticated";
+	initialData?: SerializedProposal;
+	votes?: SerializedVote[];
 }
 
 export function ProposalView({
-  id,
-  mode,
-  initialData,
-  votes = [],
+	id,
+	mode,
+	initialData,
+	votes = [],
 }: ProposalViewProps) {
-  if (!initialData) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full p-4 text-center space-y-4">
-        <div className="h-12 w-12 rounded-full bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center animate-pulse">
-          <BarChart3 className="h-6 w-6 text-neutral-400" />
-        </div>
-        <h1 className="text-xl font-semibold tracking-tight">
-          Proposal Not Found
-        </h1>
-        <p className="text-muted-foreground text-sm max-w-sm">
-          This proposal may have been pruned from the ledger or the ID is
-          incorrect.
-        </p>
-        <Link
-          href="/dashboard"
-          className={buttonVariants({ variant: "outline", size: "sm" })}
-        >
-          Return to Dashboard
-        </Link>
-      </div>
-    );
-  }
+	const [auditPage, setAuditPage] = useState(1);
+	const { isLoading, isLocallyVerified, viewerProfile, viewerVotingPower } =
+		useProposalGovernance(initialData);
 
-  const proposal = initialData;
-  const statusFormatted = proposal.status.replace(/([A-Z])/g, " $1").trim();
-  const creatorId = proposal.submitter;
-  const locationLabel =
-    proposal.location.city && proposal.location.country
-      ? `${proposal.location.city}, ${proposal.location.country}`
-      : proposal.location.city || proposal.region_tag;
-  const hasConstraints = proposal.risk_flags && proposal.risk_flags.length > 0;
+	if (!initialData) {
+		return (
+			<div className="flex flex-col items-center justify-center h-full p-4 text-center space-y-4">
+				<BarChart3 className="h-12 w-12 text-neutral-400 animate-pulse" />
+				<h1 className="text-xl font-semibold tracking-tight">
+					Proposal Not Found
+				</h1>
+				<Link
+					href="/dashboard"
+					className="text-primary hover:underline font-bold uppercase tracking-widest text-xs"
+				>
+					Return to Dashboard
+				</Link>
+			</div>
+		);
+	}
 
-  return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-background">
-      {/* Header - Dense, Informative, Vercel-like */}
-      <div className="border-b bg-neutral-50/50 dark:bg-neutral-950/50 px-6 py-6 md:px-8 shrink-0">
-        <div className="w-full flex flex-col lg:flex-row gap-6 justify-between lg:items-start">
-          <div className="space-y-3 flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge className="bg-primary text-primary-foreground border-transparent px-2.5 py-0.5 rounded text-[10px] uppercase font-black tracking-widest shadow-sm">
-                {statusFormatted}
-              </Badge>
-              <Badge variant="outline" className="border-neutral-200 dark:border-neutral-800 bg-background px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                <Globe className="h-3 w-3 mr-1.5 inline -mt-0.5" />
-                {locationLabel}
-              </Badge>
-              <span className="text-[10px] font-mono font-medium text-muted-foreground flex items-center gap-1.5 ml-1">
-                <Clock className="h-3 w-3" /> 
-                {new Date(proposal.created_at / 1000000).toLocaleDateString()}
-              </span>
-              {hasConstraints && (
-                <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-500 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest">
-                  <AlertTriangle className="h-3 w-3 mr-1.5 inline -mt-0.5" />
-                  {proposal.risk_flags.length} AI Flags
-                </Badge>
-              )}
-            </div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground leading-snug">
-              {proposal.title}
-            </h1>
-          </div>
-          <div className="flex flex-wrap items-center gap-6 shrink-0 lg:pt-1">
-            <div className="flex flex-col text-left lg:text-right">
-               <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-0.5">Submitter</span>
-               <span className="text-xs font-mono font-bold bg-muted px-2 py-0.5 rounded border border-border">@{creatorId.substring(0, 10)}...</span>
-            </div>
-            <div className="h-8 w-px bg-border hidden sm:block" />
-            <div className="flex flex-col text-left lg:text-right">
-               <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-0.5">Capital Req.</span>
-               <span className="text-lg font-black tracking-tighter text-primary leading-none">
-                 ${proposal.budget_amount.toLocaleString()} <span className="text-[10px] font-bold uppercase text-foreground/50 tracking-widest">{proposal.budget_currency}</span>
-               </span>
-            </div>
-          </div>
-        </div>
-      </div>
+	const proposal = initialData;
+	const metrics = getProposalVotingMetrics(proposal);
+	const statusFormatted = proposal.status.replace(/([A-Z])/g, " $1").trim();
+	const locationLabel = proposal.location.city || proposal.region_tag;
 
-      {/* Body - Full Width Scrollable Grid */}
-      <div className="flex-1 overflow-y-auto px-6 py-8 md:px-8 bg-neutral-50/30 dark:bg-neutral-950/30">
-        <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          
-          {/* Left Side: Continuous Data Feed */}
-          <div className="lg:col-span-8 xl:col-span-9 space-y-10 md:space-y-14">
-             
-             {/* 1. Executive Summary */}
-             <section className="space-y-4">
-                <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                  <Briefcase className="h-4 w-4" /> Overview & Scope
-                </h3>
-                <Card className="border-neutral-200 dark:border-neutral-800 shadow-sm rounded-2xl overflow-hidden bg-background">
-                   <CardContent className="p-6 md:p-8 space-y-6">
-                      <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">{proposal.description}</p>
-                      <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-neutral-100 dark:border-neutral-900">
-                         <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mr-2">Domain Tags:</span>
-                         <Badge variant="secondary" className="text-[10px] font-bold rounded-md px-2.5 py-0.5 uppercase tracking-wider">{proposal.category}</Badge>
-                      </div>
-                   </CardContent>
-                </Card>
-             </section>
+	// Audit Ledger Pagination
+	const votesPerPage = 10;
+	const totalAuditPages = Math.ceil(votes.length / votesPerPage);
+	const paginatedVotes = votes.slice(
+		(auditPage - 1) * votesPerPage,
+		auditPage * votesPerPage,
+	);
 
-             {/* 2. Execution & Financials */}
-             <div className="grid md:grid-cols-2 gap-6">
-                <section className="space-y-4">
-                   <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                     <Calendar className="h-4 w-4" /> Execution Strategy
-                   </h3>
-                   <Card className="border-neutral-200 dark:border-neutral-800 shadow-sm rounded-2xl overflow-hidden h-full bg-background">
-                      <CardContent className="p-6 md:p-8 space-y-5">
-                         <div className="flex flex-col gap-3">
-                           <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-900 pb-3">
-                              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Target Timeline</span>
-                              <span className="text-xs font-bold bg-muted px-2 py-0.5 rounded">{proposal.timeline}</span>
-                           </div>
-                           <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-900 pb-3">
-                              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Lead Executor</span>
-                              <span className="text-xs font-bold truncate max-w-[150px]">{proposal.executor_name}</span>
-                           </div>
-                         </div>
-                         <p className="text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap">{proposal.execution_plan}</p>
-                      </CardContent>
-                   </Card>
-                </section>
-                <section className="space-y-4">
-                   <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                     <DollarSign className="h-4 w-4" /> Capital Allocation
-                   </h3>
-                   <Card className="border-neutral-200 dark:border-neutral-800 shadow-sm rounded-2xl overflow-hidden h-full bg-background flex flex-col">
-                      <CardContent className="p-6 md:p-8 space-y-5 flex-1 flex flex-col">
-                         <p className="text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap font-mono flex-1 bg-neutral-50 dark:bg-neutral-900/50 p-4 rounded-xl border border-neutral-100 dark:border-neutral-800">
-                           {proposal.budget_breakdown}
-                         </p>
-                         <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl">
-                            <p className="text-[9px] font-black uppercase tracking-widest text-primary mb-1">Escrow Policy</p>
-                            <p className="text-[10px] text-foreground/80 leading-relaxed font-medium">Funds are cryptographically pinned to verifiable milestones. 66% regional consensus required for release.</p>
-                         </div>
-                      </CardContent>
-                   </Card>
-                </section>
-             </div>
+	return (
+		<div className="flex-1 flex flex-col h-full overflow-hidden bg-background">
+			{/* Header - Minimal & High Impact */}
+			<header className="border-b bg-neutral-50/50 dark:bg-neutral-950/50 px-8 py-6 shrink-0">
+				<div className="max-w-7xl mx-auto w-full flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+					<div className="space-y-2">
+						<div className="flex items-center gap-2">
+							<Badge className="bg-primary text-primary-foreground font-black uppercase tracking-widest text-[10px] px-2 py-0.5 rounded">
+								{statusFormatted}
+							</Badge>
+							<span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+								<Globe className="h-3 w-3" /> {locationLabel}
+							</span>
+						</div>
+						<h1 className="text-3xl font-black tracking-tight leading-tight">
+							{proposal.title}
+						</h1>
+					</div>
+					<div className="flex items-center gap-8">
+						<div className="text-right">
+							<p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+								Capital Required
+							</p>
+							<p className="text-2xl font-black tracking-tighter text-primary">
+								{proposal.budget_amount.toLocaleString()}{" "}
+								<span className="text-xs">
+									{proposal.budget_currency}
+								</span>
+							</p>
+						</div>
+					</div>
+				</div>
+			</header>
 
-             {/* 3. AI Debate & Risk */}
-             <section className="space-y-4">
-                <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4" /> AI Vetting & Consensus
-                </h3>
-                <div className="grid lg:grid-cols-12 gap-6">
-                   <div className="lg:col-span-8 bg-background rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden">
-                     <AIDebateLive proposal={proposal} />
-                   </div>
-                   
-                   <div className="lg:col-span-4 flex flex-col gap-6">
-                      <Card className="border border-neutral-200 dark:border-neutral-800 shadow-sm rounded-2xl overflow-hidden bg-background relative group min-h-[160px] flex flex-col justify-center">
-                         <CardContent className="p-6 relative z-10 space-y-1">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Fairness Score</p>
-                            <div className="flex items-baseline gap-2">
-                               <span className="text-5xl font-black tracking-tighter text-foreground">{proposal.fairness_score}%</span>
-                               <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-widest">Protocol Verified</span>
-                            </div>
-                            <p className="text-[10px] leading-relaxed text-muted-foreground font-medium pt-2">Equitable distribution mathematically verified by the OpenFairTrip protocol.</p>
-                         </CardContent>
-                      </Card>
+			{/* Main Content Grid */}
+			<main className="flex-1 overflow-y-auto p-8 bg-neutral-50/20 dark:bg-neutral-950/20">
+				<div className="max-w-7xl mx-auto space-y-8">
+					{/* Interactive Debate & Governance Hub */}
+					<div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
+						{/* Left: Quick Stats */}
+						<div className="lg:col-span-3 space-y-6">
+							<VoterInsight
+								votingPower={viewerVotingPower}
+								isLocal={isLocallyVerified}
+								userType={viewerProfile?.userType}
+							/>
+							<TurnoutWidget
+								metrics={metrics}
+								voterCount={proposal.voter_count}
+							/>
+							<ProtocolRules
+								metrics={metrics}
+								status={proposal.status}
+							/>
 
-                      {hasConstraints && (
-                         <Card className="border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/20 shadow-sm rounded-2xl overflow-hidden">
-                            <CardContent className="p-6 space-y-3">
-                               <div className="flex items-center gap-2 text-amber-700 dark:text-amber-500">
-                                  <AlertTriangle className="h-4 w-4" />
-                                  <span className="text-[10px] font-black uppercase tracking-widest">Risk Flags</span>
-                               </div>
-                               <ul className="space-y-2">
-                                 {proposal.risk_flags.map((flag, i) => (
-                                   <li key={i} className="text-xs text-amber-800 dark:text-amber-400 font-medium leading-relaxed">• {flag}</li>
-                                 ))}
-                               </ul>
-                            </CardContent>
-                         </Card>
-                      )}
-                   </div>
-                </div>
-             </section>
-             
-             {/* 4. Impact Details */}
-             <section className="space-y-4">
-                <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                  <Globe className="h-4 w-4" /> Expected Impact
-                </h3>
-                <Card className="border-neutral-200 dark:border-neutral-800 shadow-sm rounded-2xl overflow-hidden bg-background">
-                   <CardContent className="p-6 md:p-8">
-                      <p className="text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap">{proposal.expected_impact}</p>
-                   </CardContent>
-                </Card>
-             </section>
+							{/* Audit Ledger Moved Here */}
+							<div className="pt-4">
+								<div className="flex items-center justify-between mb-3">
+									<h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+										Audit Ledger
+									</h3>
+									<Badge
+										variant="secondary"
+										className="text-[8px] px-1.5 py-0 rounded-full font-black uppercase tracking-widest"
+									>
+										{votes.length} Votes
+									</Badge>
+								</div>
+								<div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden bg-background">
+									<table className="w-full text-sm">
+										<thead className="bg-neutral-50 dark:bg-neutral-900/50 border-b border-neutral-200 dark:border-neutral-800">
+											<tr>
+												<th className="text-left px-4 py-3 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+													Voter
+												</th>
+												<th className="text-center px-4 py-3 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+													Stance
+												</th>
+												<th className="text-right px-4 py-3 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+													VP
+												</th>
+											</tr>
+										</thead>
+										<tbody className="divide-y divide-neutral-100 dark:divide-neutral-900">
+											{paginatedVotes.length > 0 ? (
+												paginatedVotes.map(
+													(vote, i) => (
+														<tr
+															key={i}
+															className="hover:bg-neutral-50/50 transition-colors"
+														>
+															<td className="px-4 py-3 font-mono text-[10px] font-bold text-muted-foreground truncate max-w-[80px]">
+																...
+																{vote.voter.substring(
+																	vote.voter
+																		.length -
+																		6,
+																)}
+															</td>
+															<td className="px-4 py-3 text-center">
+																{vote.in_favor ? (
+																	<Badge
+																		variant="outline"
+																		className="border-emerald-200 bg-emerald-50 text-emerald-700 font-black text-[8px] uppercase tracking-widest px-1.5 py-0 rounded"
+																	>
+																		Yes
+																	</Badge>
+																) : (
+																	<Badge
+																		variant="outline"
+																		className="border-rose-200 bg-rose-50 text-rose-700 font-black text-[8px] uppercase tracking-widest px-1.5 py-0 rounded"
+																	>
+																		No
+																	</Badge>
+																)}
+															</td>
+															<td className="px-4 py-3 text-right font-mono font-black text-primary text-xs">
+																{vote.weight.toFixed(
+																	1,
+																)}
+															</td>
+														</tr>
+													),
+												)
+											) : (
+												<tr>
+													<td
+														colSpan={3}
+														className="px-4 py-8 text-center text-muted-foreground uppercase font-black tracking-widest text-[9px] opacity-50"
+													>
+														No votes yet
+													</td>
+												</tr>
+											)}
+										</tbody>
+									</table>
+									{totalAuditPages > 1 && (
+										<div className="flex items-center justify-between p-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/30 dark:bg-neutral-900/30">
+											<Button
+												variant="ghost"
+												size="icon"
+												className="h-6 w-6 rounded-md"
+												onClick={() =>
+													setAuditPage((p) =>
+														Math.max(1, p - 1),
+													)
+												}
+												disabled={auditPage === 1}
+											>
+												<ChevronLeft className="h-4 w-4" />
+											</Button>
+											<span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+												Page {auditPage} of{" "}
+												{totalAuditPages}
+											</span>
+											<Button
+												variant="ghost"
+												size="icon"
+												className="h-6 w-6 rounded-md"
+												onClick={() =>
+													setAuditPage((p) =>
+														Math.min(
+															totalAuditPages,
+															p + 1,
+														),
+													)
+												}
+												disabled={
+													auditPage ===
+													totalAuditPages
+												}
+											>
+												<ChevronRight className="h-4 w-4" />
+											</Button>
+										</div>
+									)}
+								</div>
+							</div>
+						</div>
 
-             {/* 5. Audit Trail */}
-             <section className="space-y-4">
-                <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                  <History className="h-4 w-4" /> Voting Ledger
-                </h3>
-                <div className="border border-neutral-200 dark:border-neutral-800 shadow-sm rounded-2xl overflow-hidden bg-background">
-                   <div className="overflow-x-auto">
-                     <table className="w-full text-sm">
-                        <thead className="bg-neutral-50/50 dark:bg-neutral-900/50 border-b border-neutral-200 dark:border-neutral-800">
-                          <tr>
-                            <th className="text-left px-6 py-4 font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Voter Principal</th>
-                            <th className="text-center px-6 py-4 font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Stance</th>
-                            <th className="text-right px-6 py-4 font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Weight (VP)</th>
-                            <th className="text-right px-6 py-4 font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Timestamp</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-neutral-100 dark:divide-neutral-900">
-                          {votes.length > 0 ? votes.map((vote, i) => (
-                             <tr key={i} className="hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors">
-                                <td className="px-6 py-4 font-mono text-xs font-semibold text-muted-foreground">@{vote.voter.substring(0, 16)}...</td>
-                                <td className="px-6 py-4 text-center">
-                                   {vote.in_favor ? (
-                                      <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-500 font-bold text-[9px] uppercase tracking-widest px-2 py-0.5 rounded">
-                                        <CheckCircle2 className="h-3 w-3 mr-1.5 inline -mt-0.5"/> Approve
-                                      </Badge>
-                                   ) : (
-                                      <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-500 font-bold text-[9px] uppercase tracking-widest px-2 py-0.5 rounded">
-                                        <XCircle className="h-3 w-3 mr-1.5 inline -mt-0.5"/> Reject
-                                      </Badge>
-                                   )}
-                                </td>
-                                <td className="px-6 py-4 text-right font-mono text-xs font-bold text-primary">{vote.weight.toFixed(1)}</td>
-                                <td className="px-6 py-4 text-right text-muted-foreground text-[10px] uppercase tracking-widest font-medium">
-                                  {new Date(Number(vote.timestamp) / 1000000).toLocaleString()}
-                                </td>
-                             </tr>
-                          )) : (
-                             <tr>
-                                <td colSpan={4} className="px-6 py-16 text-center">
-                                   <div className="flex flex-col items-center justify-center space-y-2">
-                                     <History className="h-8 w-8 text-muted-foreground opacity-20" />
-                                     <p className="text-sm text-muted-foreground">No consensus data committed to the ledger yet.</p>
-                                   </div>
-                                </td>
-                             </tr>
-                          )}
-                        </tbody>
-                     </table>
-                   </div>
-                </div>
-             </section>
-          </div>
+						{/* Center: AI Debate centerpiece */}
+						<div className="lg:col-span-6 bg-background rounded-[2rem] border border-neutral-200 dark:border-neutral-800 shadow-xl overflow-hidden flex flex-col">
+							<AIDebateLive proposal={proposal} />
+							{/* Sheet Trigger for Proposal Details */}
+							<div className="mt-auto pt-4">
+								<Sheet>
+									<SheetTrigger
+										render={
+											<Button
+												variant="outline"
+												className="w-full h-14 rounded-2xl font-black uppercase tracking-widest text-xs border-2 shadow-sm gap-2"
+											/>
+										}
+									>
+										<FileText className="h-4 w-4" />
+										View Full Proposal Details
+									</SheetTrigger>
+									<SheetContent
+										side="right"
+										className="w-full sm:max-w-6xl p-0 flex flex-col border-l"
+									>
+										<SheetHeader className="p-6 md:p-8 border-b bg-neutral-50/50 dark:bg-neutral-950/50 shrink-0">
+											<SheetTitle className="text-2xl font-black tracking-tight">
+												{proposal.title} Details
+											</SheetTitle>
+										</SheetHeader>
+										<ScrollArea className="h-[50vh] flex-1 p-6 md:p-8">
+											<div className="space-y-12 pb-12">
+												{/* Overview */}
+												<section className="space-y-4">
+													<div className="flex items-center gap-3 text-primary">
+														<Briefcase className="h-5 w-5" />
+														<h3 className="text-lg font-bold">
+															Scope of Work
+														</h3>
+													</div>
+													<p className="text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap">
+														{proposal.description}
+													</p>
+													<div className="flex items-center gap-2 pt-2">
+														<span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+															Category
+														</span>
+														<Badge
+															variant="secondary"
+															className="rounded-md px-3 font-bold uppercase tracking-wider text-[10px]"
+														>
+															{proposal.category}
+														</Badge>
+													</div>
+												</section>
 
-          {/* Right Side: Governance Panel - Sticky */}
-          <div className="lg:col-span-4 xl:col-span-3 sticky top-0 space-y-6 self-start">
-             <ProposalGovernancePanel id={id} mode={mode} proposal={proposal} />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+												{/* Execution */}
+												<section className="space-y-6">
+													<div className="space-y-4">
+														<div className="flex items-center gap-3 text-primary">
+															<Calendar className="h-5 w-5" />
+															<h3 className="text-lg font-bold">
+																Timeline &
+																Ownership
+															</h3>
+														</div>
+														<div className="space-y-3 bg-neutral-50 dark:bg-neutral-900/50 p-4 rounded-xl border">
+															<div className="flex justify-between border-b pb-2">
+																<span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+																	Target
+																	Completion
+																</span>
+																<span className="text-xs font-bold">
+																	{
+																		proposal.timeline
+																	}
+																</span>
+															</div>
+															<div className="flex justify-between pt-1">
+																<span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+																	Lead
+																	Executor
+																</span>
+																<span className="text-xs font-bold">
+																	{
+																		proposal.executor_name
+																	}
+																</span>
+															</div>
+														</div>
+													</div>
+													<div className="space-y-4">
+														<div className="flex items-center gap-3 text-primary">
+															<LayoutDashboard className="h-5 w-5" />
+															<h3 className="text-lg font-bold">
+																Strategy
+															</h3>
+														</div>
+														<p className="text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap">
+															{
+																proposal.execution_plan
+															}
+														</p>
+													</div>
+												</section>
+
+												{/* Financials */}
+												<section className="space-y-6">
+													<div className="space-y-4">
+														<div className="flex items-center gap-3 text-primary">
+															<DollarSign className="h-5 w-5" />
+															<h3 className="text-lg font-bold">
+																Budget Breakdown
+															</h3>
+														</div>
+														<div className="p-6 rounded-2xl bg-neutral-50 dark:bg-neutral-900/50 border font-mono text-xs leading-relaxed whitespace-pre-wrap">
+															{
+																proposal.budget_breakdown
+															}
+														</div>
+													</div>
+													<div className="space-y-4">
+														<div className="flex items-center gap-3 text-primary">
+															<TrendingUp className="h-5 w-5" />
+															<h3 className="text-lg font-bold">
+																Escrow
+																Governance
+															</h3>
+														</div>
+														<div className="p-4 rounded-xl bg-primary/5 border border-primary/20">
+															<p className="text-sm leading-relaxed text-primary/90 font-medium">
+																Funds are
+																cryptographically
+																pinned to
+																verifiable
+																milestones. 66%
+																regional
+																consensus
+																required for
+																release.
+															</p>
+														</div>
+													</div>
+												</section>
+
+												{/* Impact */}
+												<section className="space-y-4">
+													<div className="flex items-center gap-3 text-primary">
+														<Globe className="h-5 w-5" />
+														<h3 className="text-lg font-bold">
+															Expected Regional
+															Impact
+														</h3>
+													</div>
+													<p className="text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap">
+														{
+															proposal.expected_impact
+														}
+													</p>
+												</section>
+											</div>
+										</ScrollArea>
+									</SheetContent>
+								</Sheet>
+							</div>
+						</div>
+
+						{/* Right: Voting/Funding Action & Information */}
+						<div className="lg:col-span-3 space-y-6 flex flex-col">
+							<Card className="border-neutral-200 dark:border-neutral-800 rounded-3xl overflow-hidden shadow-sm">
+								<CardContent className="p-6 space-y-6">
+									<VotingProgress metrics={metrics} />
+									<div className="h-px bg-neutral-100 dark:bg-neutral-800" />
+									<ProposalActionCard proposal={proposal} />
+								</CardContent>
+							</Card>
+
+							<div className="p-6 rounded-3xl bg-primary/5 border border-primary/20 text-foreground space-y-4">
+								<div className="flex items-center gap-2">
+									<Info className="h-4 w-4 text-primary" />
+									<p className="text-[10px] font-black uppercase tracking-widest text-primary">
+										Protocol Insight
+									</p>
+								</div>
+								<p className="text-xs leading-relaxed opacity-80 font-medium">
+									The OpenFairTrip protocol uses dual-layer
+									consensus. AI vetting provides technical
+									feasibility, while community voting ensures
+									regional alignment.
+								</p>
+							</div>
+						</div>
+					</div>
+				</div>
+			</main>
+		</div>
+	);
 }

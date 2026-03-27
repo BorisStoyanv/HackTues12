@@ -8,7 +8,7 @@ import { Landmark } from "lucide-react";
 import Link from "next/link";
 import { FormEvent, Suspense, useEffect, useState } from "react";
 
-function PublicExploreContent() {
+function PublicExplorePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const searchQuery = searchParams.get("q") ?? "";
@@ -42,7 +42,7 @@ function PublicExploreContent() {
   };
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
+    <div className="flex h-svh min-h-0 flex-col overflow-hidden bg-background text-foreground">
       {/* Mini Navigation */}
       <header className="z-50 border-b bg-background/80 backdrop-blur-md shrink-0">
         <div className="flex h-14 items-center justify-between px-4 sm:px-6">
@@ -81,7 +81,7 @@ function PublicExploreContent() {
         </div>
       </header>
 
-      <main className="relative flex-1 overflow-hidden">
+      <main className="relative h-[calc(100svh-3.5rem)] min-h-0 overflow-hidden">
         <ProposalExplorer
           proposals={proposals}
           mode="public"
@@ -94,8 +94,8 @@ function PublicExploreContent() {
 
 export default function PublicExplorePage() {
   return (
-    <Suspense fallback={<div className="flex h-screen bg-background" />}>
-      <PublicExploreContent />
+    <Suspense fallback={<div className="flex h-svh min-h-0 flex-col bg-background text-foreground" />}>
+      <PublicExplorePageContent />
     </Suspense>
   );
 }

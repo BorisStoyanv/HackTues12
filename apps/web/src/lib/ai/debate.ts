@@ -13,7 +13,23 @@ type DebateRequestProposal = Pick<
   | "budget_currency"
   | "region_tag"
   | "location"
->;
+> &
+  Partial<
+    Pick<
+      SerializedProposal,
+      | "short_description"
+      | "problem_statement"
+      | "budget_breakdown"
+      | "executor_name"
+      | "execution_plan"
+      | "timeline"
+      | "expected_impact"
+      | "risk_flags"
+    >
+  >;
+
+const MAX_DEBATE_INFO_LENGTH = 5000;
+const TRUNCATION_SUFFIX = "...";
 
 function asFiniteScore(value: unknown, field: string) {
   const numeric = Number(value);
@@ -33,6 +49,46 @@ function asText(value: unknown, field: string) {
   return text;
 }
 
+function normalizeDebateInfoValue(value: unknown) {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function truncateDebateInfo(text: string, maxLength: number) {
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  const cutoff = Math.max(0, maxLength - TRUNCATION_SUFFIX.length);
+  return `${text.slice(0, cutoff).trimEnd()}${TRUNCATION_SUFFIX}`;
+}
+
+function buildProposalDebateInfo(proposal: DebateRequestProposal) {
+  const riskFlags = Array.isArray(proposal.risk_flags)
+    ? proposal.risk_flags.join(", ")
+    : "";
+  const sections = [
+    ["Summary", proposal.short_description],
+    ["Description", proposal.description],
+    ["Problem statement", proposal.problem_statement],
+    ["Expected impact", proposal.expected_impact],
+    ["Execution plan", proposal.execution_plan],
+    ["Timeline", proposal.timeline],
+    ["Budget breakdown", proposal.budget_breakdown],
+    ["Executor", proposal.executor_name],
+    ["Risk flags", riskFlags],
+  ]
+    .map(([label, value]) => {
+      const text = normalizeDebateInfoValue(value);
+      return text ? `${label}: ${text}` : null;
+    })
+    .filter((section): section is string => Boolean(section));
+
+  return truncateDebateInfo(
+    sections.join("\n\n"),
+    MAX_DEBATE_INFO_LENGTH,
+  );
+}
+
 export function buildProposalDebateRequest(proposal: DebateRequestProposal) {
   return {
     proposal: {
@@ -42,7 +98,7 @@ export function buildProposalDebateRequest(proposal: DebateRequestProposal) {
         proposal.location.city ||
         proposal.region_tag,
       category: proposal.category,
-      info: proposal.description,
+      info: buildProposalDebateInfo(proposal),
       neededFunds: proposal.budget_amount,
       currency: proposal.budget_currency,
     },
