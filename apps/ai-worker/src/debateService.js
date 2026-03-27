@@ -4,7 +4,7 @@ import { collectInternetEvidence } from "./internetResearch.js";
 import { clamp, extractJsonObject } from "./jsonUtils.js";
 
 const MODELS = {
-  advocate: "google/gemini-2.5-flash-lite",
+  advocate: "openai/gpt-4.1-mini",
   skeptic: "anthropic/claude-haiku-4.5",
   judge: "openai/gpt-5-nano",
 };
@@ -12,7 +12,7 @@ const MODELS = {
 const ROUND_COUNT = 3;
 const REPETITION_SIMILARITY_THRESHOLD = 0.68;
 const MAX_CARRYOVER_ITEMS = 6;
-const ROUND_WINNER_TIE_BAND = 0.06;
+const ROUND_WINNER_TIE_BAND = 0.05;
 export const DEBATE_MODELS = MODELS;
 export const DEBATE_ROUND_COUNT = ROUND_COUNT;
 
@@ -424,9 +424,12 @@ function countMissingInfoSignals(text) {
     /not enough information/g,
     /missing data/g,
     /lack of data/g,
+    /lack of evidence/g,
+    /absence of (data|evidence|proof|visitor|income|revenue|economic impact)/g,
     /insufficient data/g,
     /no data/g,
     /no evidence/g,
+    /without (a|any) (clear|defined|documented) (model|plan|evidence|data)/g,
     /unclear/g,
     /unknown/g,
     /no (clear )?(visitor|visitors|income|revenue|economic impact)/g,
@@ -444,9 +447,13 @@ function sanitizeSkepticMissingDataPhrases(text) {
       .replace(/not enough information/gi, "fragile assumptions")
       .replace(/missing data/gi, "fragile assumptions")
       .replace(/lack of data/gi, "fragile assumptions")
+      .replace(/lack of evidence/gi, "fragile support")
+      .replace(/absence of (data|evidence|proof)/gi, "fragile support")
+      .replace(/absence of (visitor|income|revenue|economic impact)/gi, "fragile $1 assumptions")
       .replace(/insufficient data/gi, "fragile assumptions")
       .replace(/no data/gi, "fragile assumptions")
       .replace(/no evidence/gi, "fragile support")
+      .replace(/without (a|any) (clear|defined|documented) (model|plan|evidence|data)/gi, "with a fragile $3")
       .replace(/\bunknown\b/gi, "uncertain")
       .replace(/\bunclear\b/gi, "ambiguous")
       .replace(/missing (visitor|income|revenue|economic impact)/gi, "fragile $1 assumptions")
@@ -467,6 +474,302 @@ function extractFirstUrl(text) {
   return match ? match[0].replace(/[),.;]+$/, "") : null;
 }
 
+function countUrls(text) {
+  return (String(text || "").match(/https?:\/\/\S+/gi) || []).length;
+}
+
+function hasUncertaintyLabel(sentence) {
+  return /(assum|estimate|range|approx|around|about|roughly|may|might|could|likely|scenario|if\b|baseline|conservative|stress|sensitivity|downside|upside)/i.test(
+    String(sentence || "")
+  );
+}
+
+function hasProposalAttribution(sentence) {
+  return /(proposal|as provided|as stated|submitted brief|project brief|according to the proposal|proposal-stated|from the proposal)/i.test(
+    String(sentence || "")
+  );
+}
+
+function countProposalAttributionSignals(text) {
+  return (String(text || "").match(
+    /(proposal-stated|according to the proposal|as stated in the proposal|from the proposal|proposal specifies|submitted proposal)/gi
+  ) || []).length;
+}
+
+function countScenarioSignals(text) {
+  return (String(text || "").match(
+    /(scenario|sensitivity|stress test|downside case|base case|upside case|low[- ]case|high[- ]case|conversion rate)/gi
+  ) || []).length;
+}
+
+function countMitigationSignals(text) {
+  return (String(text || "").match(
+    /(mitigation|contingency|fallback|buffer|reserve|performance bond|fixed-price|fixed price|kpi|audit|phased disbursement|gated release|ring-fenced|risk control)/gi
+  ) || []).length;
+}
+
+function countUnsupportedNumericClaims(text) {
+  return splitSentences(text).reduce((sum, sentence) => {
+    if (!/\d/.test(sentence)) {
+      return sum;
+    }
+
+    if (containsUrl(sentence) || hasUncertaintyLabel(sentence) || hasProposalAttribution(sentence)) {
+      return sum;
+    }
+
+    return sum + 1;
+  }, 0);
+}
+
+function countProposalOnlyNumericClaims(text) {
+  return splitSentences(text).reduce((sum, sentence) => {
+    if (!/\d/.test(sentence)) {
+      return sum;
+    }
+
+    if (hasProposalAttribution(sentence) && !containsUrl(sentence)) {
+      return sum + 1;
+    }
+
+    return sum;
+  }, 0);
+}
+
+function countOverconfidentClaims(text) {
+  const patterns = [
+    /\bguarantee(s|d)?\b/gi,
+    /\bdefinitely\b/gi,
+    /\bcertain(ly)?\b/gi,
+    /\bundeniable\b/gi,
+    /\bno doubt\b/gi,
+    /\bwill (always|certainly|definitely)\b/gi,
+  ];
+
+  return patterns.reduce((sum, pattern) => sum + (String(text || "").match(pattern) || []).length, 0);
+}
+
+function computeStatementQualityScore({ statement, role }) {
+  const concreteSignals = countConcreteSignals(statement);
+  const citations = countUrls(statement);
+  const unsupportedNumericClaims = countUnsupportedNumericClaims(statement);
+  const proposalOnlyNumericClaims = countProposalOnlyNumericClaims(statement);
+  const overconfidentClaims = countOverconfidentClaims(statement);
+  const proposalAttributions = countProposalAttributionSignals(statement);
+  const scenarioSignals = countScenarioSignals(statement);
+  const mitigationSignals = countMitigationSignals(statement);
+  const uncertaintyLabels = (String(statement || "").match(
+    /(assum|estimate|range|scenario|conservative|baseline|if\b|may|might|could|likely|stress|sensitivity|downside)/gi
+  ) || []).length;
+
+  let quality =
+    Math.min(5, concreteSignals) * 0.16 +
+    Math.min(2, citations) * 0.24 +
+    (citations > 0 ? Math.min(2, proposalAttributions) * 0.06 : 0) +
+    Math.min(2, scenarioSignals) * 0.1 +
+    Math.min(2, mitigationSignals) * 0.08 +
+    Math.min(2, uncertaintyLabels) * 0.08 -
+    unsupportedNumericClaims * 0.18 -
+    proposalOnlyNumericClaims * 0.1 -
+    overconfidentClaims * 0.08;
+
+  if (unsupportedNumericClaims >= 2 && citations === 0) {
+    quality -= 0.06;
+  }
+
+  // Skeptical claims with numbers but no source/caveat should not be treated as inherently stronger.
+  if (role === "skeptic" && concreteSignals > 0 && citations === 0 && unsupportedNumericClaims > 0) {
+    quality -= 0.1;
+  }
+
+  return Number(quality.toFixed(3));
+}
+
+function hasAnyPattern(text, patterns) {
+  return patterns.some((pattern) => pattern.test(text));
+}
+
+function assessProposalViability(proposal) {
+  const combinedText = [
+    proposal?.name || "",
+    proposal?.category || "",
+    proposal?.location || "",
+    proposal?.info || "",
+  ]
+    .join(" ")
+    .trim();
+
+  const normalized = combinedText.toLowerCase();
+
+  const commitmentPatterns = [
+    /\bsigned (mou|agreement|contract|partnership|operator|partner)\b/i,
+    /\b(co[- ]funding|match funding).*(committed|approved|secured)\b/i,
+    /\b(committed|approved|secured).*(co[- ]funding|match funding)\b/i,
+    /\bletter of intent\b/i,
+    /\bapproved sponsor match\b/i,
+  ];
+  const executionControlPatterns = [
+    /\bfixed[- ]price\b/i,
+    /\bperformance bond\b/i,
+    /\bmilestone[- ]gated\b/i,
+    /\bkpi[- ]gated\b/i,
+    /\bthird[- ]party audit\b/i,
+    /\bchange[- ]order cap\b/i,
+    /\bphased disbursement\b/i,
+  ];
+  const financialPlanPatterns = [
+    /\bopex\b/i,
+    /\bcapex\b/i,
+    /\bcontingency reserve\b/i,
+    /\bring[- ]fenced reserve\b/i,
+    /\bbudget\b/i,
+    /\bpayback\b/i,
+    /\brevenue\b/i,
+    /\bcash flow\b/i,
+  ];
+  const deliveryPlanPatterns = [
+    /\btimeline\b/i,
+    /\bphase[- ]\d+\b/i,
+    /\bquarterly\b/i,
+    /\bmonthly\b/i,
+    /\bimplementation\b/i,
+    /\brollout\b/i,
+    /\bprocurement\b/i,
+    /\bmaintenance\b/i,
+  ];
+  const riskPlanPatterns = [
+    /\bdownside\b/i,
+    /\bsensitivity\b/i,
+    /\bstress test\b/i,
+    /\bbase case\b/i,
+    /\bupside case\b/i,
+    /\bmitigation\b/i,
+    /\bfallback\b/i,
+  ];
+
+  const redFlagMatchers = [
+    { pattern: /\bno signed partners?\b/i, label: "no signed partners" },
+    { pattern: /\bno detailed budget\b/i, label: "no detailed budget" },
+    { pattern: /\bno opex plan\b/i, label: "no OPEX plan" },
+    { pattern: /\bno timeline\b/i, label: "no timeline" },
+    { pattern: /\bno contracting strategy\b/i, label: "no contracting strategy" },
+    { pattern: /\bsomehow\b/i, label: "vague delivery language" },
+    { pattern: /\bto be determined\b|\btbd\b/i, label: "to-be-determined plan" },
+    { pattern: /\bexpected .* assumed\b|\bassumed\b/i, label: "assumption-heavy projection" },
+    { pattern: /\bhuge (tourism )?growth\b/i, label: "overstated growth language" },
+  ];
+
+  const dimensions = {
+    commitmentEvidence: hasAnyPattern(normalized, commitmentPatterns),
+    executionControls: hasAnyPattern(normalized, executionControlPatterns),
+    financialPlan: hasAnyPattern(normalized, financialPlanPatterns),
+    deliveryPlan: hasAnyPattern(normalized, deliveryPlanPatterns),
+    riskPlanning: hasAnyPattern(normalized, riskPlanPatterns),
+  };
+
+  const baseScore =
+    (dimensions.commitmentEvidence ? 0.25 : 0) +
+    (dimensions.executionControls ? 0.25 : 0) +
+    (dimensions.financialPlan ? 0.2 : 0) +
+    (dimensions.deliveryPlan ? 0.15 : 0) +
+    (dimensions.riskPlanning ? 0.15 : 0);
+
+  const redFlags = redFlagMatchers
+    .filter((matcher) => matcher.pattern.test(normalized))
+    .map((matcher) => matcher.label);
+
+  const score = Number(clamp(baseScore - Math.min(0.45, redFlags.length * 0.08), 0, 1).toFixed(3));
+  const classification =
+    score >= 0.7 ? "robust" : score >= 0.45 ? "mixed" : "fragile";
+
+  const strengths = [];
+  const gaps = [];
+
+  if (dimensions.commitmentEvidence) strengths.push("documented partner/funding commitments");
+  else gaps.push("missing documented commitments");
+  if (dimensions.executionControls) strengths.push("execution controls");
+  else gaps.push("weak execution controls");
+  if (dimensions.financialPlan) strengths.push("financial planning detail");
+  else gaps.push("weak financial planning detail");
+  if (dimensions.deliveryPlan) strengths.push("delivery/timeline structure");
+  else gaps.push("weak delivery/timeline structure");
+  if (dimensions.riskPlanning) strengths.push("risk/downside planning");
+  else gaps.push("weak downside risk planning");
+
+  return {
+    score,
+    classification,
+    strengths,
+    gaps,
+    redFlags,
+  };
+}
+
+function formatProposalViabilityProfile(profile) {
+  return [
+    `Classification: ${profile.classification}`,
+    `Score: ${profile.score}`,
+    `Strength signals: ${profile.strengths.length ? profile.strengths.join("; ") : "none"}`,
+    `Gap signals: ${profile.gaps.length ? profile.gaps.join("; ") : "none"}`,
+    `Red flags: ${profile.redFlags.length ? profile.redFlags.join("; ") : "none"}`,
+  ].join("\n");
+}
+
+function computeViabilityScoreAdjustment({
+  proposalViability,
+  advocateStatement,
+  skepticStatement,
+}) {
+  if (!proposalViability) {
+    return 0;
+  }
+
+  const viabilityScore = Number(proposalViability.score);
+  const advocateCitations = countUrls(advocateStatement);
+  const advocateMitigationSignals = countMitigationSignals(advocateStatement);
+  const advocateScenarioSignals = countScenarioSignals(advocateStatement);
+  const advocateUnsupportedNumericClaims = countUnsupportedNumericClaims(advocateStatement);
+  const skepticConcreteSignals = countConcreteSignals(skepticStatement);
+  const skepticCitations = countUrls(skepticStatement);
+
+  if (viabilityScore < 0.45) {
+    let penalty = (0.45 - viabilityScore) * 0.3;
+
+    if (advocateCitations > 0) {
+      penalty *= 0.75;
+    }
+    if (advocateMitigationSignals > 0 && advocateScenarioSignals > 0) {
+      penalty *= 0.75;
+    }
+
+    penalty += Math.min(0.05, advocateUnsupportedNumericClaims * 0.015);
+
+    if (skepticConcreteSignals >= 2) {
+      penalty += 0.015;
+    }
+    if (skepticCitations > 0) {
+      penalty += 0.015;
+    }
+
+    return -Math.min(0.11, penalty);
+  }
+
+  if (viabilityScore > 0.72) {
+    let bonus = (viabilityScore - 0.72) * 0.2;
+
+    if (advocateCitations === 0) {
+      bonus *= 0.75;
+    }
+    if (advocateMitigationSignals === 0 || advocateScenarioSignals === 0) {
+      bonus *= 0.7;
+    }
+
+    return Math.min(0.06, bonus);
+  }
+
+  return 0;
+}
+
 function deriveWinnerFromScore(score) {
   if (score > 0.5 + ROUND_WINNER_TIE_BAND) {
     return "advocate";
@@ -483,16 +786,41 @@ function calibrateRoundScore({
   rationale,
   advocateStatement,
   skepticStatement,
+  proposalViability,
 }) {
   let adjusted = score;
   const advocateConcreteSignals = countConcreteSignals(advocateStatement);
   const skepticConcreteSignals = countConcreteSignals(skepticStatement);
+  const advocateQuality = computeStatementQualityScore({
+    statement: advocateStatement,
+    role: "advocate",
+  });
+  const skepticQuality = computeStatementQualityScore({
+    statement: skepticStatement,
+    role: "skeptic",
+  });
+  const qualityDelta = advocateQuality - skepticQuality;
 
   // Prevent automatic skeptic edge when advocate provides at least as many concrete claims.
   if (adjusted < 0.5 && advocateConcreteSignals >= skepticConcreteSignals) {
     const concreteDelta = advocateConcreteSignals - skepticConcreteSignals;
     adjusted += concreteDelta > 0 ? Math.min(0.08, 0.02 * concreteDelta) : 0.03;
   }
+
+  // Apply a symmetric quality correction so unsupported skeptical critique does not dominate by default.
+  adjusted += clamp(qualityDelta * 0.18, -0.12, 0.12);
+
+  // If both statements look similarly strong/weak, pull slightly toward tie.
+  if (Math.abs(qualityDelta) < 0.12) {
+    adjusted = 0.5 + (adjusted - 0.5) * 0.7;
+  }
+
+  // Deterministic prior from proposal viability profile.
+  adjusted += computeViabilityScoreAdjustment({
+    proposalViability,
+    advocateStatement,
+    skepticStatement,
+  });
 
   // Missing-info framing should not dominate round scoring.
   if (adjusted < 0.5 && countMissingInfoSignals(rationale) > 0) {
@@ -527,15 +855,28 @@ async function generateDebaterStatement({
     `You are the ${roleTitle} in a public-funding debate.`,
     `Your goal is to ${stanceGoal}.`,
     "Use concrete facts from proposal details, internet evidence, and prior debate context.",
+    "Do not invent facts, commitments, contracts, partnerships, or numeric baselines that are not present in proposal details, internet evidence, or prior debate context.",
     isAdvocate
       ? "Use the economic baseline to anchor at least one quantified argument (visitors, income, or payback), explicitly labeling assumptions where needed."
       : "Critique weak assumptions and overconfident projections from the economic baseline, but do not ignore credible quantified points.",
     isAdvocate
       ? "Use real-world internet datapoints and cite at least one source URL exactly as given."
-      : "Engage with concrete datapoints directly instead of dismissing them.",
+      : "Engage with concrete datapoints directly instead of dismissing them, and cite source URL(s) when making quantitative critiques.",
     isAdvocate
       ? "Reasonable, clearly labeled assumptions are allowed when hard data is incomplete."
-      : "Do not mention missing data, missing evidence, unknown information, unclear information, or lack of information.",
+      : "You may cite evidence gaps only when each gap is tied to a concrete downside mechanism (cost, demand, execution, governance, or legal risk).",
+    isAdvocate
+      ? "Avoid overconfident certainty language; make confidence proportional to evidence."
+      : "If you use numeric claims (cost overruns, percentages, ROI windows), either cite a provided source URL or explicitly label them as hypothetical scenarios.",
+    isAdvocate
+      ? "When using proposal-provided numbers (MOUs, co-funding, visitor targets, unit economics), explicitly mark them as proposal-stated facts and distinguish them from assumptions."
+      : "If you challenge proposal-provided numbers, explain whether the issue is conversion risk, execution risk, or governance risk instead of generic dismissal.",
+    isAdvocate
+      ? "Include one downside sensitivity case and one concrete mitigation control linked to delivery mechanics (performance bond, fixed-price scope, reserve, phased disbursement, audit, KPI gates)."
+      : "A strong rebuttal should engage the advocate's mitigation controls directly when present.",
+    isAdvocate
+      ? "When making upside claims, explicitly state preconditions required for those outcomes."
+      : "When proposal controls are weak or vague, explicitly connect that weakness to lower execution confidence and weaker expected ROI.",
     round > 1
       ? "For rounds 2 and 3, you must explicitly reference one concrete prior-round claim and one unresolved judge concern."
       : "For round 1, establish at least one concrete claim that can be challenged later.",
@@ -584,10 +925,13 @@ async function generateDebaterStatement({
       : "Mandatory: challenge at least one concrete economic number or assumption.",
     isAdvocate
       ? "Mandatory: cite at least one source URL from the datapoints pack in parentheses."
-      : "Mandatory: reference at least one datapoint from the pack when rebutting.",
+      : "Mandatory: reference at least one datapoint from the pack when rebutting and include at least one source URL if you use any numeric critique.",
     isAdvocate
-      ? "Mandatory: if evidence is incomplete, still provide a defendable range estimate with explicit assumptions."
-      : "Mandatory: include at least two concrete risk arguments (execution, cost overrun, OPEX, demand volatility, governance, opportunity cost) and do not reference missing data/evidence.",
+      ? "Mandatory: if evidence is incomplete, still provide a defendable range estimate with explicit assumptions and mark proposal-stated numbers as such."
+      : "Mandatory: include at least two concrete risk arguments (execution, cost overrun, OPEX, demand volatility, governance, opportunity cost).",
+    isAdvocate
+      ? "Mandatory: include one downside sensitivity scenario and one concrete mitigation control."
+      : "Mandatory: if you claim downside, show why existing mitigation controls are insufficient.",
     `Write exactly one strong statement ${finalAction}.`,
     retryInstruction ? `Revision requirement: ${retryInstruction}` : "",
   ]
@@ -598,8 +942,8 @@ async function generateDebaterStatement({
     model: isAdvocate ? MODELS.advocate : MODELS.skeptic,
     systemPrompt,
     userPrompt,
-    temperature: 0.5,
-    maxTokens: 260,
+    temperature: isAdvocate ? 0.25 : 0.35,
+    maxTokens: 320,
   });
 }
 
@@ -639,16 +983,85 @@ async function generateDebaterStatementWithRetry({
   );
 
   const isSkeptic = speaker === "skeptic";
-  const missingInfoMentioned = isSkeptic && countMissingInfoSignals(firstAttempt) > 0;
+  const skepticOverusesGenericMissingData =
+    isSkeptic && countMissingInfoSignals(firstAttempt) > 2 && countConcreteSignals(firstAttempt) < 2;
   const advocateMissingCitation = speaker === "advocate" && !containsUrl(firstAttempt);
+  const advocateMissingProposalAttribution =
+    speaker === "advocate" && countProposalAttributionSignals(firstAttempt) === 0;
+  const advocateMissingScenario = speaker === "advocate" && countScenarioSignals(firstAttempt) === 0;
+  const advocateMissingMitigation = speaker === "advocate" && countMitigationSignals(firstAttempt) === 0;
+  const skepticUncitedNumbers = isSkeptic && countUnsupportedNumericClaims(firstAttempt) > 0 && !containsUrl(firstAttempt);
 
-  if (!previousStatements.length && !missingInfoMentioned && !advocateMissingCitation) {
-    return isSkeptic ? sanitizeSkepticMissingDataPhrases(firstAttempt) : firstAttempt;
+  if (
+    !previousStatements.length &&
+    !skepticOverusesGenericMissingData &&
+    !advocateMissingCitation &&
+    !advocateMissingProposalAttribution &&
+    !advocateMissingScenario &&
+    !advocateMissingMitigation &&
+    !skepticUncitedNumbers
+  ) {
+    return firstAttempt;
   }
 
   const firstSimilarity = maxSimilarityWithHistory(firstAttempt, previousStatements);
-  if (firstSimilarity < REPETITION_SIMILARITY_THRESHOLD && !missingInfoMentioned && !advocateMissingCitation) {
-    return isSkeptic ? sanitizeSkepticMissingDataPhrases(firstAttempt) : firstAttempt;
+  if (
+    firstSimilarity < REPETITION_SIMILARITY_THRESHOLD &&
+    !skepticOverusesGenericMissingData &&
+    !advocateMissingCitation &&
+    !advocateMissingProposalAttribution &&
+    !advocateMissingScenario &&
+    !advocateMissingMitigation &&
+    !skepticUncitedNumbers
+  ) {
+    return firstAttempt;
+  }
+
+  let retryInstruction = "";
+  if (
+    speaker === "advocate" &&
+    (advocateMissingCitation ||
+      advocateMissingProposalAttribution ||
+      advocateMissingScenario ||
+      advocateMissingMitigation)
+  ) {
+    const advocateRequirements = [];
+    if (advocateMissingCitation) {
+      advocateRequirements.push(
+        "Include at least one concrete numeric datapoint and one source URL exactly as given in the datapoints pack."
+      );
+    }
+    if (advocateMissingProposalAttribution) {
+      advocateRequirements.push(
+        "Explicitly mark at least one key numeric claim as proposal-stated fact."
+      );
+    }
+    if (advocateMissingScenario) {
+      advocateRequirements.push(
+        "Add one downside sensitivity scenario (for example lower conversion or attendance)."
+      );
+    }
+    if (advocateMissingMitigation) {
+      advocateRequirements.push(
+        "Add one concrete mitigation control tied to execution/governance (for example performance bond, reserve, phased disbursement, audit, KPI gate)."
+      );
+    }
+
+    retryInstruction = `Your previous draft did not meet advocate structure requirements. ${advocateRequirements.join(
+      " "
+    )}`;
+  } else if (skepticUncitedNumbers) {
+    retryInstruction =
+      "Your previous draft used numeric critiques without source support. Add at least one source URL from the datapoints pack, or label numbers as hypothetical scenarios.";
+  } else if (skepticOverusesGenericMissingData) {
+    retryInstruction =
+      "Your previous draft leaned on generic evidence-gap language. Keep at most one evidence-gap mention, and tie it to concrete downside mechanism with quantified impact.";
+  } else if (opponentCurrentRoundStatement) {
+    retryInstruction =
+      "Your previous draft repeated prior phrasing. Use a clearly different angle and directly rebut one specific claim from the current-round opponent statement.";
+  } else {
+    retryInstruction =
+      "Your previous draft repeated prior phrasing. Use a clearly different angle and pre-empt a likely counterargument without reusing prior sentence structures.";
   }
 
   const secondAttempt = cleanStatement(
@@ -664,22 +1077,12 @@ async function generateDebaterStatementWithRetry({
       concreteClaims,
       unresolvedJudgePoints,
       opponentCurrentRoundStatement,
-      retryInstruction: advocateMissingCitation
-        ? "Your previous draft missed citation. Include at least one concrete numeric datapoint and one source URL exactly as given in the datapoints pack."
-        : missingInfoMentioned
-          ? "Your previous draft mentioned missing data/evidence. Remove that theme entirely. Argue only via concrete non-data risks and trade-offs."
-        : opponentCurrentRoundStatement
-          ? "Your previous draft repeated prior phrasing. Use a clearly different angle and directly rebut one specific claim from the current-round opponent statement."
-          : "Your previous draft repeated prior phrasing. Use a clearly different angle and pre-empt a likely counterargument without reusing prior sentence structures.",
+      retryInstruction,
     })
   );
 
   const secondSimilarity = maxSimilarityWithHistory(secondAttempt, previousStatements);
   const selected = secondSimilarity <= firstSimilarity ? secondAttempt : firstAttempt;
-
-  if (isSkeptic) {
-    return sanitizeSkepticMissingDataPhrases(selected);
-  }
 
   if (speaker === "advocate" && !containsUrl(selected)) {
     const fallbackUrl = extractFirstUrl(realWorldDataPointsText) || extractFirstUrl(evidenceText);
@@ -705,6 +1108,7 @@ async function judgeRound({
   responseLanguageName,
   round,
   evidenceGapPenaltyUsed,
+  proposalViability,
   advocateStatement,
   skepticStatement,
 }) {
@@ -715,9 +1119,17 @@ async function judgeRound({
     "Apply equal skepticism to BOTH sides. Unsupported skeptical claims are penalized just like unsupported advocate claims.",
     "Start from 0.5 and move only when there is a clear argument-quality advantage.",
     "Default to tie when both sides are similarly plausible.",
+    "Score mapping guideline: keep score in [0.45, 0.55] unless one side has a clear, evidence-backed argument-quality edge.",
+    "Use the provided deterministic proposal viability profile as prior context: fragile proposals require stronger advocate proof; robust proposals require stronger skeptic proof to overturn.",
     "Do not automatically favor the skeptic just because some evidence is missing.",
+    "Proposal-stated numeric facts are admissible when explicitly attributed to the proposal; they are weaker than external evidence but should not be treated as fabricated.",
     "Reasonable, explicitly labeled assumptions and ranges are valid argumentation when hard data is limited.",
+    "Reward explicit downside sensitivity and concrete mitigation controls when they are coherent and relevant.",
+    "Penalize any side that introduces concrete facts not supported by proposal text, internet evidence, or prior-round statements.",
     "Penalize generic or repetitive 'missing information' claims if they are not paired with substantive alternative risk analysis.",
+    "Penalize any side that uses precise numeric claims without source support or explicit hypothetical framing.",
+    "Penalize citations that are weakly relevant to the proposal location/category or do not support the claimed numeric effect.",
+    "Skeptic should win only when critique is stronger and evidence-grounded, not merely because it raises uncertainty.",
     "Evidence-gap penalty can be applied at most once across all rounds.",
     evidenceGapPenaltyUsed
       ? "Evidence-gap penalty was already used in a previous round, so in this round you must not reduce score due to missing evidence."
@@ -740,6 +1152,9 @@ async function judgeRound({
     "Economic baseline:",
     economicBriefText,
     "",
+    "Deterministic proposal viability profile:",
+    formatProposalViabilityProfile(proposalViability),
+    "",
     "Debate history:",
     historyText,
     "",
@@ -748,8 +1163,14 @@ async function judgeRound({
     "",
     "Scoring guidance:",
     "- Start from 0.5 and move only for clear quality differences.",
+    "- Keep within [0.45, 0.55] when both statements are comparably strong or comparably weak.",
     "- Missing-evidence concerns alone should not dominate the score shift.",
+    "- Treat clearly attributed proposal-stated numbers as valid but lower-confidence inputs.",
+    "- Reward coherent downside sensitivity + mitigation planning.",
+    "- Penalize introduced concrete facts that are not grounded in proposal/evidence/debate history.",
     "- Penalize unsupported assertions from either side equally.",
+    "- Penalize uncited precise numeric claims from either side.",
+    "- Penalize weakly relevant citations or citations that do not support the numeric claim being made.",
     "",
     "Return exactly this JSON schema:",
     '{"winner":"advocate|skeptic|tie","score":0.5,"rationale":"short explanation"}',
@@ -761,7 +1182,7 @@ async function judgeRound({
       systemPrompt,
       userPrompt,
       maxTokens: 1600,
-      temperature: undefined,
+      temperature: 0.1,
       includeReasoning: false,
       reasoning: { effort: "low" },
     })
@@ -773,6 +1194,7 @@ async function judgeRound({
     rationale: parsed.rationale,
     advocateStatement,
     skepticStatement,
+    proposalViability,
   });
 
   return {
@@ -839,6 +1261,8 @@ async function judgeFinal({ proposalText, evidenceText, economicBriefText, respo
     "For neglect_and_age and potential_tourism_benefit, high values imply higher funding priority.",
     "Apply equal skepticism to both sides in the round summaries; do not treat skeptical claims as true by default.",
     "Do not automatically penalize the advocate for every evidence gap if assumptions were explicit and reasonable.",
+    "Treat clearly attributed proposal-stated numbers as admissible (lower confidence than external evidence, but not invalid by default).",
+    "Reward coherent downside sensitivity framing and concrete mitigation controls.",
     "Do not over-reward repetitive generic skepticism focused only on missing information.",
     "Treat evidence-gap downside as already accounted for at most once in round scoring; do not repeatedly penalize the same gap in the final view.",
     `Write the rationale in ${responseLanguageName}.`,
@@ -919,6 +1343,7 @@ export async function runProposalDebate(proposal, hooks = {}) {
   ensureContinue();
   const responseLanguage = detectResponseLanguage(proposal);
   const proposalText = formatProposal(proposal);
+  const proposalViability = assessProposalViability(proposal);
   const evidence = await collectInternetEvidence(proposal);
   const evidenceText = formatEvidence(evidence);
   const realWorldDataPointsText = formatRealWorldDataPoints(evidence);
@@ -1039,6 +1464,7 @@ export async function runProposalDebate(proposal, hooks = {}) {
       responseLanguageName: responseLanguage.name,
       round,
       evidenceGapPenaltyUsed,
+      proposalViability,
       advocateStatement,
       skepticStatement,
     });
@@ -1092,6 +1518,7 @@ export async function runProposalDebate(proposal, hooks = {}) {
   const result = {
     models: MODELS,
     proposal,
+    proposalViability,
     internetEvidence: evidence,
     economicBrief,
     rounds,
@@ -1114,3 +1541,16 @@ export async function runProposalDebate(proposal, hooks = {}) {
 
   return result;
 }
+
+export const _scoringInternals = {
+  countMissingInfoSignals,
+  countUnsupportedNumericClaims,
+  countProposalAttributionSignals,
+  countScenarioSignals,
+  countMitigationSignals,
+  assessProposalViability,
+  computeViabilityScoreAdjustment,
+  computeStatementQualityScore,
+  calibrateRoundScore,
+  deriveWinnerFromScore,
+};
