@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SerializedProposal } from "@/lib/actions/proposals";
 import { convertProposalsToGeoJSON } from "@/lib/geojson";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency, formatStatus } from "@/lib/utils";
 import { MAPBOX_API_KEY } from "@/lib/env";
 import { motion } from "framer-motion";
 import {
@@ -300,10 +300,10 @@ export function InteractiveMap({
 							className="flex flex-col p-5 font-sans text-foreground bg-background rounded-4xl shadow-2xl border border-neutral-200 dark:border-neutral-800"
 						>
 							<div className="flex items-center justify-between mb-4">
-								<Badge className="bg-primary text-primary-foreground px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border-none">
+								<Badge className="bg-primary text-primary-foreground px-3 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-widest border-none">
 									{selectedProposal.status.toUpperCase()}
 								</Badge>
-								<div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-tighter bg-neutral-100 dark:bg-neutral-900 px-2 py-0.5 rounded-md">
+								<div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-tight bg-neutral-100 dark:bg-neutral-900 px-2 py-0.5 rounded-md">
 									<Clock className="w-3 h-3" />
 									{new Date(
 										selectedProposal.created_at / 1000000,
@@ -311,7 +311,7 @@ export function InteractiveMap({
 								</div>
 							</div>
 
-							<h4 className="font-black text-xl leading-[1.1] mb-3 line-clamp-2 tracking-tight">
+							<h4 className="font-semibold text-xl leading-[1.1] mb-3 line-clamp-2 tracking-tight">
 								{selectedProposal.title}
 							</h4>
 
@@ -328,19 +328,18 @@ export function InteractiveMap({
 
 							<div className="grid grid-cols-2 gap-4 mb-6 pt-4 border-t border-neutral-100 dark:border-neutral-900">
 								<div className="space-y-1">
-									<p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">
+									<p className="text-[9px] font-semibold uppercase text-muted-foreground tracking-widest">
 										Protocol Budget
 									</p>
-									<p className="text-lg font-black flex items-center gap-1">
-										<DollarSign className="h-4 w-4 text-primary" />
-										{selectedProposal.budget_amount.toLocaleString()}
+									<p className="text-lg font-semibold flex items-center gap-1">
+										{formatCurrency(selectedProposal.budget_amount, selectedProposal.budget_currency || "USD")}
 									</p>
 								</div>
 								<div className="space-y-1 text-right">
-									<p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">
+									<p className="text-[9px] font-semibold uppercase text-muted-foreground tracking-widest">
 										Node Consensus
 									</p>
-									<p className="text-lg font-black flex items-center justify-end gap-1">
+									<p className="text-lg font-semibold flex items-center justify-end gap-1">
 										<Users className="h-4 w-4 text-blue-500" />
 										{selectedProposal.voter_count}
 									</p>
@@ -353,7 +352,7 @@ export function InteractiveMap({
                     ? `/dashboard/proposals/detail?id=${selectedProposal.id}` 
                     : `${linkPrefix}/${selectedProposal.id}`
                   }
-									className="flex-1 flex items-center justify-center h-12 text-[10px] font-black uppercase tracking-[0.2em] bg-foreground text-background rounded-2xl transition-all hover:bg-foreground/90 active:scale-[0.98] shadow-xl"
+									className="flex-1 flex items-center justify-center h-12 text-[10px] font-semibold uppercase tracking-[0.2em] bg-foreground text-background rounded-2xl transition-all hover:bg-foreground/90 active:scale-[0.98] shadow-xl"
 								>
 									Full Audit{" "}
 									<ArrowRight className="ml-2 h-3 w-3" />

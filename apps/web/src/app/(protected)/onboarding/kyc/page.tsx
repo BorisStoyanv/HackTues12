@@ -220,7 +220,7 @@ export default function KYCPage() {
 									<Building2 className="h-8 w-8" />
 								</div>
 								<div className="space-y-3">
-									<CardTitle className="text-4xl font-black tracking-tighter uppercase italic">
+									<CardTitle className="text-2xl font-semibold tracking-tight ">
 										Institutional Identification
 									</CardTitle>
 									<CardDescription className="text-muted-foreground text-lg font-medium">
@@ -243,7 +243,7 @@ export default function KYCPage() {
 											name="vatNumber"
 											render={({ field }) => (
 												<FormItem className="space-y-3">
-													<FormLabel className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground ml-1">
+													<FormLabel className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground ml-1">
 														VAT / Registration ID
 														(with country prefix)
 													</FormLabel>
@@ -295,7 +295,7 @@ export default function KYCPage() {
 									>
 										<div className="flex justify-between items-start">
 											<div className="space-y-1">
-												<p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+												<p className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground">
 													Database Resolution
 												</p>
 												<h4 className="text-2xl font-bold tracking-tight">
@@ -311,7 +311,7 @@ export default function KYCPage() {
 											</div>
 											<Badge
 												className={cn(
-													"px-4 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border-none",
+													"px-4 py-1 rounded-full text-[9px] font-semibold uppercase tracking-widest border-none",
 													viesResult.isValid
 														? "bg-green-500 text-white"
 														: "bg-red-500 text-white",
@@ -326,10 +326,10 @@ export default function KYCPage() {
 										{viesResult.isValid && (
 											<div className="pt-6 border-t border-green-500/10 space-y-4">
 												<div className="space-y-1">
-													<p className="text-[9px] font-black uppercase text-muted-foreground">
+													<p className="text-[9px] font-semibold uppercase text-muted-foreground">
 														Registered Address
 													</p>
-													<p className="text-sm font-medium leading-relaxed italic">
+													<p className="text-sm font-medium leading-relaxed">
 														{viesResult.address ||
 															"Proprietary Data - Identity Masked"}
 													</p>
@@ -367,7 +367,7 @@ export default function KYCPage() {
 									onClick={() =>
 										router.push("/onboarding/role")
 									}
-									className="rounded-full px-8 font-black uppercase tracking-widest text-[10px]"
+									className="rounded-full px-8 font-semibold uppercase tracking-widest text-[10px]"
 								>
 									<ArrowLeft className="mr-2 h-4 w-4" />
 									Abort
@@ -377,7 +377,7 @@ export default function KYCPage() {
 										!viesResult?.isValid || isViesLoading
 									}
 									onClick={() => setStep("upload")}
-									className="h-16 rounded-full bg-foreground text-background hover:bg-foreground/90 transition-all px-12 text-sm font-black shadow-xl active:scale-95 disabled:opacity-20"
+									className="h-16 rounded-full bg-foreground text-background hover:bg-foreground/90 transition-all px-12 text-sm font-semibold shadow-xl active:scale-95 disabled:opacity-20"
 								>
 									Seal Identity
 									<ArrowRight className="ml-2 h-5 w-5" />
@@ -402,7 +402,7 @@ export default function KYCPage() {
 									<Lock className="h-8 w-8" />
 								</div>
 								<div className="space-y-3">
-									<CardTitle className="text-4xl font-black tracking-tighter uppercase italic">
+									<CardTitle className="text-2xl font-semibold tracking-tight ">
 										Credential Vault
 									</CardTitle>
 									<CardDescription className="text-muted-foreground text-lg font-medium">
@@ -452,7 +452,7 @@ export default function KYCPage() {
 												? file.name
 												: "Drop Certification Pack"}
 										</p>
-										<p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">
+										<p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest">
 											{file
 												? `${(file.size / 1024 / 1024).toFixed(2)} MB • READY`
 												: "PDF, WEBP OR PNG (MAX 10MB)"}
@@ -461,7 +461,7 @@ export default function KYCPage() {
 									{file && (
 										<Badge
 											variant="outline"
-											className="rounded-full px-4 py-1 text-[9px] font-black uppercase tracking-widest border-primary/30 text-primary bg-white"
+											className="rounded-full px-4 py-1 text-[9px] font-semibold uppercase tracking-widest border-primary/30 text-primary bg-white"
 										>
 											REPLACE FILE
 										</Badge>
@@ -472,7 +472,7 @@ export default function KYCPage() {
 									<div className="p-6 rounded-2xl bg-foreground/5 border border-border/40 space-y-3">
 										<div className="flex items-center gap-2">
 											<ShieldCheck className="h-4 w-4 text-primary" />
-											<span className="text-[10px] font-black uppercase tracking-widest">
+											<span className="text-[10px] font-semibold uppercase tracking-widest">
 												Forensic Privacy
 											</span>
 										</div>
@@ -485,7 +485,7 @@ export default function KYCPage() {
 									<div className="p-6 rounded-2xl bg-foreground/5 border border-border/40 space-y-3">
 										<div className="flex items-center gap-2">
 											<Zap className="h-4 w-4 text-blue-500" />
-											<span className="text-[10px] font-black uppercase tracking-widest">
+											<span className="text-[10px] font-semibold uppercase tracking-widest">
 												Instant Consensus
 											</span>
 										</div>
@@ -501,14 +501,14 @@ export default function KYCPage() {
 								<Button
 									variant="ghost"
 									onClick={() => setStep("lookup")}
-									className="rounded-full px-8 font-black uppercase tracking-widest text-[10px]"
+									className="rounded-full px-8 font-semibold uppercase tracking-widest text-[10px]"
 								>
 									Back
 								</Button>
 								<Button
 									disabled={!file}
 									onClick={startAnalysis}
-									className="h-16 rounded-full bg-foreground text-background hover:bg-foreground/90 transition-all px-12 text-sm font-black shadow-xl active:scale-95"
+									className="h-16 rounded-full bg-foreground text-background hover:bg-foreground/90 transition-all px-12 text-sm font-semibold shadow-xl active:scale-95"
 								>
 									Seal & Analyze
 									<Activity className="ml-2 h-5 w-5" />
@@ -541,7 +541,7 @@ export default function KYCPage() {
 													: "outline"
 											}
 											className={cn(
-												"px-4 py-1.5 text-xs font-black uppercase tracking-[0.2em] rounded-full",
+												"px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] rounded-full",
 												analysisResult.summary
 													.is_suspicious
 													? "bg-amber-500 text-white border-none"
@@ -554,7 +554,7 @@ export default function KYCPage() {
 									)}
 								</div>
 								<div className="space-y-3">
-									<CardTitle className="text-4xl font-black tracking-tighter uppercase italic">
+									<CardTitle className="text-2xl font-semibold tracking-tight ">
 										Forensic Report
 									</CardTitle>
 									<CardDescription className="text-muted-foreground text-lg font-medium">
@@ -574,7 +574,7 @@ export default function KYCPage() {
 												</div>
 											</div>
 											<div className="space-y-2">
-												<p className="text-xl font-bold tracking-tight uppercase italic">
+												<p className="text-xl font-bold tracking-tight uppercase">
 													Neural Extraction In
 													Progress
 												</p>
@@ -586,7 +586,7 @@ export default function KYCPage() {
 											</div>
 										</div>
 										<div className="space-y-4">
-											<div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+											<div className="flex justify-between text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
 												<span>
 													Consensus Confidence
 												</span>
@@ -640,10 +640,10 @@ export default function KYCPage() {
 										{/* Summary Grid */}
 										<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 											<div className="p-6 rounded-3xl bg-foreground/5 border border-border/40 space-y-2">
-												<p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">
+												<p className="text-[9px] font-semibold uppercase text-muted-foreground tracking-widest">
 													Confidence
 												</p>
-												<p className="text-3xl font-black italic tracking-tighter">
+												<p className="text-3xl font-semibold tracking-tight">
 													{(
 														analysisResult.summary
 															.overall_confidence *
@@ -653,7 +653,7 @@ export default function KYCPage() {
 												</p>
 											</div>
 											<div className="p-6 rounded-3xl bg-foreground/5 border border-border/40 space-y-2">
-												<p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">
+												<p className="text-[9px] font-semibold uppercase text-muted-foreground tracking-widest">
 													Type
 												</p>
 												<p className="text-lg font-bold truncate uppercase">
@@ -664,7 +664,7 @@ export default function KYCPage() {
 												</p>
 											</div>
 											<div className="p-6 rounded-3xl bg-foreground/5 border border-border/40 space-y-2">
-												<p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">
+												<p className="text-[9px] font-semibold uppercase text-muted-foreground tracking-widest">
 													Tamper Check
 												</p>
 												<p
@@ -686,7 +686,7 @@ export default function KYCPage() {
 
 										{/* Validation Rules */}
 										<div className="space-y-4">
-											<h5 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground ml-1">
+											<h5 className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground ml-1">
 												Protocol Rules Audit
 											</h5>
 											<div className="grid gap-3">
@@ -717,7 +717,7 @@ export default function KYCPage() {
 																</span>
 															</div>
 															{rule.details && (
-																<span className="text-[10px] text-muted-foreground italic max-w-50 truncate">
+																<span className="text-[10px] text-muted-foreground max-w-50 truncate">
 																	{
 																		rule.details
 																	}
@@ -726,7 +726,7 @@ export default function KYCPage() {
 															<Badge
 																variant="outline"
 																className={cn(
-																	"text-[8px] font-black uppercase tracking-widest px-2 py-0 rounded-sm border-none",
+																	"text-[8px] font-semibold uppercase tracking-widest px-2 py-0 rounded-sm border-none",
 																	rule.status ===
 																		"passed"
 																		? "text-green-500 bg-green-500/10"
@@ -750,7 +750,7 @@ export default function KYCPage() {
 											<div className="p-8 rounded-4xl bg-amber-500/5 border border-amber-500/20 space-y-4">
 												<div className="flex items-center gap-3">
 													<AlertTriangle className="h-6 w-6 text-amber-500" />
-													<p className="text-sm font-black uppercase tracking-widest text-amber-600">
+													<p className="text-sm font-semibold uppercase tracking-widest text-amber-600">
 														Forensic Alerts
 													</p>
 												</div>
@@ -770,7 +770,7 @@ export default function KYCPage() {
 														),
 													)}
 												</ul>
-												<p className="text-[10px] text-amber-600/60 italic pt-2">
+												<p className="text-[10px] text-amber-600/60 pt-2">
 													Warning: Submitting
 													suspicious documents may
 													impact your institutional
@@ -780,7 +780,7 @@ export default function KYCPage() {
 										)}
 									</div>
 								) : (
-									<div className="p-12 text-center text-muted-foreground italic border-2 border-dashed rounded-3xl">
+									<div className="p-12 text-center text-muted-foreground border-2 border-dashed rounded-3xl">
 										Protocol error: Analysis result not
 										found.
 									</div>
@@ -790,7 +790,7 @@ export default function KYCPage() {
 								<Button
 									variant="ghost"
 									onClick={() => setStep("upload")}
-									className="rounded-full px-8 font-black uppercase tracking-widest text-[10px]"
+									className="rounded-full px-8 font-semibold uppercase tracking-widest text-[10px]"
 								>
 									Discard File
 								</Button>
@@ -801,7 +801,7 @@ export default function KYCPage() {
 										!analysisResult
 									}
 									onClick={finalizeProfile}
-									className="h-16 rounded-full bg-foreground text-background hover:bg-foreground/90 transition-all px-12 text-sm font-black shadow-xl active:scale-95"
+									className="h-16 rounded-full bg-foreground text-background hover:bg-foreground/90 transition-all px-12 text-sm font-semibold shadow-xl active:scale-95"
 								>
 									{isSavingProfile ? (
 										<Loader2 className="h-6 w-6 animate-spin" />
@@ -827,7 +827,7 @@ export default function KYCPage() {
 							<CheckCircle2 className="h-20 w-20" />
 						</div>
 						<div className="space-y-4">
-							<h1 className="text-5xl md:text-7xl font-black tracking-tight text-foreground leading-tight uppercase italic">
+							<h1 className="text-3xl md:text-2xl font-semibold tracking-tight text-foreground leading-tight ">
 								Node <br />
 								<span className="text-muted-foreground/30">
 									Active
@@ -841,7 +841,7 @@ export default function KYCPage() {
 						</div>
 						<div className="pt-8">
 							<Button
-								className="h-20 px-16 text-2xl font-black rounded-[2.5rem] bg-foreground text-background shadow-2xl transition-all hover:scale-105 active:scale-95 uppercase tracking-tighter"
+								className="h-20 px-16 text-2xl font-semibold rounded-[2.5rem] bg-foreground text-background shadow-2xl transition-all hover:scale-105 active:scale-95  tracking-tight"
 								onClick={() => router.push("/dashboard")}
 							>
 								Enter Protocol Dashboard

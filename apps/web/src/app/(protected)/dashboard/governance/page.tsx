@@ -131,7 +131,7 @@ export default function GovernancePage() {
                 <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
                   Global Quorum
                 </p>
-                <p className="text-sm font-black">
+                <p className="text-sm font-semibold">
                   {formatConfigPercent(config.quorum_percent)}
                 </p>
               </div>
@@ -139,7 +139,7 @@ export default function GovernancePage() {
                 <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
                   Threshold
                 </p>
-                <p className="text-sm font-black">
+                <p className="text-sm font-semibold">
                   {formatConfigPercent(config.majority_threshold)}
                 </p>
               </div>

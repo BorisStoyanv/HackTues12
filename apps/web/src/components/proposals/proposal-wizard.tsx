@@ -278,7 +278,7 @@ export function ProposalWizard({
 					<CheckCircle2 className="h-16 w-16 text-white" />
 				</div>
 				<div className="space-y-4">
-					<h2 className="text-5xl font-black tracking-tight uppercase italic leading-tight text-foreground">
+					<h2 className="text-3xl font-semibold tracking-tight  leading-tight text-foreground">
 						Broadcast <br />
 						<span className="text-muted-foreground/30">
 							Successful
@@ -291,7 +291,7 @@ export function ProposalWizard({
 				</div>
 				<div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-xl mx-auto pt-6">
 					<Button
-						className="h-16 rounded-2xl bg-foreground text-background font-black text-sm uppercase tracking-widest shadow-xl active:scale-95"
+						className="h-16 rounded-2xl bg-foreground text-background font-semibold text-sm uppercase tracking-widest shadow-xl active:scale-95"
 						onClick={() =>
 							router.push(
 								`/dashboard/proposals/detail?id=${createdId}`,
@@ -302,7 +302,7 @@ export function ProposalWizard({
 					</Button>
 					<Button
 						variant="outline"
-						className="h-16 rounded-2xl border-2 border-border font-black text-sm uppercase tracking-widest hover:bg-muted/50 transition-all active:scale-95"
+						className="h-16 rounded-2xl border-2 border-border font-semibold text-sm uppercase tracking-widest hover:bg-muted/50 transition-all active:scale-95"
 						onClick={() =>
 							router.push(`/dashboard/explore?id=${createdId}`)
 						}
@@ -335,7 +335,7 @@ export function ProposalWizard({
 						<div className="flex items-start gap-4 p-6 rounded-4xl border border-destructive/20 bg-destructive/5 text-destructive animate-in fade-in zoom-in-95">
 							<AlertCircle className="h-6 w-6 shrink-0 mt-0.5" />
 							<div className="space-y-1">
-								<p className="text-lg font-bold uppercase tracking-tight italic">
+								<p className="text-lg font-bold uppercase tracking-tight">
 									Protocol Rejection
 								</p>
 								<p className="text-sm font-medium opacity-80">
@@ -370,7 +370,7 @@ export function ProposalWizard({
 										<div className="space-y-4">
 											<Label
 												htmlFor="title"
-												className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground ml-1"
+												className="text-[10px] font-semibold uppercase tracking-[0.4em] text-muted-foreground ml-1"
 											>
 												Transaction Title
 											</Label>
@@ -393,7 +393,7 @@ export function ProposalWizard({
 										</div>
 
 										<div className="space-y-4">
-											<Label className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground ml-1">
+											<Label className="text-[11px] font-semibold uppercase tracking-[0.4em] text-muted-foreground ml-1">
 												Governance Category
 											</Label>
 											<Controller
@@ -432,7 +432,7 @@ export function ProposalWizard({
 										<div className="space-y-4">
 											<Label
 												htmlFor="description"
-												className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground ml-1"
+												className="text-[11px] font-semibold uppercase tracking-[0.4em] text-muted-foreground ml-1"
 											>
 												Executive Summary
 											</Label>
@@ -448,7 +448,7 @@ export function ProposalWizard({
 													)}
 													{...register("description")}
 												/>
-												<div className="absolute bottom-6 right-8 text-[10px] font-black uppercase text-muted-foreground opacity-40">
+												<div className="absolute bottom-6 right-8 text-[10px] font-semibold uppercase text-muted-foreground opacity-40">
 													{
 														(
 															watch(
@@ -464,7 +464,7 @@ export function ProposalWizard({
 										<div className="space-y-4">
 											<Label
 												htmlFor="expected_impact"
-												className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground ml-1"
+												className="text-[11px] font-semibold uppercase tracking-[0.4em] text-muted-foreground ml-1"
 											>
 												Measurable Impact & KPIs
 											</Label>
@@ -559,7 +559,7 @@ export function ProposalWizard({
 										<div className="space-y-4 max-w-md">
 											<Label
 												htmlFor="region_tag"
-												className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground ml-1 flex items-center gap-2"
+												className="text-[11px] font-semibold uppercase tracking-[0.4em] text-muted-foreground ml-1 flex items-center gap-2"
 											>
 												<Globe className="w-3 h-3" />
 												Protocol Tag
@@ -595,7 +595,7 @@ export function ProposalWizard({
 											<div className="space-y-4">
 												<Label
 													htmlFor="executor_name"
-													className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground ml-1"
+													className="text-[11px] font-semibold uppercase tracking-[0.4em] text-muted-foreground ml-1"
 												>
 													Responsible Executor
 												</Label>
@@ -611,7 +611,7 @@ export function ProposalWizard({
 											<div className="space-y-4">
 												<Label
 													htmlFor="timeline"
-													className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground ml-1"
+													className="text-[11px] font-semibold uppercase tracking-[0.4em] text-muted-foreground ml-1"
 												>
 													Estimated Timeline
 												</Label>
@@ -627,7 +627,7 @@ export function ProposalWizard({
 										<div className="space-y-4">
 											<Label
 												htmlFor="execution_plan"
-												className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground ml-1"
+												className="text-[11px] font-semibold uppercase tracking-[0.4em] text-muted-foreground ml-1"
 											>
 												Operational Roadmap
 											</Label>
@@ -673,7 +673,7 @@ export function ProposalWizard({
 											<div className="space-y-4">
 												<Label
 													htmlFor="budget_currency"
-													className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground ml-1"
+													className="text-[11px] font-semibold uppercase tracking-[0.4em] text-muted-foreground ml-1"
 												>
 													Currency
 												</Label>
@@ -687,7 +687,7 @@ export function ProposalWizard({
 															}
 															value={field.value}
 														>
-															<SelectTrigger className="h-16 rounded-3xl border-border/40 bg-background text-xl font-black uppercase tracking-widest focus:border-foreground">
+															<SelectTrigger className="h-16 rounded-3xl border-border/40 bg-background text-xl font-semibold uppercase tracking-widest focus:border-foreground">
 																<SelectValue />
 															</SelectTrigger>
 															<SelectContent className="rounded-2xl shadow-2xl border-border/40">
@@ -718,7 +718,7 @@ export function ProposalWizard({
 										<div className="space-y-4">
 											<Label
 												htmlFor="budget_breakdown"
-												className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground ml-1"
+												className="text-[11px] font-semibold uppercase tracking-[0.4em] text-muted-foreground ml-1"
 											>
 												Itemized Breakdown
 											</Label>
@@ -752,10 +752,10 @@ export function ProposalWizard({
 								>
 									<div className="space-y-6">
 										<div className="flex flex-col gap-2">
-											<p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">
+											<p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-primary">
 												Final Audit Review
 											</p>
-											<h2 className="text-3xl font-black tracking-tighter uppercase italic leading-none">
+											<h2 className="text-3xl font-semibold tracking-tight  leading-none">
 												Initialization Packet
 											</h2>
 										</div>
@@ -767,11 +767,11 @@ export function ProposalWizard({
 													<div className="p-8 space-y-8">
 														<div className="flex justify-between items-start">
 															<div className="space-y-1">
-																<p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">
+																<p className="text-[9px] font-semibold uppercase text-muted-foreground tracking-widest">
 																	Initiative
 																	Identity
 																</p>
-																<h3 className="text-2xl font-black tracking-tight leading-tight uppercase italic truncate pr-4">
+																<h3 className="text-2xl font-semibold tracking-tight leading-tight  truncate pr-4">
 																	{watch(
 																		"title",
 																	) ||
@@ -780,7 +780,7 @@ export function ProposalWizard({
 															</div>
 															<Badge
 																variant="secondary"
-																className="text-[8px] font-black uppercase px-3 py-1 rounded-full bg-background border-border/60"
+																className="text-[8px] font-semibold uppercase px-3 py-1 rounded-full bg-background border-border/60"
 															>
 																{watch(
 																	"category",
@@ -790,11 +790,11 @@ export function ProposalWizard({
 
 														<div className="grid grid-cols-2 gap-8">
 															<div className="space-y-1.5">
-																<p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">
+																<p className="text-[9px] font-semibold uppercase text-muted-foreground tracking-widest">
 																	Mission
 																	Context
 																</p>
-																<p className="text-sm font-medium leading-relaxed line-clamp-3 italic opacity-70">
+																<p className="text-sm font-medium leading-relaxed line-clamp-3 opacity-70">
 																	"
 																	{watch(
 																		"description",
@@ -804,7 +804,7 @@ export function ProposalWizard({
 																</p>
 															</div>
 															<div className="space-y-1.5">
-																<p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">
+																<p className="text-[9px] font-semibold uppercase text-muted-foreground tracking-widest">
 																	Impact
 																	Vectors
 																</p>
@@ -821,7 +821,7 @@ export function ProposalWizard({
 
 														<div className="grid grid-cols-3 gap-4">
 															<div className="space-y-1">
-																<p className="text-[9px] font-black uppercase text-muted-foreground">
+																<p className="text-[9px] font-semibold uppercase text-muted-foreground">
 																	Region
 																</p>
 																<p className="text-xs font-bold truncate flex items-center gap-1">
@@ -832,7 +832,7 @@ export function ProposalWizard({
 																</p>
 															</div>
 															<div className="space-y-1">
-																<p className="text-[9px] font-black uppercase text-muted-foreground">
+																<p className="text-[9px] font-semibold uppercase text-muted-foreground">
 																	Executor
 																</p>
 																<p className="text-xs font-bold truncate">
@@ -842,7 +842,7 @@ export function ProposalWizard({
 																</p>
 															</div>
 															<div className="space-y-1">
-																<p className="text-[9px] font-black uppercase text-muted-foreground">
+																<p className="text-[9px] font-semibold uppercase text-muted-foreground">
 																	Timeline
 																</p>
 																<p className="text-xs font-bold">
@@ -860,11 +860,11 @@ export function ProposalWizard({
 											<div className="space-y-6">
 												<Card className="border-primary/20 bg-primary/5 shadow-xl shadow-primary/5 rounded-3xl p-8 flex flex-col justify-between min-h-50">
 													<div className="space-y-1">
-														<p className="text-[9px] font-black uppercase text-primary tracking-[0.2em]">
+														<p className="text-[9px] font-semibold uppercase text-primary tracking-[0.2em]">
 															Requested Capital
 														</p>
 														<div className="flex items-baseline gap-1">
-															<span className="text-2xl font-black text-primary/60">
+															<span className="text-2xl font-semibold text-primary/60">
 																{
 																	EUROPEAN_CURRENCIES.find(
 																		(c) =>
@@ -875,7 +875,7 @@ export function ProposalWizard({
 																	)?.symbol
 																}
 															</span>
-															<h4 className="text-4xl font-black tracking-tighter tabular-nums">
+															<h4 className="text-2xl font-semibold tracking-tight tabular-nums">
 																{watch(
 																	"budget_amount",
 																).toLocaleString()}
@@ -903,11 +903,11 @@ export function ProposalWizard({
 												<div className="p-6 rounded-3xl border border-dashed border-border/60 space-y-4">
 													<div className="flex items-center gap-2 opacity-50">
 														<ShieldCheck className="h-4 w-4" />
-														<span className="text-[9px] font-black uppercase tracking-widest">
+														<span className="text-[9px] font-semibold uppercase tracking-widest">
 															Ledger Proof
 														</span>
 													</div>
-													<p className="text-[11px] font-medium leading-relaxed italic opacity-40">
+													<p className="text-[11px] font-medium leading-relaxed opacity-40">
 														"I authorize the
 														permanent broadcast of
 														this initiative to the
@@ -929,7 +929,7 @@ export function ProposalWizard({
 							variant="ghost"
 							onClick={handleBack}
 							disabled={currentStep === 0 || isSubmitting}
-							className="h-14 px-10 rounded-full font-black uppercase tracking-widest text-[10px] hover:bg-foreground/5 transition-all"
+							className="h-14 px-10 rounded-full font-semibold uppercase tracking-widest text-[10px] hover:bg-foreground/5 transition-all"
 						>
 							<ChevronLeft className="w-5 h-5 mr-2" />
 							Back
@@ -939,7 +939,7 @@ export function ProposalWizard({
 							<Button
 								type="button"
 								onClick={handleNext}
-								className="h-14 px-14 rounded-2xl font-black text-xs bg-foreground text-background hover:bg-foreground/90 transition-all shadow-lg active:scale-95 group"
+								className="h-14 px-14 rounded-2xl font-semibold text-xs bg-foreground text-background hover:bg-foreground/90 transition-all shadow-lg active:scale-95 group"
 							>
 								Continue Step
 								<ChevronRight className="w-5 h-5 ml-2 transition-transform group-hover:translate-x-1" />
@@ -953,17 +953,17 @@ export function ProposalWizard({
 									!hasProfile ||
 									userRole !== "regional"
 								}
-								className="h-16 px-20 rounded-2xl font-black text-sm shadow-xl bg-primary text-primary-foreground hover:opacity-90 transition-all active:scale-95 group"
+								className="h-16 px-20 rounded-2xl font-semibold text-sm shadow-xl bg-primary text-primary-foreground hover:opacity-90 transition-all active:scale-95 group"
 							>
 								{isSubmitting ? (
 									<div className="flex items-center gap-4">
 										<Loader2 className="h-5 w-5 animate-spin" />
-										<span className="uppercase italic">
+										<span className="uppercase">
 											{submitPhase ?? "Wait..."}
 										</span>
 									</div>
 								) : (
-									<span className="flex items-center gap-3 uppercase italic tracking-widest">
+									<span className="flex items-center gap-3 uppercase tracking-widest">
 										Broadcast to Ledger
 										<ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-2" />
 									</span>

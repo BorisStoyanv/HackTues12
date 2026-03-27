@@ -46,7 +46,7 @@ export default function RoleSelectionPage() {
              Identity Resolution
           </div>
           <div className="space-y-3">
-            <h1 className="text-4xl md:text-6xl font-semibold tracking-tight leading-tight">
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight leading-tight">
               Select your <span className="text-muted-foreground/50">Protocol Role</span>
             </h1>
           </div>

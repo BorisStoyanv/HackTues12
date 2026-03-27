@@ -99,14 +99,14 @@ export default function LandingPage() {
           <div className="container mx-auto text-center">
             <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-1000">
                <ShieldCheck className="h-4 w-4 text-primary" />
-               <span className="text-xs font-black uppercase tracking-widest text-primary">
+               <span className="text-xs font-semibold uppercase tracking-widest text-primary">
                  Decentralized Consensus Protocol v1.0
                </span>
             </div>
             
-            <h1 className="mx-auto max-w-5xl text-5xl font-black tracking-tight sm:text-7xl lg:text-8xl leading-[1.05] animate-in fade-in slide-in-from-bottom-6 duration-1000 delay-150">
+            <h1 className="mx-auto max-w-5xl text-3xl font-semibold tracking-tight sm:text-2xl lg:text-2xl leading-[1.05] animate-in fade-in slide-in-from-bottom-6 duration-1000 delay-150">
               Transparent Funding, <br />
-              <span className="text-primary italic">Governed by Locals.</span>
+              <span className="text-primary">Governed by Locals.</span>
             </h1>
             
             <p className="mx-auto mt-8 max-w-2xl text-xl text-muted-foreground leading-relaxed animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300">
@@ -116,7 +116,7 @@ export default function LandingPage() {
             <div className="mt-12 flex flex-wrap justify-center gap-6 animate-in fade-in slide-in-from-bottom-10 duration-1000 delay-500">
               <Link
                 href="/explore"
-                className={cn(buttonVariants({ size: "lg" }), "h-16 rounded-2xl px-10 text-xl font-black shadow-2xl shadow-primary/20 transition-transform active:scale-95")}
+                className={cn(buttonVariants({ size: "lg" }), "h-16 rounded-2xl px-10 text-xl font-semibold shadow-2xl shadow-primary/20 transition-transform active:scale-95")}
               >
                 Explore the Protocol Map
               </Link>
@@ -135,20 +135,20 @@ export default function LandingPage() {
           <div className="container mx-auto px-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-12">
               <div className="text-center md:text-left">
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mb-2">Total Deployed</p>
-                <p className="text-4xl font-black tabular-nums">${(resolvedStats.total_funded / 1000000).toFixed(1)}M</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground mb-2">Total Deployed</p>
+                <p className="text-2xl font-semibold tabular-nums">${(resolvedStats.total_funded / 1000000).toFixed(1)}M</p>
               </div>
               <div className="text-center md:text-left">
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mb-2">Active Initiatives</p>
-                <p className="text-4xl font-black tabular-nums">{resolvedStats.active_projects}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground mb-2">Active Initiatives</p>
+                <p className="text-2xl font-semibold tabular-nums">{resolvedStats.active_projects}</p>
               </div>
               <div className="text-center md:text-left">
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mb-2">Verified Citizens</p>
-                <p className="text-4xl font-black tabular-nums">{(resolvedStats.verified_users / 1000).toFixed(1)}k</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground mb-2">Verified Citizens</p>
+                <p className="text-2xl font-semibold tabular-nums">{(resolvedStats.verified_users / 1000).toFixed(1)}k</p>
               </div>
               <div className="text-center md:text-left">
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mb-2">Avg. Integrity</p>
-                <p className="text-4xl font-black tabular-nums text-primary">{resolvedStats.average_ai_integrity_score}%</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground mb-2">Avg. Integrity</p>
+                <p className="text-2xl font-semibold tabular-nums text-primary">{resolvedStats.average_ai_integrity_score}%</p>
               </div>
             </div>
           </div>
@@ -158,7 +158,7 @@ export default function LandingPage() {
         <section className="py-32 px-4">
           <div className="container mx-auto">
             <div className="mb-20 text-center">
-               <h2 className="text-4xl font-black tracking-tight mb-4">A Tri-Agent Trust Architecture</h2>
+               <h2 className="text-2xl font-semibold tracking-tight mb-4">A Tri-Agent Trust Architecture</h2>
                <p className="text-muted-foreground text-lg max-w-2xl mx-auto">Our unique governance protocol ensures every dollar reaches its intended impact through multi-stage validation.</p>
             </div>
 
@@ -190,7 +190,7 @@ export default function LandingPage() {
                     <div className={cn("mb-6 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-white dark:bg-black shadow-sm border", item.color)}>
                        <item.icon className="h-8 w-8" />
                     </div>
-                    <span className="absolute top-10 right-10 text-6xl font-black opacity-5 italic tracking-tighter">{item.step}</span>
+                    <span className="absolute top-10 right-10 text-3xl font-semibold opacity-5 tracking-tight">{item.step}</span>
                     <h3 className="text-2xl font-bold mb-4">{item.title}</h3>
                     <p className="text-muted-foreground leading-relaxed text-lg">{item.desc}</p>
                  </div>
@@ -204,7 +204,7 @@ export default function LandingPage() {
           <div className="container mx-auto px-4">
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
               <div className="space-y-4">
-                 <h2 className="text-4xl md:text-5xl font-black tracking-tight">Active Consenus Rounds</h2>
+                 <h2 className="text-2xl md:text-3xl font-semibold tracking-tight">Active Consenus Rounds</h2>
                  <p className="text-muted-foreground text-xl max-w-xl">Live initiatives awaiting regional validation. Your vote shapes your community.</p>
               </div>
               <Link
@@ -220,7 +220,7 @@ export default function LandingPage() {
                 <ProposalCard key={proposal.id} proposal={proposal} />
               )) : (
                 <div className="col-span-full py-20 text-center border-2 border-dashed rounded-[3rem] border-neutral-200 dark:border-neutral-800">
-                   <p className="text-muted-foreground italic">No active proposals in the ledger.</p>
+                   <p className="text-muted-foreground">No active proposals in the ledger.</p>
                 </div>
               )}
             </div>
@@ -232,14 +232,14 @@ export default function LandingPage() {
            <div className="container mx-auto">
               <div className="relative z-10 rounded-[4rem] bg-neutral-900 dark:bg-white text-white dark:text-black p-12 md:p-24 overflow-hidden text-center">
                  <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]" />
-                 <h2 className="text-4xl md:text-6xl font-black tracking-tight mb-8">Ready to Shape <br />Your Region?</h2>
+                 <h2 className="text-2xl md:text-3xl font-semibold tracking-tight mb-8">Ready to Shape <br />Your Region?</h2>
                  <p className="text-white/60 dark:text-black/60 text-xl max-w-2xl mx-auto mb-12 leading-relaxed">
                    Join thousands of verified citizens and capital providers building a more accountable future.
                  </p>
                  <div className="flex flex-wrap justify-center gap-6">
                     <Link
                       href="/login"
-                      className={cn(buttonVariants({ size: "lg" }), "bg-white dark:bg-black text-black dark:text-white h-16 rounded-2xl px-10 text-xl font-black hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all")}
+                      className={cn(buttonVariants({ size: "lg" }), "bg-white dark:bg-black text-black dark:text-white h-16 rounded-2xl px-10 text-xl font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all")}
                     >
                       Get Started Now
                     </Link>

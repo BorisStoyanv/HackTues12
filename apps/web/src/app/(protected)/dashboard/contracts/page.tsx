@@ -62,7 +62,7 @@ export default function ContractsPage() {
                     </div>
                     <CardHeader className="p-6">
                       <div className="flex justify-between items-start mb-2">
-                        <Badge variant="secondary" className="font-black text-[9px] uppercase tracking-widest px-2 py-0">
+                        <Badge variant="secondary" className="font-semibold text-[9px] uppercase tracking-widest px-2 py-0">
                           {contract.status}
                         </Badge>
                         <span className="text-[10px] font-mono text-muted-foreground font-bold">
@@ -72,7 +72,7 @@ export default function ContractsPage() {
                       <CardTitle className="text-lg font-bold group-hover:text-primary transition-colors line-clamp-2">
                         Trust Record: {contract.company_name}
                       </CardTitle>
-                      <CardDescription className="text-[10px] uppercase font-black tracking-tighter pt-1">
+                      <CardDescription className="text-[10px] uppercase font-semibold tracking-tight pt-1">
                         Established {new Date(contract.created_at / 1000000).toLocaleDateString()}
                       </CardDescription>
                     </CardHeader>

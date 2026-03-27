@@ -11,12 +11,12 @@ export function VotingProgress({ metrics }: { metrics: ProposalVotingMetrics }) 
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex flex-col">
-          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Support</span>
-          <span className="text-2xl font-black tracking-tighter">{formatPercent(metrics.supportPercent, 1)}</span>
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Support</span>
+          <span className="text-2xl font-semibold tracking-tight">{formatPercent(metrics.supportPercent, 1)}</span>
         </div>
         <div className="flex flex-col items-end text-right">
-          <span className="text-[10px] font-black uppercase tracking-widest text-rose-600 dark:text-rose-400">Opposition</span>
-          <span className="text-2xl font-black tracking-tighter">{formatPercent(metrics.oppositionPercent, 1)}</span>
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-rose-600 dark:text-rose-400">Opposition</span>
+          <span className="text-2xl font-semibold tracking-tight">{formatPercent(metrics.oppositionPercent, 1)}</span>
         </div>
       </div>
       
@@ -59,13 +59,13 @@ export function TurnoutWidget({ metrics, voterCount }: { metrics: ProposalVoting
           <Users className="h-5 w-5" />
         </div>
         <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Turnout</p>
-          <p className="text-lg font-black">{formatPercent(metrics.turnoutPercent, 1)}</p>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Turnout</p>
+          <p className="text-lg font-semibold">{formatPercent(metrics.turnoutPercent, 1)}</p>
         </div>
       </div>
       <div className="text-right">
-        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Participants</p>
-        <p className="text-lg font-black">{voterCount}</p>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Participants</p>
+        <p className="text-lg font-semibold">{voterCount}</p>
       </div>
     </div>
   );
@@ -75,22 +75,22 @@ export function VoterInsight({ votingPower, isLocal, userType }: { votingPower: 
   return (
     <div className="p-4 rounded-2xl bg-primary/5 border border-primary/20 space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-black uppercase tracking-widest text-primary">Your Stance Power</span>
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-primary">Your Stance Power</span>
         <ShieldCheck className="h-4 w-4 text-primary" />
       </div>
       <div className="flex items-baseline gap-2">
-        <span className="text-3xl font-black tracking-tighter text-primary">
+        <span className="text-3xl font-semibold tracking-tight text-primary">
           {votingPower !== null ? votingPower.toFixed(1) : "0.0"}
         </span>
         <span className="text-[10px] font-bold uppercase tracking-widest text-primary/60">VP</span>
       </div>
       <div className="flex gap-2">
         {isLocal && (
-          <span className="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 text-[8px] font-black uppercase tracking-widest">
+          <span className="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 text-[8px] font-semibold uppercase tracking-widest">
             Local Verified 2.5x
           </span>
         )}
-        <span className="px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 text-[8px] font-black uppercase tracking-widest">
+        <span className="px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 text-[8px] font-semibold uppercase tracking-widest">
           {userType === "InvestorUser" ? "Capital Provider" : "Community Voter"}
         </span>
       </div>
@@ -105,7 +105,7 @@ export function ProtocolRules({ metrics, status }: { metrics: ProposalVotingMetr
 
   return (
     <div className="space-y-2">
-      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3">Protocol Rules</p>
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">Protocol Rules</p>
       <div className={cn(
         "flex items-center gap-3 p-3 rounded-xl border transition-colors",
         quorumReached || isPassed ? "bg-emerald-50/50 border-emerald-100 dark:bg-emerald-950/10 dark:border-emerald-900/30" : "bg-neutral-50/50 border-neutral-100 dark:bg-neutral-900/10 dark:border-neutral-800"

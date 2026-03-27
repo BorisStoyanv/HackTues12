@@ -91,12 +91,12 @@ function MetricCard({ title, value, description, icon: Icon, status = "default",
              <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-colors">
                 <Icon className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
              </div>
-             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 group-hover:text-primary transition-colors">
+             <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/60 group-hover:text-primary transition-colors">
                 {title}
              </div>
           </div>
           <div className="space-y-1">
-             <div className={cn("text-3xl font-black tracking-tighter tabular-nums", isLoading && "animate-pulse text-muted-foreground/20")}>
+             <div className={cn("text-3xl font-semibold tracking-tight tabular-nums", isLoading && "animate-pulse text-muted-foreground/20")}>
                {value}
              </div>
              <p className="text-[11px] font-medium text-muted-foreground leading-relaxed">
@@ -245,23 +245,23 @@ export default function DashboardPage() {
               <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-10">
                  <div className="space-y-6">
                     <div className="flex flex-wrap items-center gap-3">
-                       <Badge className="bg-foreground text-background border-none rounded-full px-4 py-1.5 text-[10px] font-black uppercase tracking-widest shadow-lg">
+                       <Badge className="bg-foreground text-background border-none rounded-full px-4 py-1.5 text-[10px] font-semibold uppercase tracking-widest shadow-lg">
                           {identityTier}
                        </Badge>
                        <div className="h-8 w-px bg-border/40 mx-2" />
-                       <div className={cn("flex items-center gap-2 text-[10px] font-black uppercase tracking-widest", kycStatusDisplay.color)}>
+                       <div className={cn("flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest", kycStatusDisplay.color)}>
                           <kycStatusDisplay.icon className="h-3.5 w-3.5" />
                           Status: {kycStatusDisplay.label}
                        </div>
                     </div>
 
                     <div className="space-y-2">
-                       <h1 className="text-3xl md:text-4xl font-black tracking-tighter text-foreground leading-tight uppercase">
+                       <h1 className="text-3xl md:text-2xl font-semibold tracking-tight text-foreground leading-tight ">
                           Account <br />
                           <span className="text-muted-foreground/30">Overview</span>
                        </h1>
                        <p className="text-base font-medium text-muted-foreground flex items-center gap-3 pt-4 border-t border-border/40 mt-6">
-                          Welcome back, <span className="text-foreground font-black uppercase tracking-tight">{user.display_name || "Authorized Node"}</span>
+                          Welcome back, <span className="text-foreground font-semibold uppercase tracking-tight">{user.display_name || "Authorized Node"}</span>
                           <span className="h-1 w-1 rounded-full bg-border" />
                           <span className="text-sm font-mono text-muted-foreground/60">@{user.id.substring(0, 10)}...</span>
                        </p>
@@ -271,7 +271,7 @@ export default function DashboardPage() {
                  <div className="flex flex-col gap-6 lg:items-end">
                     <div className="grid grid-cols-2 gap-4 w-full sm:w-auto">
                        <Button 
-                         className="h-16 px-10 rounded-2xl bg-foreground text-background font-black text-xs uppercase tracking-widest shadow-2xl hover:scale-[1.02] active:scale-95 transition-all group shrink-0"
+                         className="h-16 px-10 rounded-2xl bg-foreground text-background font-semibold text-xs uppercase tracking-widest shadow-2xl hover:scale-[1.02] active:scale-95 transition-all group shrink-0"
                          onClick={() => router.push("/dashboard/proposals/new")}
                        >
                          <Plus className="mr-2 h-5 w-5 transition-transform group-hover:rotate-90" />
@@ -279,7 +279,7 @@ export default function DashboardPage() {
                        </Button>
                        <Button 
                          variant="outline"
-                         className="h-16 px-10 rounded-2xl border-2 border-border font-black text-xs uppercase tracking-widest hover:bg-muted/50 transition-all active:scale-95 shadow-sm shrink-0"
+                         className="h-16 px-10 rounded-2xl border-2 border-border font-semibold text-xs uppercase tracking-widest hover:bg-muted/50 transition-all active:scale-95 shadow-sm shrink-0"
                          onClick={() => router.push("/dashboard/explore")}
                        >
                          <Compass className="mr-2 h-5 w-5" />
@@ -288,7 +288,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="flex items-center gap-2 px-6 py-3 rounded-xl bg-background border border-border/40 shadow-sm w-fit">
                        <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                       <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Mainnet Consensus Active</span>
+                       <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Mainnet Consensus Active</span>
                     </div>
                  </div>
               </div>
@@ -344,13 +344,13 @@ export default function DashboardPage() {
               <div className="lg:col-span-8 space-y-8">
                  <div className="flex items-center justify-between">
                     <div className="space-y-1">
-                       <h3 className="text-xl font-black tracking-tighter uppercase flex items-center gap-3">
+                       <h3 className="text-xl font-semibold tracking-tight uppercase flex items-center gap-3">
                           <Activity className="h-6 w-6 text-primary" />
                           Consensus Ledger
                        </h3>
                        <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Initialization rounds needing regional validation</p>
                     </div>
-                    <Link href="/dashboard/governance" className="group flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary">
+                    <Link href="/dashboard/governance" className="group flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-primary">
                        Expand Feed <ChevronRight className="h-3 w-3 transition-transform group-hover:translate-x-1" />
                     </Link>
                  </div>
@@ -367,7 +367,7 @@ export default function DashboardPage() {
                                       <div className="space-y-1.5">
                                          <h4 className="font-bold text-lg leading-tight uppercase group-hover:text-primary transition-colors line-clamp-1">{p.title}</h4>
                                          <div className="flex items-center gap-3">
-                                            <Badge variant="secondary" className="text-[9px] font-black uppercase bg-muted/50 rounded-full px-3">
+                                            <Badge variant="secondary" className="text-[9px] font-semibold uppercase bg-muted/50 rounded-full px-3">
                                                {p.category}
                                             </Badge>
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
@@ -376,13 +376,13 @@ export default function DashboardPage() {
                                          </div>
                                       </div>
                                       <div className="text-right shrink-0">
-                                         <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest mb-1">Target</p>
-                                         <p className="text-lg font-black tabular-nums">${p.budget_amount.toLocaleString()}</p>
+                                         <p className="text-[9px] font-semibold uppercase text-muted-foreground tracking-widest mb-1">Target</p>
+                                         <p className="text-lg font-semibold tabular-nums">${p.budget_amount.toLocaleString()}</p>
                                       </div>
                                    </div>
                                    
                                    <div className="space-y-3 pt-4 border-t border-border/40">
-                                      <div className="flex justify-between text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+                                      <div className="flex justify-between text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                                          <span>Regional Consensus Weight</span>
                                          <span className="text-primary">{Math.round(p.yes_weight)}% Approved</span>
                                       </div>
@@ -395,7 +395,7 @@ export default function DashboardPage() {
                     ) : (
                        <div className="py-24 text-center border-2 border-dashed border-border/40 rounded-[3rem] bg-muted/5 space-y-4">
                           <History className="h-10 w-10 text-muted-foreground/20 mx-auto" />
-                          <p className="text-sm font-medium text-muted-foreground italic">No active regional consensus rounds detected.</p>
+                          <p className="text-sm font-medium text-muted-foreground">No active regional consensus rounds detected.</p>
                        </div>
                     )}
                  </div>
@@ -405,7 +405,7 @@ export default function DashboardPage() {
               <div className="lg:col-span-4 space-y-12">
                  <div className="space-y-8">
                     <div className="flex items-center justify-between">
-                       <h3 className="text-lg font-black uppercase tracking-tight flex items-center gap-2">
+                       <h3 className="text-lg font-semibold uppercase tracking-tight flex items-center gap-2">
                           <Briefcase className="h-4 w-4 text-primary" />
                           Node Activity
                        </h3>
@@ -419,11 +419,11 @@ export default function DashboardPage() {
                                       <p className="text-sm font-bold truncate group-hover:text-primary transition-colors">{p.title}</p>
                                       <p className="text-[10px] font-mono text-muted-foreground/60 uppercase">Protocol ID: {p.id}</p>
                                    </div>
-                                   <Badge variant="outline" className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full border-border/60">{p.status}</Badge>
+                                   <Badge variant="outline" className="text-[8px] font-semibold uppercase px-2 py-0.5 rounded-full border-border/60">{p.status}</Badge>
                                 </Link>
                              ))
                           ) : (
-                             <div className="p-12 text-center text-muted-foreground text-xs font-medium italic">
+                             <div className="p-12 text-center text-muted-foreground text-xs font-medium">
                                 No proposals submitted.
                              </div>
                           )}
@@ -433,7 +433,7 @@ export default function DashboardPage() {
 
                  <div className="space-y-8">
                     <div className="flex items-center justify-between">
-                       <h3 className="text-lg font-black uppercase tracking-tight flex items-center gap-2">
+                       <h3 className="text-lg font-semibold uppercase tracking-tight flex items-center gap-2">
                           <FileText className="h-4 w-4 text-primary" />
                           Trust Ledger
                        </h3>
@@ -443,8 +443,8 @@ export default function DashboardPage() {
                           myContracts.map(c => (
                              <Link key={c.proposal_id} href={`/dashboard/contracts/detail?id=${c.proposal_id}`} className="p-6 rounded-2xl border border-border/40 bg-background hover:border-primary/40 hover:shadow-lg transition-all group">
                                 <div className="flex items-center justify-between mb-2">
-                                   <p className="text-xs font-black uppercase tracking-tight group-hover:text-primary transition-colors truncate pr-4">{c.company_name}</p>
-                                   <Badge variant="outline" className={cn("text-[8px] font-black uppercase border-none px-2 py-0.5 rounded-full", c.status === 'Signed' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600')}>
+                                   <p className="text-xs font-semibold uppercase tracking-tight group-hover:text-primary transition-colors truncate pr-4">{c.company_name}</p>
+                                   <Badge variant="outline" className={cn("text-[8px] font-semibold uppercase border-none px-2 py-0.5 rounded-full", c.status === 'Signed' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600')}>
                                       {c.status}
                                    </Badge>
                                 </div>
@@ -456,7 +456,7 @@ export default function DashboardPage() {
                           ))
                        ) : (
                           <div className="p-10 rounded-3xl border border-dashed border-border/60 text-center opacity-40">
-                             <p className="text-[10px] font-black uppercase tracking-widest">Legal agreement stack empty.</p>
+                             <p className="text-[10px] font-semibold uppercase tracking-widest">Legal agreement stack empty.</p>
                           </div>
                        )}
                     </div>
@@ -468,7 +468,7 @@ export default function DashboardPage() {
            <div className="space-y-8 pt-16 border-t border-border/40">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
                  <div className="space-y-1">
-                    <h3 className="text-xl font-black tracking-tighter uppercase flex items-center gap-4">
+                    <h3 className="text-xl font-semibold tracking-tight uppercase flex items-center gap-4">
                        <ShieldCheck className="h-6 w-6 text-primary animate-pulse" />
                        Network Integrity
                     </h3>
@@ -477,13 +477,13 @@ export default function DashboardPage() {
                  
                  <div className="flex items-center gap-10 px-10 py-6 bg-muted/20 border border-border/40 rounded-[2.5rem] shadow-inner">
                     <div className="space-y-0.5">
-                       <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-60">Network Cap</p>
-                       <p className="text-xl font-black tracking-tighter">${(globalStats.budget / 1000).toFixed(1)}k</p>
+                       <p className="text-[10px] font-semibold uppercase text-muted-foreground tracking-widest opacity-60">Network Cap</p>
+                       <p className="text-xl font-semibold tracking-tight">${(globalStats.budget / 1000).toFixed(1)}k</p>
                     </div>
                     <div className="h-10 w-px bg-border/40" />
                     <div className="space-y-0.5">
-                       <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-60">Escrow Value</p>
-                       <p className="text-xl font-black tracking-tighter text-emerald-500">${(globalStats.pledged / 1000).toFixed(1)}k</p>
+                       <p className="text-[10px] font-semibold uppercase text-muted-foreground tracking-widest opacity-60">Escrow Value</p>
+                       <p className="text-xl font-semibold tracking-tight text-emerald-500">${(globalStats.pledged / 1000).toFixed(1)}k</p>
                     </div>
                  </div>
               </div>
@@ -491,11 +491,11 @@ export default function DashboardPage() {
               <Card className="border-border/40 bg-background/50 backdrop-blur-xl rounded-[3rem] overflow-hidden shadow-sm">
                  <CardHeader className="p-8 border-b border-border/40 bg-neutral-50/50 dark:bg-neutral-900/50">
                     <div className="flex items-center justify-between">
-                       <CardTitle className="text-[11px] font-black uppercase tracking-[0.3em] flex items-center gap-3">
+                       <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.3em] flex items-center gap-3">
                           <History className="h-4 w-4 text-primary" />
                           Live Transparency Stream
                        </CardTitle>
-                       <Link href="/dashboard/audit" className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline">
+                       <Link href="/dashboard/audit" className="text-[10px] font-semibold uppercase tracking-widest text-primary hover:underline">
                           View Protocol Ledger
                        </Link>
                     </div>
@@ -515,14 +515,14 @@ export default function DashboardPage() {
                                    </div>
                                 </div>
                                 <div className="flex flex-col items-end shrink-0 ml-6">
-                                   <span className="text-[10px] font-black text-foreground/40 uppercase tracking-widest whitespace-nowrap">
+                                   <span className="text-[10px] font-semibold text-foreground/40 uppercase tracking-widest whitespace-nowrap">
                                       {formatActivityTime(log.timestamp)}
                                    </span>
                                 </div>
                              </div>
                           ))
                        ) : (
-                          <div className="p-20 text-center text-muted-foreground italic text-sm">
+                          <div className="p-20 text-center text-muted-foreground text-sm">
                              Awaiting network initialization events...
                           </div>
                        )}

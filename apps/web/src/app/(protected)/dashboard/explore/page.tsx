@@ -44,6 +44,15 @@ function DashboardExploreContent() {
 		(acc, p) => acc + (p?.budget_amount || 0),
 		0,
 	);
+	const platformCurrency = safeProposals[0]?.budget_currency || "USD";
+
+	const formatAmount = (amount: number, currency: string) => {
+		return new Intl.NumberFormat(undefined, {
+			style: "currency",
+			currency: currency,
+			maximumFractionDigits: 0,
+		}).format(amount);
+	};
 
 	const handleSearch = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
@@ -70,7 +79,7 @@ function DashboardExploreContent() {
 							<h1 className="text-lg font-bold tracking-tight text-foreground truncate">
 								Impact Explorer
 							</h1>
-							<p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest truncate">
+							<p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest truncate">
 								Governance Ledger
 							</p>
 						</div>
@@ -96,7 +105,7 @@ function DashboardExploreContent() {
 					{/* Right: Network Stats */}
 					<div className="hidden md:flex items-center justify-end gap-10">
 						<div className="flex flex-col items-end">
-							<span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">
+							<span className="text-[9px] font-semibold uppercase text-muted-foreground tracking-widest">
 								Nodes Active
 							</span>
 							<div className="flex items-center gap-1.5 font-mono text-sm font-bold text-foreground">
@@ -105,12 +114,12 @@ function DashboardExploreContent() {
 							</div>
 						</div>
 						<div className="flex flex-col items-end">
-							<span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">
+							<span className="text-[9px] font-semibold uppercase text-muted-foreground tracking-widest">
 								Platform Cap
 							</span>
 							<div className="flex items-center gap-1.5 font-mono text-sm font-bold text-foreground">
 								<Activity className="h-3.5 w-3.5 text-primary" />
-								${(totalPledged / 1000).toFixed(1)}k
+								{formatAmount(totalPledged, platformCurrency)}
 							</div>
 						</div>
 					</div>
