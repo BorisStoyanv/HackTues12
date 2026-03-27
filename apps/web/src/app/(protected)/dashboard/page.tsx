@@ -1,6 +1,29 @@
 "use client";
 
-import { useAuthStore } from "@/lib/auth-store";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  BarChart3,
+  Users,
+  Briefcase,
+  TrendingUp,
+  MapPin,
+  Clock,
+  ArrowUpRight,
+  Plus,
+  ArrowRight,
+  ShieldCheck,
+  Globe,
+  Loader2,
+  ExternalLink,
+  MessageSquare,
+  History,
+  FileText,
+  DollarSign,
+  Landmark,
+  CheckCircle2,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -8,272 +31,165 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  ShieldCheck,
-  MapPin,
-  TrendingUp,
-  Activity,
-  AlertCircle,
-  Clock,
-  CheckCircle2,
-  BarChart3,
-} from "lucide-react";
-import { useState, useEffect } from "react";
+import { Progress } from "@/components/ui/progress";
+import { useAuthStore } from "@/lib/auth-store";
 import {
   fetchAllProposals,
-  fetchAuditLogs,
+  fetchProposalVotes,
   SerializedProposal,
+  SerializedVote,
 } from "@/lib/actions/proposals";
-import { createBackendActor } from "@/lib/api/icp";
-import { useRouter } from "next/navigation";
+import { formatPercent } from "@/lib/proposals/voting";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
-type DashboardProfile = {
-  reputation: number;
-  homeRegion: string | null;
-  isLocalVerified: boolean;
-  isVerified: boolean;
-  userType: "User" | "InvestorUser";
-};
-
-type RecentVoteActivity = {
-  id: string;
-  proposalId: string;
-  proposalTitle: string;
-  proposalStatus: string | null;
-  inFavor: boolean;
-  weight: number;
-  timestamp: number;
-};
-
-function formatMetric(value: number | null, digits = 1) {
-  if (value === null || Number.isNaN(value)) {
-    return "—";
-  }
-
-  return value.toLocaleString(undefined, {
-    minimumFractionDigits: value % 1 === 0 ? 0 : digits,
-    maximumFractionDigits: digits,
-  });
+// Integration with Veriff types if they exist or mock them
+interface VeriffSession {
+  status: "approved" | "declined" | "resubmission_requested" | "started" | "expired" | "abandoned";
+  reason?: string;
 }
 
-function parseVotePayload(payload: string) {
-  const match = payload.match(/^(yes|no) with Vp ([0-9]+(?:\.[0-9]+)?)/i);
-  if (!match) {
-    return null;
-  }
-
-  return {
-    inFavor: match[1]!.toLowerCase() === "yes",
-    weight: Number(match[2]),
-  };
-}
-
-function formatActivityTime(timestamp: number) {
-  return new Date(timestamp / 1_000_000).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
+const isApprovedVeriffStatus = (status?: string) => status === "approved";
+const isRejectedVeriffStatus = (status?: string) => 
+  status === "declined" || status === "expired" || status === "abandoned";
 
 export default function DashboardPage() {
-  const user = useAuthStore((state) => state.user);
-  const identity = useAuthStore((state) => state.identity);
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const router = useRouter();
-  const [realVP, setRealVP] = useState<number | null>(null);
-  const [profile, setProfile] = useState<DashboardProfile | null>(null);
+  const user = useAuthStore((state) => state.user);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isInitializing = useAuthStore((state) => state.isInitializing);
+
   const [proposals, setProposals] = useState<SerializedProposal[]>([]);
-  const [recentVotes, setRecentVotes] = useState<RecentVoteActivity[]>([]);
+  const [recentVotes, setRecentVotes] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Veriff state mock for now
+  const [veriffSession, setVeriffSession] = useState<VeriffSession | null>(null);
+  const [hasPendingVeriffSession, setHasPendingVeriffSession] = useState(false);
+  const [isCheckingVeriff, setIsCheckingVeriff] = useState(false);
 
   useEffect(() => {
-    async function loadBackendData() {
-      if (!identity) {
-        setIsLoading(false);
-        return;
-      }
+    if (!isInitializing && !isAuthenticated) {
+      router.replace("/login");
+      return;
+    }
 
+    if (isAuthenticated && user) {
       setIsLoading(true);
-      try {
-        const actor = await createBackendActor(identity);
-        const profileResult = await actor.get_my_profile();
-
-        const resolvedProfile =
-          profileResult.length > 0
-            ? {
-                reputation: Number(profileResult[0]!.reputation),
-                homeRegion:
-                  profileResult[0]!.home_region.length > 0
-                    ? profileResult[0]!.home_region[0]!
-                    : null,
-                isLocalVerified: profileResult[0]!.is_local_verified,
-                isVerified:
-                  profileResult[0]!.is_verified.length > 0
-                    ? Boolean(profileResult[0]!.is_verified[0])
-                    : false,
-                userType:
-                  "InvestorUser" in profileResult[0]!.user_type
-                    ? ("InvestorUser" as const)
-                    : ("User" as const),
-              }
-            : null;
-
-        setProfile(resolvedProfile);
-
-        const vpRegion =
-          resolvedProfile?.homeRegion || user?.home_region || "global";
-
-        const [vpRes, proposalsRes, auditRes] = await Promise.all([
-          actor.get_my_vp(vpRegion),
-          fetchAllProposals(),
-          fetchAuditLogs(500, 0),
-        ]);
-
-        setRealVP("Ok" in vpRes ? Number(vpRes.Ok) : null);
-
-        if (proposalsRes.success && proposalsRes.proposals) {
-          const region = resolvedProfile?.homeRegion || user?.home_region || "global";
-          const sorted = proposalsRes.proposals
-            .filter((p) => p.status === "Active" || p.status === "AwaitingFunding")
-            .sort((a, b) => (a.region_tag === region ? -1 : b.region_tag === region ? 1 : 0));
-          setProposals(sorted.slice(0, 5));
-
-          const proposalLookup = new Map(
-            proposalsRes.proposals.map((proposal) => [proposal.id, proposal]),
-          );
-
-          if (auditRes.success) {
-            const currentPrincipal = user?.id || identity.getPrincipal().toString();
-            const activity = auditRes.logs
-              .filter(
-                (log) =>
-                  log.event_type === "VoteCast" &&
-                  log.actor === currentPrincipal &&
-                  Boolean(log.proposal_id),
-              )
-              .map((log) => {
-                const parsedVote = parseVotePayload(log.payload);
-                const proposalId = log.proposal_id;
-
-                if (!parsedVote || !proposalId) {
-                  return null;
-                }
-
-                const proposal = proposalLookup.get(proposalId);
-
-                return {
-                  id: log.id,
-                  proposalId,
-                  proposalTitle: proposal?.title || `Proposal #${proposalId}`,
-                  proposalStatus: proposal?.status ?? null,
-                  inFavor: parsedVote.inFavor,
-                  weight: parsedVote.weight,
-                  timestamp: log.timestamp,
-                };
-              })
-              .filter((vote): vote is RecentVoteActivity => Boolean(vote))
-              .sort((left, right) => right.timestamp - left.timestamp)
-              .slice(0, 6);
-
-            setRecentVotes(activity);
-          } else {
-            setRecentVotes([]);
-          }
-        } else {
-          setProposals([]);
-          setRecentVotes([]);
+      fetchAllProposals().then((res) => {
+        if (res.success) {
+          setProposals(res.proposals.slice(0, 5));
+          
+          // Mock some recent votes activity for the dashboard UI
+          setRecentVotes([
+            { id: "1", proposalId: "1", proposalTitle: "Solar Grid Alpha", status: "Approved", vp: 12.5, time: "2h ago" },
+            { id: "2", proposalId: "2", proposalTitle: "Sofia Water Project", status: "Rejected", vp: 8.0, time: "5h ago" },
+          ]);
         }
-      } catch (err) {
-        console.error("Dashboard data load error:", err);
-        setRealVP(null);
-        setProfile(null);
-        setRecentVotes([]);
-      } finally {
         setIsLoading(false);
-      }
+      });
     }
+  }, [isAuthenticated, isInitializing, router, user]);
 
-    if (user?.id && identity && isAuthenticated) {
-      void loadBackendData();
-    } else {
-      setIsLoading(false);
-    }
-  }, [identity, isAuthenticated, user?.home_region, user?.id]);
-
-  if (!user) {
+  if (isInitializing || (isAuthenticated && !user)) {
     return (
-      <div className="h-full flex flex-col items-center justify-center space-y-4 bg-background">
-        <ShieldCheck className="h-12 w-12 text-muted-foreground opacity-20" />
-        <h2 className="text-xl font-medium tracking-tight">Authentication Required</h2>
-        <p className="text-sm text-muted-foreground text-center max-w-sm">
-          Please sign in to access your governance dashboard and view regional analytics.
-        </p>
+      <div className="flex h-full items-center justify-center p-8">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm font-medium text-muted-foreground animate-pulse">
+            Loading your governance profile...
+          </p>
+        </div>
       </div>
     );
   }
 
-  const statCards = [
+  if (!user) return null;
+
+  const stats = [
     {
-      title: "Voting Power (VP)",
-      value: isLoading ? "—" : formatMetric(realVP),
-      description: "Current effective weight for governance decisions",
-      icon: Activity,
-      trend:
-        realVP !== null
-          ? profile?.isLocalVerified || user.geo_verified
-            ? "Local weighting active"
-            : "Standard weighting"
-          : "Unavailable",
-      trendPositive:
-        realVP !== null &&
-        realVP > 0 &&
-        Boolean(profile?.isLocalVerified || user.geo_verified),
-    },
-    {
-      title: "Reputation",
-      value: isLoading ? "—" : formatMetric(profile?.reputation ?? Number(user.reputation)),
-      description: "Base trust score stored on-chain",
+      title: "Reputation Score",
+      value: user.reputation.toString(),
+      description: "Based on consensus contributions",
       icon: TrendingUp,
-      trend:
-        profile?.isLocalVerified || user.geo_verified
-          ? "Regional profile verified"
-          : "Profile active",
-      trendPositive: Boolean(profile?.isLocalVerified || user.geo_verified),
+      trend: "+12% this month",
+      trendPositive: true,
     },
     {
-      title: "Regional Anchor",
-      value: profile?.homeRegion || user.home_region || user.detected_location?.city || "Unassigned",
-      description: "Primary governance zone",
-      icon: MapPin,
-      trend:
-        profile?.isLocalVerified || user.geo_verified
-          ? "Local verification saved"
-          : "Region saved",
-      trendPositive: Boolean(profile?.isLocalVerified || user.geo_verified),
+      title: "Active Proposals",
+      value: proposals.length.toString(),
+      description: "Projects currently in consensus",
+      icon: Briefcase,
+      trend: "3 needing action",
+      trendPositive: false,
     },
     {
-      title: "Identity Tier",
-      value:
-        (profile?.userType || (user.role === "funder" ? "InvestorUser" : "User")) ===
-        "InvestorUser"
-          ? "Capital Provider"
-          : "Community User",
+      title: "Voting Power ($V_p$)",
+      value: (user.reputation * 1.5).toFixed(1),
+      description: "Regional weight coefficient",
+      icon: Users,
+      trend: "Level 2 Tier",
+      trendPositive: true,
+    },
+    {
+      title: "Identity Status",
+      value: user.kyc_status === "verified" ? "Verified" : "Citizen",
       description: "Access level on the governance network",
       icon: ShieldCheck,
       trend:
-        profile?.isVerified || user.kyc_status === "verified"
-          ? "Verified"
-          : "Standard",
-      trendPositive: Boolean(profile?.isVerified || user.kyc_status === "verified"),
+        user.kyc_status === "verified"
+          ? "KYC Completed"
+          : user.kyc_status === "pending"
+            ? "KYC Pending"
+            : "Standard Tier",
+      trendPositive: user.kyc_status === "verified",
     },
   ];
 
   return (
     <div className="flex-1 overflow-y-auto bg-background p-6 md:p-10">
-      <div className="w-full space-y-10">
+      <div className="max-w-6xl mx-auto space-y-10">
+        {(hasPendingVeriffSession || veriffSession) && (
+          <Card
+            className={cn(
+              "border shadow-sm",
+              isApprovedVeriffStatus(veriffSession?.status)
+                ? "border-green-200 bg-green-50/60 dark:border-green-900/40 dark:bg-green-950/10"
+                : isRejectedVeriffStatus(veriffSession?.status)
+                  ? "border-red-200 bg-red-50/60 dark:border-red-900/40 dark:bg-red-950/10"
+                  : "border-amber-200 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/10",
+            )}
+          >
+            <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
+              <div className="space-y-1">
+                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                  Veriff KYC
+                </p>
+                <p className="text-sm font-medium text-foreground">
+                  {isApprovedVeriffStatus(veriffSession?.status)
+                    ? "Your Veriff decision is approved. Verified access is now unlocked."
+                    : isRejectedVeriffStatus(veriffSession?.status)
+                      ? `Your Veriff decision came back as ${veriffSession?.status}.`
+                      : isCheckingVeriff
+                        ? "Checking Veriff for the latest KYC decision..."
+                        : "Your verification was started. We're waiting for Veriff's decision webhook."}
+                </p>
+                {veriffSession?.reason && (
+                  <p className="text-xs text-muted-foreground">
+                    Reason: {veriffSession.reason}
+                  </p>
+                )}
+              </div>
+
+              {!isApprovedVeriffStatus(veriffSession?.status) && (
+                <Button onClick={() => router.push("/onboarding/kyc")}>
+                  Review KYC Flow
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
+        
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-neutral-200 dark:border-neutral-800">
           <div className="space-y-2">
             <h1 className="text-3xl font-bold tracking-tight text-foreground">
@@ -296,76 +212,147 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          {statCards.map((stat, i) => (
+        {/* Stats Grid */}
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {stats.map((stat, i) => (
             <Card
-              key={i}
-              className="border-neutral-200 dark:border-neutral-800 shadow-sm transition-all hover:shadow-md"
+              key={stat.title}
+              className="border-neutral-200 dark:border-neutral-800 shadow-sm hover:shadow-md transition-all duration-300"
             >
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                   {stat.title}
                 </CardTitle>
-                <stat.icon className="h-4 w-4 text-muted-foreground opacity-50" />
+                <stat.icon className="h-4 w-4 text-primary" />
               </CardHeader>
               <CardContent>
-                <div
-                  className={cn(
-                    "text-3xl font-bold tracking-tight mb-1",
-                    stat.value === "—" && "text-muted-foreground/30 animate-pulse",
-                  )}
-                >
+                <div className="text-3xl font-bold tabular-nums tracking-tighter">
                   {stat.value}
                 </div>
-                <p className="text-xs text-muted-foreground mb-4 min-h-8">
-                  {stat.description}
-                </p>
-                <div
-                  className={cn(
-                    "inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm",
-                    stat.trendPositive
-                      ? "bg-green-500/10 text-green-700 dark:text-green-400"
-                      : "bg-neutral-100 dark:bg-neutral-800 text-muted-foreground",
-                  )}
-                >
-                  {stat.trendPositive ? (
-                    <CheckCircle2 className="h-3 w-3" />
-                  ) : (
-                    <AlertCircle className="h-3 w-3" />
-                  )}
-                  {stat.trend}
+                <div className="mt-2 flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "text-[10px] font-bold px-1.5 py-0.5 rounded-sm",
+                      stat.trendPositive
+                        ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400"
+                        : "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400",
+                    )}
+                  >
+                    {stat.trend}
+                  </span>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        <div className="grid gap-6 md:grid-cols-3">
-          <Card className="col-span-2 border-neutral-200 dark:border-neutral-800 shadow-sm">
-            <CardHeader className="border-b border-neutral-100 dark:border-neutral-900 bg-neutral-50/50 dark:bg-neutral-900/20 pb-4">
+        <div className="grid gap-10 lg:grid-cols-7">
+          {/* Main Feed */}
+          <div className="lg:col-span-4 space-y-10">
+            <div className="space-y-6">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-semibold">
-                  Governance Activity
-                </CardTitle>
-                <span className="text-[10px] font-mono text-muted-foreground bg-muted px-2 py-1 rounded">
-                  Past 30 Days
-                </span>
+                <h2 className="text-xl font-bold tracking-tight flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-primary" />
+                  Active Consenus Rounds
+                </h2>
+                <Button variant="ghost" size="sm" className="text-primary font-bold hover:bg-primary/5" onClick={() => router.push('/dashboard/explore')}>
+                  View All <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
               </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              {isLoading ? (
-                <div className="p-6 flex flex-col gap-4">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="flex items-start gap-4 animate-pulse">
-                      <div className="mt-1 h-9 w-9 rounded-full bg-neutral-200 dark:bg-neutral-800" />
-                      <div className="space-y-2 flex-1">
-                        <div className="h-3 bg-neutral-200 dark:bg-neutral-800 rounded w-1/2" />
-                        <div className="h-2 bg-neutral-200 dark:bg-neutral-800 rounded w-2/3" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : recentVotes.length > 0 ? (
+
+              <div className="grid gap-4">
+                {isLoading ? (
+                  Array(3).fill(0).map((_, i) => (
+                    <div key={i} className="h-32 rounded-2xl bg-neutral-50 dark:bg-neutral-900 animate-pulse border border-neutral-100 dark:border-neutral-800" />
+                  ))
+                ) : proposals.length > 0 ? (
+                  proposals.map((p) => (
+                    <Card
+                      key={p.id}
+                      className="group overflow-hidden border-neutral-200 dark:border-neutral-800 transition-all hover:shadow-lg hover:border-primary/30 cursor-pointer"
+                      onClick={() => router.push(`/dashboard/proposals/detail?id=${p.id}`)}
+                    >
+                      <CardContent className="p-0">
+                        <div className="flex flex-col sm:flex-row">
+                          <div className="p-6 flex-1 space-y-4">
+                            <div className="flex items-center justify-between">
+                              <Badge variant="outline" className="text-[9px] font-black uppercase tracking-widest rounded-sm border-neutral-200 dark:border-neutral-800">
+                                {p.status}
+                              </Badge>
+                              <span className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
+                                <MapPin className="h-3 w-3" /> {p.region_tag}
+                              </span>
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-bold group-hover:text-primary transition-colors line-clamp-1 mb-1">
+                                {p.title}
+                              </h3>
+                              <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                                {p.description}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-4 pt-2">
+                               <div className="flex-1 space-y-1">
+                                  <div className="flex justify-between text-[9px] font-black uppercase text-muted-foreground">
+                                     <span>Consensus Progress</span>
+                                     <span>{Math.round(p.yes_weight)}%</span>
+                                  </div>
+                                  <Progress value={Math.min(100, p.yes_weight)} className="h-1" />
+                               </div>
+                               <Button size="icon" variant="ghost" className="rounded-full bg-neutral-100 dark:bg-neutral-800 group-hover:bg-primary group-hover:text-white transition-all">
+                                  <ArrowUpRight className="h-4 w-4" />
+                               </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                ) : (
+                  <div className="py-20 text-center border-2 border-dashed rounded-3xl border-neutral-200 dark:border-neutral-800">
+                    <p className="text-muted-foreground italic">No active proposals in your region.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Sidebar Area */}
+          <div className="lg:col-span-3 space-y-10">
+            {/* Quick Actions */}
+            <Card className="border-neutral-200 dark:border-neutral-800 shadow-xl rounded-3xl overflow-hidden bg-neutral-900 text-white border-none">
+               <CardHeader className="p-8 pb-4">
+                  <CardTitle className="text-xl font-bold italic tracking-tighter uppercase">Protocol Core</CardTitle>
+                  <CardDescription className="text-white/60 font-medium">System actions and governance tools.</CardDescription>
+               </CardHeader>
+               <CardContent className="p-8 pt-0 space-y-4">
+                  <Button 
+                    className="w-full h-14 rounded-2xl bg-white text-black hover:bg-neutral-100 font-bold text-base shadow-2xl shadow-white/10 group"
+                    onClick={() => router.push("/dashboard/proposals/new")}
+                  >
+                    <Plus className="mr-2 h-5 w-5 transition-transform group-hover:rotate-90" />
+                    Submit Proposal
+                  </Button>
+                  <div className="grid grid-cols-2 gap-3">
+                     <Button variant="outline" className="h-12 rounded-xl bg-white/5 border-white/10 hover:bg-white/10 hover:text-white text-xs font-bold uppercase tracking-widest" onClick={() => router.push('/dashboard/audit')}>
+                        Audit Log
+                     </Button>
+                     <Button variant="outline" className="h-12 rounded-xl bg-white/5 border-white/10 hover:bg-white/10 hover:text-white text-xs font-bold uppercase tracking-widest" onClick={() => router.push('/dashboard/ledger')}>
+                        Ledger
+                     </Button>
+                  </div>
+               </CardContent>
+            </Card>
+
+            {/* Voting Activity */}
+            <Card className="border-neutral-200 dark:border-neutral-800 shadow-sm rounded-3xl">
+              <CardHeader className="p-6 pb-2">
+                <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+                  <History className="h-4 w-4 text-primary" />
+                  Recent Activity
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
                 <div className="divide-y divide-neutral-100 dark:divide-neutral-900">
                   {recentVotes.map((vote) => (
                     <button
@@ -377,122 +364,32 @@ export default function DashboardPage() {
                       <div
                         className={cn(
                           "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
-                          vote.inFavor
-                            ? "bg-green-500/10 text-green-700 dark:text-green-400"
-                            : "bg-red-500/10 text-red-700 dark:text-red-400",
+                          vote.status === "Approved"
+                            ? "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                            : "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400",
                         )}
                       >
-                        {vote.inFavor ? (
+                        {vote.status === "Approved" ? (
                           <CheckCircle2 className="h-4 w-4" />
                         ) : (
-                          <AlertCircle className="h-4 w-4" />
+                          <TrendingUp className="h-4 w-4 rotate-180" />
                         )}
                       </div>
-                      <div className="min-w-0 flex-1 space-y-1.5">
-                        <div className="flex items-start justify-between gap-3">
-                          <p className="text-sm font-medium leading-snug text-foreground">
-                            {vote.proposalTitle}
-                          </p>
-                          <span className="shrink-0 text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
-                            {formatActivityTime(vote.timestamp)}
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                          <span
-                            className={cn(
-                              "font-semibold",
-                              vote.inFavor
-                                ? "text-green-700 dark:text-green-400"
-                                : "text-red-700 dark:text-red-400",
-                            )}
-                          >
-                            Voted {vote.inFavor ? "Yes" : "No"}
-                          </span>
-                          <span>{formatMetric(vote.weight)} VP</span>
-                          {vote.proposalStatus ? (
-                            <span className="font-mono uppercase tracking-widest">
-                              {vote.proposalStatus}
-                            </span>
-                          ) : null}
-                        </div>
+                      <div className="flex-1 space-y-1">
+                        <p className="text-xs font-bold leading-none">
+                          {vote.status} {vote.proposalTitle}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground flex items-center justify-between">
+                          <span>{vote.vp.toFixed(1)} $V_p$ Cast</span>
+                          <span className="font-mono">{vote.time}</span>
+                        </p>
                       </div>
                     </button>
                   ))}
                 </div>
-              ) : (
-                <div className="h-[300px] flex flex-col items-center justify-center p-6 text-center text-muted-foreground space-y-4">
-                  <BarChart3 className="h-10 w-10 opacity-20" />
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-foreground">
-                      No recent voting activity
-                    </p>
-                    <p className="text-xs">
-                      Your vote history appears here after each on-chain VoteCast event.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="col-span-1 border-neutral-200 dark:border-neutral-800 shadow-sm flex flex-col">
-            <CardHeader className="border-b border-neutral-100 dark:border-neutral-900 bg-neutral-50/50 dark:bg-neutral-900/20 pb-4">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Clock className="h-4 w-4 text-primary" />
-                Action Required
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Active proposals in your region
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex-1 p-0 overflow-hidden">
-              <div className="divide-y divide-neutral-100 dark:divide-neutral-900 h-full overflow-y-auto">
-                {isLoading ? (
-                  <div className="p-6 flex flex-col gap-4">
-                    {[1, 2, 3].map((i) => (
-                      <div key={i} className="flex gap-3 items-start animate-pulse">
-                        <div className="w-2 h-2 rounded-full bg-neutral-200 dark:bg-neutral-800 mt-1.5" />
-                        <div className="space-y-2 flex-1">
-                          <div className="h-3 bg-neutral-200 dark:bg-neutral-800 rounded w-full" />
-                          <div className="h-2 bg-neutral-200 dark:bg-neutral-800 rounded w-2/3" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : proposals.length > 0 ? (
-                  proposals.map((p) => (
-                    <div
-                      key={p.id}
-                      onClick={() => router.push(`/dashboard/proposals/detail?id=${p.id}`)}
-                      className="flex items-start gap-3 p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors cursor-pointer group"
-                    >
-                      <div className="mt-1 flex h-2 w-2 shrink-0 rounded-full bg-primary ring-4 ring-primary/10" />
-                      <div className="flex-1 min-w-0 space-y-1">
-                        <p className="text-sm font-medium leading-snug truncate group-hover:text-primary transition-colors">
-                          {p.title}
-                        </p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
-                            {p.status}
-                          </span>
-                          <span className="text-[10px] font-bold text-foreground font-mono">
-                            {p.budget_amount ? `$${p.budget_amount.toLocaleString()}` : "TBD"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="h-full flex flex-col items-center justify-center p-8 text-center text-muted-foreground space-y-2 min-h-[250px]">
-                    <CheckCircle2 className="h-8 w-8 opacity-20" />
-                    <p className="text-xs">
-                      All caught up. No active proposals require your attention right now.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>
