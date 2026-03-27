@@ -203,11 +203,7 @@ export function ProposalWizard() {
       
       console.log("Broadcasting successful:", result);
       localStorage.removeItem("proposal_draft_v3");
-<<<<<<< HEAD
       router.push(`/dashboard/proposals/detail?id=${result.id.toString()}`);
-=======
-      router.push(`/dashboard/proposals/${createdProposalId}`);
->>>>>>> origin/Boris
     } catch (error) {
       console.error(error);
       const message =
