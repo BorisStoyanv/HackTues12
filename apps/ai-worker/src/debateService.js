@@ -12,6 +12,7 @@ const MODELS = {
 const ROUND_COUNT = 3;
 const REPETITION_SIMILARITY_THRESHOLD = 0.68;
 const MAX_CARRYOVER_ITEMS = 6;
+const ROUND_WINNER_TIE_BAND = 0.06;
 export const DEBATE_MODELS = MODELS;
 export const DEBATE_ROUND_COUNT = ROUND_COUNT;
 
@@ -39,6 +40,7 @@ function formatEvidence(evidence) {
           return [
             `${index + 1}. ${source.title}`,
             `   URL: ${source.url}`,
+            `   Matched query: ${source.matchedQuery || "n/a"}`,
             `   Snippet: ${source.snippet || "n/a"}`,
             `   Avg daily pageviews (30d): ${pageviews}`,
             `   Summary: ${summary}`,
@@ -47,8 +49,14 @@ function formatEvidence(evidence) {
         .join("\n")
     : "No reliable external sources found.";
 
+  const searchQueriesText = (evidence.searchQueries || []).length
+    ? evidence.searchQueries.map((query, index) => `${index + 1}. ${query}`).join("\n")
+    : "No search queries recorded.";
+
   return [
     `Search text: ${evidence.searchText}`,
+    "Search queries used:",
+    searchQueriesText,
     `Geo hint: ${
       evidence.geoHint
         ? `${evidence.geoHint.displayName} (lat ${evidence.geoHint.lat}, lon ${evidence.geoHint.lon})`
@@ -56,7 +64,95 @@ function formatEvidence(evidence) {
     }`,
     "Sources:",
     sourceLines,
+    "Country tourism/economic context:",
+    formatCountryEconomicContext(evidence.countryEconomicContext),
   ].join("\n");
+}
+
+function formatLargeNumber(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return "unknown";
+  }
+
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(Math.round(numeric));
+}
+
+function formatCountryEconomicContext(countryEconomicContext) {
+  if (!countryEconomicContext) {
+    return "No country-level indicators available.";
+  }
+
+  const lines = [`Country: ${countryEconomicContext.country} (${countryEconomicContext.countryCode})`];
+
+  if (countryEconomicContext.tourismArrivals) {
+    lines.push(
+      `Tourism arrivals (${countryEconomicContext.tourismArrivals.year}): ${formatLargeNumber(
+        countryEconomicContext.tourismArrivals.value
+      )} [${countryEconomicContext.tourismArrivals.sourceUrl}]`
+    );
+  }
+
+  if (countryEconomicContext.tourismReceiptsUsd) {
+    lines.push(
+      `Tourism receipts USD (${countryEconomicContext.tourismReceiptsUsd.year}): ${formatLargeNumber(
+        countryEconomicContext.tourismReceiptsUsd.value
+      )} [${countryEconomicContext.tourismReceiptsUsd.sourceUrl}]`
+    );
+  }
+
+  if (countryEconomicContext.gdpUsd) {
+    lines.push(
+      `GDP USD (${countryEconomicContext.gdpUsd.year}): ${formatLargeNumber(
+        countryEconomicContext.gdpUsd.value
+      )} [${countryEconomicContext.gdpUsd.sourceUrl}]`
+    );
+  }
+
+  return lines.join("\n");
+}
+
+function formatRealWorldDataPoints(evidence) {
+  const points = [];
+
+  for (const source of evidence.sources || []) {
+    if (source.avgDailyPageviews30d !== null) {
+      points.push(
+        `${source.title}: avg daily Wikipedia pageviews (30d) = ${source.avgDailyPageviews30d} [${source.url}]`
+      );
+    }
+  }
+
+  const context = evidence.countryEconomicContext;
+  if (context?.tourismArrivals) {
+    points.push(
+      `${context.country}: international tourism arrivals (${context.tourismArrivals.year}) = ${formatLargeNumber(
+        context.tourismArrivals.value
+      )} [${context.tourismArrivals.sourceUrl}]`
+    );
+  }
+
+  if (context?.tourismReceiptsUsd) {
+    points.push(
+      `${context.country}: tourism receipts USD (${context.tourismReceiptsUsd.year}) = ${formatLargeNumber(
+        context.tourismReceiptsUsd.value
+      )} [${context.tourismReceiptsUsd.sourceUrl}]`
+    );
+  }
+
+  if (context?.gdpUsd) {
+    points.push(
+      `${context.country}: GDP USD (${context.gdpUsd.year}) = ${formatLargeNumber(
+        context.gdpUsd.value
+      )} [${context.gdpUsd.sourceUrl}]`
+    );
+  }
+
+  if (!points.length) {
+    return "No strong numeric datapoints were found from web sources.";
+  }
+
+  return formatNumberedList(points, "No datapoints available.");
 }
 
 function formatHistory(rounds) {
@@ -78,6 +174,24 @@ function formatHistory(rounds) {
 }
 
 function detectResponseLanguage(proposal) {
+  const requested = String(proposal?.responseLanguage || "")
+    .trim()
+    .toLowerCase();
+
+  if (requested === "en") {
+    return {
+      code: "en",
+      name: "English",
+    };
+  }
+
+  if (requested === "bg") {
+    return {
+      code: "bg",
+      name: "Bulgarian",
+    };
+  }
+
   const proposalText = [
     proposal?.name || "",
     proposal?.location || "",
@@ -85,7 +199,11 @@ function detectResponseLanguage(proposal) {
     proposal?.info || "",
   ].join(" ");
 
-  if (/[\u0400-\u04FF]/.test(proposalText)) {
+  const cyrillicCount = (proposalText.match(/[\u0400-\u04FF]/g) || []).length;
+  const latinCount = (proposalText.match(/[A-Za-z]/g) || []).length;
+
+  // Default to English unless Cyrillic clearly dominates.
+  if (cyrillicCount >= 6 && cyrillicCount > latinCount * 1.2) {
     return {
       code: "bg",
       name: "Bulgarian",
@@ -141,6 +259,73 @@ async function callModelForJson({
   }
 
   throw new Error("Unreachable JSON parse path");
+}
+
+const economicBriefSchema = z.object({
+  visitor_estimate: z.string().min(1),
+  income_estimate: z.string().min(1),
+  payback_estimate: z.string().min(1),
+  assumptions: z.array(z.string().min(1)).max(8).default([]),
+  evidence_gaps: z.array(z.string().min(1)).max(8).default([]),
+  advocate_talking_points: z.array(z.string().min(1)).min(3).max(8),
+});
+
+function formatEconomicBrief(brief) {
+  return [
+    `Visitor estimate: ${brief.visitorEstimate}`,
+    `Income estimate: ${brief.incomeEstimate}`,
+    `Payback estimate: ${brief.paybackEstimate}`,
+    "Assumptions:",
+    formatNumberedList(brief.assumptions, "No assumptions listed."),
+    "Evidence gaps:",
+    formatNumberedList(brief.evidenceGaps, "No explicit gaps listed."),
+    "Advocate talking points:",
+    formatNumberedList(brief.advocateTalkingPoints, "No talking points listed."),
+  ].join("\n");
+}
+
+async function buildEconomicBrief({ proposalText, evidenceText, responseLanguageName }) {
+  const systemPrompt = [
+    "You are an infrastructure economics analyst.",
+    "Create a concise, assumption-aware baseline for visitors, income, and payback period.",
+    "Use only proposal details and provided evidence. Do not fabricate certainty.",
+    "If direct data is missing, provide conservative ranges and clearly list assumptions.",
+    `Write all natural-language fields in ${responseLanguageName}.`,
+    "Return JSON only.",
+  ].join(" ");
+
+  const userPrompt = [
+    `Language: ${responseLanguageName}`,
+    "Proposal:",
+    proposalText,
+    "",
+    "Evidence:",
+    evidenceText,
+    "",
+    "Return exactly this JSON schema:",
+    '{"visitor_estimate":"range or reasoned estimate","income_estimate":"annual income or range","payback_estimate":"years or range","assumptions":["..."],"evidence_gaps":["..."],"advocate_talking_points":["..."]}',
+  ].join("\n");
+
+  const parsed = economicBriefSchema.parse(
+    await callModelForJson({
+      model: MODELS.judge,
+      systemPrompt,
+      userPrompt,
+      maxTokens: 1800,
+      temperature: undefined,
+      includeReasoning: false,
+      reasoning: { effort: "low" },
+    })
+  );
+
+  return {
+    visitorEstimate: parsed.visitor_estimate.trim(),
+    incomeEstimate: parsed.income_estimate.trim(),
+    paybackEstimate: parsed.payback_estimate.trim(),
+    assumptions: parsed.assumptions.map((item) => item.trim()).filter(Boolean),
+    evidenceGaps: parsed.evidence_gaps.map((item) => item.trim()).filter(Boolean),
+    advocateTalkingPoints: parsed.advocate_talking_points.map((item) => item.trim()).filter(Boolean),
+  };
 }
 
 function splitSentences(text) {
@@ -231,10 +416,98 @@ function maxSimilarityWithHistory(statement, previousStatements) {
   }, 0);
 }
 
+function countMissingInfoSignals(text) {
+  const normalized = String(text || "").toLowerCase();
+  const patterns = [
+    /missing information/g,
+    /insufficient information/g,
+    /not enough information/g,
+    /missing data/g,
+    /lack of data/g,
+    /insufficient data/g,
+    /no data/g,
+    /no evidence/g,
+    /unclear/g,
+    /unknown/g,
+    /no (clear )?(visitor|visitors|income|revenue|economic impact)/g,
+    /missing (visitor|income|revenue|economic impact)/g,
+  ];
+
+  return patterns.reduce((sum, pattern) => sum + (normalized.match(pattern) || []).length, 0);
+}
+
+function sanitizeSkepticMissingDataPhrases(text) {
+  return cleanStatement(
+    String(text || "")
+      .replace(/missing information/gi, "fragile assumptions")
+      .replace(/insufficient information/gi, "fragile assumptions")
+      .replace(/not enough information/gi, "fragile assumptions")
+      .replace(/missing data/gi, "fragile assumptions")
+      .replace(/lack of data/gi, "fragile assumptions")
+      .replace(/insufficient data/gi, "fragile assumptions")
+      .replace(/no data/gi, "fragile assumptions")
+      .replace(/no evidence/gi, "fragile support")
+      .replace(/\bunknown\b/gi, "uncertain")
+      .replace(/\bunclear\b/gi, "ambiguous")
+      .replace(/missing (visitor|income|revenue|economic impact)/gi, "fragile $1 assumptions")
+      .replace(/no (clear )?(visitor|visitors|income|revenue|economic impact)/gi, "fragile $2 assumptions")
+  );
+}
+
+function countConcreteSignals(text) {
+  return splitSentences(text).reduce((sum, sentence) => sum + (looksConcreteClaim(sentence) ? 1 : 0), 0);
+}
+
+function containsUrl(text) {
+  return /https?:\/\/\S+/i.test(String(text || ""));
+}
+
+function extractFirstUrl(text) {
+  const match = String(text || "").match(/https?:\/\/\S+/i);
+  return match ? match[0].replace(/[),.;]+$/, "") : null;
+}
+
+function deriveWinnerFromScore(score) {
+  if (score > 0.5 + ROUND_WINNER_TIE_BAND) {
+    return "advocate";
+  }
+  if (score < 0.5 - ROUND_WINNER_TIE_BAND) {
+    return "skeptic";
+  }
+
+  return "tie";
+}
+
+function calibrateRoundScore({
+  score,
+  rationale,
+  advocateStatement,
+  skepticStatement,
+}) {
+  let adjusted = score;
+  const advocateConcreteSignals = countConcreteSignals(advocateStatement);
+  const skepticConcreteSignals = countConcreteSignals(skepticStatement);
+
+  // Prevent automatic skeptic edge when advocate provides at least as many concrete claims.
+  if (adjusted < 0.5 && advocateConcreteSignals >= skepticConcreteSignals) {
+    const concreteDelta = advocateConcreteSignals - skepticConcreteSignals;
+    adjusted += concreteDelta > 0 ? Math.min(0.08, 0.02 * concreteDelta) : 0.03;
+  }
+
+  // Missing-info framing should not dominate round scoring.
+  if (adjusted < 0.5 && countMissingInfoSignals(rationale) > 0) {
+    adjusted = Math.min(0.5, adjusted + 0.06);
+  }
+
+  return Number(clamp(adjusted, 0, 1).toFixed(3));
+}
+
 async function generateDebaterStatement({
   speaker,
   proposalText,
   evidenceText,
+  economicBriefText,
+  realWorldDataPointsText,
   historyText,
   responseLanguageName,
   round,
@@ -254,6 +527,15 @@ async function generateDebaterStatement({
     `You are the ${roleTitle} in a public-funding debate.`,
     `Your goal is to ${stanceGoal}.`,
     "Use concrete facts from proposal details, internet evidence, and prior debate context.",
+    isAdvocate
+      ? "Use the economic baseline to anchor at least one quantified argument (visitors, income, or payback), explicitly labeling assumptions where needed."
+      : "Critique weak assumptions and overconfident projections from the economic baseline, but do not ignore credible quantified points.",
+    isAdvocate
+      ? "Use real-world internet datapoints and cite at least one source URL exactly as given."
+      : "Engage with concrete datapoints directly instead of dismissing them.",
+    isAdvocate
+      ? "Reasonable, clearly labeled assumptions are allowed when hard data is incomplete."
+      : "Do not mention missing data, missing evidence, unknown information, unclear information, or lack of information.",
     round > 1
       ? "For rounds 2 and 3, you must explicitly reference one concrete prior-round claim and one unresolved judge concern."
       : "For round 1, establish at least one concrete claim that can be challenged later.",
@@ -275,6 +557,12 @@ async function generateDebaterStatement({
     "Internet evidence:",
     evidenceText,
     "",
+    "Economic baseline (assumption-aware):",
+    economicBriefText,
+    "",
+    "Real-world datapoints pack (internet-derived):",
+    realWorldDataPointsText,
+    "",
     "Previous rounds:",
     historyText,
     "",
@@ -291,6 +579,15 @@ async function generateDebaterStatement({
     round > 1
       ? "Mandatory: reference at least one concrete prior-round claim and one unresolved judge point."
       : "Mandatory: provide at least one concrete claim rooted in proposal or evidence.",
+    isAdvocate
+      ? "Mandatory: include at least one quantified economic point (visitors, income, or payback) and clearly flag assumptions."
+      : "Mandatory: challenge at least one concrete economic number or assumption.",
+    isAdvocate
+      ? "Mandatory: cite at least one source URL from the datapoints pack in parentheses."
+      : "Mandatory: reference at least one datapoint from the pack when rebutting.",
+    isAdvocate
+      ? "Mandatory: if evidence is incomplete, still provide a defendable range estimate with explicit assumptions."
+      : "Mandatory: include at least two concrete risk arguments (execution, cost overrun, OPEX, demand volatility, governance, opportunity cost) and do not reference missing data/evidence.",
     `Write exactly one strong statement ${finalAction}.`,
     retryInstruction ? `Revision requirement: ${retryInstruction}` : "",
   ]
@@ -310,6 +607,8 @@ async function generateDebaterStatementWithRetry({
   speaker,
   proposalText,
   evidenceText,
+  economicBriefText,
+  realWorldDataPointsText,
   historyText,
   responseLanguageName,
   round,
@@ -327,6 +626,8 @@ async function generateDebaterStatementWithRetry({
       speaker,
       proposalText,
       evidenceText,
+      economicBriefText,
+      realWorldDataPointsText,
       historyText,
       responseLanguageName,
       round,
@@ -337,13 +638,17 @@ async function generateDebaterStatementWithRetry({
     })
   );
 
-  if (!previousStatements.length) {
-    return firstAttempt;
+  const isSkeptic = speaker === "skeptic";
+  const missingInfoMentioned = isSkeptic && countMissingInfoSignals(firstAttempt) > 0;
+  const advocateMissingCitation = speaker === "advocate" && !containsUrl(firstAttempt);
+
+  if (!previousStatements.length && !missingInfoMentioned && !advocateMissingCitation) {
+    return isSkeptic ? sanitizeSkepticMissingDataPhrases(firstAttempt) : firstAttempt;
   }
 
   const firstSimilarity = maxSimilarityWithHistory(firstAttempt, previousStatements);
-  if (firstSimilarity < REPETITION_SIMILARITY_THRESHOLD) {
-    return firstAttempt;
+  if (firstSimilarity < REPETITION_SIMILARITY_THRESHOLD && !missingInfoMentioned && !advocateMissingCitation) {
+    return isSkeptic ? sanitizeSkepticMissingDataPhrases(firstAttempt) : firstAttempt;
   }
 
   const secondAttempt = cleanStatement(
@@ -351,20 +656,39 @@ async function generateDebaterStatementWithRetry({
       speaker,
       proposalText,
       evidenceText,
+      economicBriefText,
+      realWorldDataPointsText,
       historyText,
       responseLanguageName,
       round,
       concreteClaims,
       unresolvedJudgePoints,
       opponentCurrentRoundStatement,
-      retryInstruction: opponentCurrentRoundStatement
-        ? "Your previous draft repeated prior phrasing. Use a clearly different angle and directly rebut one specific claim from the current-round opponent statement."
-        : "Your previous draft repeated prior phrasing. Use a clearly different angle and pre-empt a likely counterargument without reusing prior sentence structures.",
+      retryInstruction: advocateMissingCitation
+        ? "Your previous draft missed citation. Include at least one concrete numeric datapoint and one source URL exactly as given in the datapoints pack."
+        : missingInfoMentioned
+          ? "Your previous draft mentioned missing data/evidence. Remove that theme entirely. Argue only via concrete non-data risks and trade-offs."
+        : opponentCurrentRoundStatement
+          ? "Your previous draft repeated prior phrasing. Use a clearly different angle and directly rebut one specific claim from the current-round opponent statement."
+          : "Your previous draft repeated prior phrasing. Use a clearly different angle and pre-empt a likely counterargument without reusing prior sentence structures.",
     })
   );
 
   const secondSimilarity = maxSimilarityWithHistory(secondAttempt, previousStatements);
-  return secondSimilarity <= firstSimilarity ? secondAttempt : firstAttempt;
+  const selected = secondSimilarity <= firstSimilarity ? secondAttempt : firstAttempt;
+
+  if (isSkeptic) {
+    return sanitizeSkepticMissingDataPhrases(selected);
+  }
+
+  if (speaker === "advocate" && !containsUrl(selected)) {
+    const fallbackUrl = extractFirstUrl(realWorldDataPointsText) || extractFirstUrl(evidenceText);
+    if (fallbackUrl) {
+      return `${selected} (Source: ${fallbackUrl})`;
+    }
+  }
+
+  return selected;
 }
 
 const roundJudgmentSchema = z.object({
@@ -376,9 +700,11 @@ const roundJudgmentSchema = z.object({
 async function judgeRound({
   proposalText,
   evidenceText,
+  economicBriefText,
   historyText,
   responseLanguageName,
   round,
+  evidenceGapPenaltyUsed,
   advocateStatement,
   skepticStatement,
 }) {
@@ -386,6 +712,16 @@ async function judgeRound({
     "You are the neutral JUDGE in a funding debate.",
     "Evaluate only argument quality and evidence use.",
     "Scoring rule: 0.5 is neutral/tie, >0.5 means advocate stronger, <0.5 means skeptic stronger.",
+    "Apply equal skepticism to BOTH sides. Unsupported skeptical claims are penalized just like unsupported advocate claims.",
+    "Start from 0.5 and move only when there is a clear argument-quality advantage.",
+    "Default to tie when both sides are similarly plausible.",
+    "Do not automatically favor the skeptic just because some evidence is missing.",
+    "Reasonable, explicitly labeled assumptions and ranges are valid argumentation when hard data is limited.",
+    "Penalize generic or repetitive 'missing information' claims if they are not paired with substantive alternative risk analysis.",
+    "Evidence-gap penalty can be applied at most once across all rounds.",
+    evidenceGapPenaltyUsed
+      ? "Evidence-gap penalty was already used in a previous round, so in this round you must not reduce score due to missing evidence."
+      : "If missing evidence materially affects confidence, you may apply an evidence-gap penalty in this round.",
     `Write the rationale in ${responseLanguageName}.`,
     'Keep "winner" strictly as advocate|skeptic|tie and "score" as a number in [0,1].',
     "Return JSON only.",
@@ -394,17 +730,26 @@ async function judgeRound({
   const userPrompt = [
     `Round: ${round} of ${ROUND_COUNT}`,
     `Rationale language: ${responseLanguageName}`,
+    `Evidence-gap penalty already used in prior rounds: ${evidenceGapPenaltyUsed ? "yes" : "no"}`,
     "Proposal:",
     proposalText,
     "",
     "Internet evidence:",
     evidenceText,
     "",
+    "Economic baseline:",
+    economicBriefText,
+    "",
     "Debate history:",
     historyText,
     "",
     `Advocate statement: ${advocateStatement}`,
     `Skeptic statement: ${skepticStatement}`,
+    "",
+    "Scoring guidance:",
+    "- Start from 0.5 and move only for clear quality differences.",
+    "- Missing-evidence concerns alone should not dominate the score shift.",
+    "- Penalize unsupported assertions from either side equally.",
     "",
     "Return exactly this JSON schema:",
     '{"winner":"advocate|skeptic|tie","score":0.5,"rationale":"short explanation"}',
@@ -422,10 +767,16 @@ async function judgeRound({
     })
   );
 
-  const score = normalizeScore(parsed.score);
+  const rawScore = normalizeScore(parsed.score);
+  const score = calibrateRoundScore({
+    score: rawScore,
+    rationale: parsed.rationale,
+    advocateStatement,
+    skepticStatement,
+  });
 
   return {
-    winner: parsed.winner,
+    winner: deriveWinnerFromScore(score),
     score,
     rationale: parsed.rationale.trim(),
   };
@@ -466,7 +817,7 @@ function computeFundingPriority(criteriaRatings) {
   };
 }
 
-async function judgeFinal({ proposalText, evidenceText, responseLanguageName, rounds }) {
+async function judgeFinal({ proposalText, evidenceText, economicBriefText, responseLanguageName, rounds }) {
   const roundsText = rounds
     .map((round) => {
       return [
@@ -486,6 +837,10 @@ async function judgeFinal({ proposalText, evidenceText, responseLanguageName, ro
     "Criteria rating scale is 0..1 where higher means more of that metric itself.",
     "For popularity and tourism_attendance, high values imply lower funding priority.",
     "For neglect_and_age and potential_tourism_benefit, high values imply higher funding priority.",
+    "Apply equal skepticism to both sides in the round summaries; do not treat skeptical claims as true by default.",
+    "Do not automatically penalize the advocate for every evidence gap if assumptions were explicit and reasonable.",
+    "Do not over-reward repetitive generic skepticism focused only on missing information.",
+    "Treat evidence-gap downside as already accounted for at most once in round scoring; do not repeatedly penalize the same gap in the final view.",
     `Write the rationale in ${responseLanguageName}.`,
     'Keep "funding_recommendation" strictly as one of: fund, defer, reject (in English).',
     "Return JSON only.",
@@ -498,6 +853,9 @@ async function judgeFinal({ proposalText, evidenceText, responseLanguageName, ro
     "",
     "Internet evidence:",
     evidenceText,
+    "",
+    "Economic baseline:",
+    economicBriefText,
     "",
     "Three rounds summary:",
     roundsText,
@@ -563,13 +921,26 @@ export async function runProposalDebate(proposal, hooks = {}) {
   const proposalText = formatProposal(proposal);
   const evidence = await collectInternetEvidence(proposal);
   const evidenceText = formatEvidence(evidence);
+  const realWorldDataPointsText = formatRealWorldDataPoints(evidence);
   await onProgress({
     type: "internet_evidence",
     internetEvidence: evidence,
   });
   ensureContinue();
+  const economicBrief = await buildEconomicBrief({
+    proposalText,
+    evidenceText,
+    responseLanguageName: responseLanguage.name,
+  });
+  const economicBriefText = formatEconomicBrief(economicBrief);
+  await onProgress({
+    type: "economic_brief",
+    economicBrief,
+  });
+  ensureContinue();
 
   const rounds = [];
+  let evidenceGapPenaltyUsed = false;
 
   for (let round = 1; round <= ROUND_COUNT; round += 1) {
     const speakingOrder = round % 2 === 1 ? ["advocate", "skeptic"] : ["skeptic", "advocate"];
@@ -593,6 +964,8 @@ export async function runProposalDebate(proposal, hooks = {}) {
         speaker: "advocate",
         proposalText,
         evidenceText,
+        economicBriefText,
+        realWorldDataPointsText,
         historyText,
         responseLanguageName: responseLanguage.name,
         round,
@@ -607,6 +980,8 @@ export async function runProposalDebate(proposal, hooks = {}) {
         speaker: "skeptic",
         proposalText,
         evidenceText,
+        economicBriefText,
+        realWorldDataPointsText,
         historyText,
         responseLanguageName: responseLanguage.name,
         round,
@@ -620,6 +995,8 @@ export async function runProposalDebate(proposal, hooks = {}) {
         speaker: "skeptic",
         proposalText,
         evidenceText,
+        economicBriefText,
+        realWorldDataPointsText,
         historyText,
         responseLanguageName: responseLanguage.name,
         round,
@@ -634,6 +1011,8 @@ export async function runProposalDebate(proposal, hooks = {}) {
         speaker: "advocate",
         proposalText,
         evidenceText,
+        economicBriefText,
+        realWorldDataPointsText,
         historyText,
         responseLanguageName: responseLanguage.name,
         round,
@@ -655,12 +1034,25 @@ export async function runProposalDebate(proposal, hooks = {}) {
     const judgment = await judgeRound({
       proposalText,
       evidenceText,
+      economicBriefText,
       historyText,
       responseLanguageName: responseLanguage.name,
       round,
+      evidenceGapPenaltyUsed,
       advocateStatement,
       skepticStatement,
     });
+
+    const rationaleHasEvidenceGapFocus = countMissingInfoSignals(judgment.rationale) > 0;
+
+    if (rationaleHasEvidenceGapFocus && judgment.score < 0.5) {
+      if (!evidenceGapPenaltyUsed) {
+        evidenceGapPenaltyUsed = true;
+      } else {
+        judgment.score = 0.5;
+        judgment.winner = "tie";
+      }
+    }
 
     rounds.push({
       round,
@@ -685,6 +1077,7 @@ export async function runProposalDebate(proposal, hooks = {}) {
   const finalJudgeResult = await judgeFinal({
     proposalText,
     evidenceText,
+    economicBriefText,
     responseLanguageName: responseLanguage.name,
     rounds,
   });
@@ -700,6 +1093,7 @@ export async function runProposalDebate(proposal, hooks = {}) {
     models: MODELS,
     proposal,
     internetEvidence: evidence,
+    economicBrief,
     rounds,
     final: {
       aggregateScore: finalAggregateScore,

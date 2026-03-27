@@ -86,6 +86,7 @@ resource "google_compute_firewall" "allow_app" {
   }
 }
 
+
 resource "google_compute_firewall" "allow_http_https_ai_worker" {
   name          = "allow-http-https-ai-worker"
   network       = var.network
