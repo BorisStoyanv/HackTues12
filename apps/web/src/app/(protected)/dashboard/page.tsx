@@ -256,14 +256,14 @@ export default function DashboardPage() {
                     </div>
 
                     <div className="space-y-2">
-                       <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-foreground leading-[0.85] uppercase italic">
-                          Protocol <br />
-                          <span className="text-muted-foreground/20 not-italic">Dashboard</span>
+                       <h1 className="text-3xl md:text-4xl font-black tracking-tighter text-foreground leading-tight uppercase">
+                          Account <br />
+                          <span className="text-muted-foreground/30">Overview</span>
                        </h1>
-                       <p className="text-lg font-medium text-muted-foreground flex items-center gap-3 pt-4 border-t border-border/40 mt-6">
-                          Welcome back, <span className="text-foreground font-black uppercase tracking-tight">{user.display_name || "Protocol Node"}</span>
+                       <p className="text-base font-medium text-muted-foreground flex items-center gap-3 pt-4 border-t border-border/40 mt-6">
+                          Welcome back, <span className="text-foreground font-black uppercase tracking-tight">{user.display_name || "Authorized Node"}</span>
                           <span className="h-1 w-1 rounded-full bg-border" />
-                          <span className="text-sm">@{user.id.substring(0, 10)}...</span>
+                          <span className="text-sm font-mono text-muted-foreground/60">@{user.id.substring(0, 10)}...</span>
                        </p>
                     </div>
                  </div>
@@ -344,7 +344,7 @@ export default function DashboardPage() {
               <div className="lg:col-span-8 space-y-8">
                  <div className="flex items-center justify-between">
                     <div className="space-y-1">
-                       <h3 className="text-2xl font-black tracking-tighter uppercase italic flex items-center gap-3">
+                       <h3 className="text-xl font-black tracking-tighter uppercase flex items-center gap-3">
                           <Activity className="h-6 w-6 text-primary" />
                           Consensus Ledger
                        </h3>
@@ -365,7 +365,7 @@ export default function DashboardPage() {
                                 <div className="p-8 space-y-6">
                                    <div className="flex items-start justify-between gap-8">
                                       <div className="space-y-1.5">
-                                         <h4 className="font-black text-xl leading-tight uppercase italic group-hover:text-primary transition-colors line-clamp-1">{p.title}</h4>
+                                         <h4 className="font-bold text-lg leading-tight uppercase group-hover:text-primary transition-colors line-clamp-1">{p.title}</h4>
                                          <div className="flex items-center gap-3">
                                             <Badge variant="secondary" className="text-[9px] font-black uppercase bg-muted/50 rounded-full px-3">
                                                {p.category}
@@ -468,8 +468,8 @@ export default function DashboardPage() {
            <div className="space-y-8 pt-16 border-t border-border/40">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
                  <div className="space-y-1">
-                    <h3 className="text-3xl font-black tracking-tighter uppercase italic flex items-center gap-4">
-                       <ShieldCheck className="h-8 w-8 text-primary animate-pulse" />
+                    <h3 className="text-xl font-black tracking-tighter uppercase flex items-center gap-4">
+                       <ShieldCheck className="h-6 w-6 text-primary animate-pulse" />
                        Network Integrity
                     </h3>
                     <p className="text-xs text-muted-foreground font-bold uppercase tracking-[0.3em]">Real-time immutable transparency of the OpenFairTrip global layer</p>
@@ -478,12 +478,12 @@ export default function DashboardPage() {
                  <div className="flex items-center gap-10 px-10 py-6 bg-muted/20 border border-border/40 rounded-[2.5rem] shadow-inner">
                     <div className="space-y-0.5">
                        <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-60">Network Cap</p>
-                       <p className="text-2xl font-black italic tracking-tighter">${(globalStats.budget / 1000).toFixed(1)}k</p>
+                       <p className="text-xl font-black tracking-tighter">${(globalStats.budget / 1000).toFixed(1)}k</p>
                     </div>
                     <div className="h-10 w-px bg-border/40" />
                     <div className="space-y-0.5">
                        <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-60">Escrow Value</p>
-                       <p className="text-2xl font-black italic tracking-tighter text-emerald-500">${(globalStats.pledged / 1000).toFixed(1)}k</p>
+                       <p className="text-xl font-black tracking-tighter text-emerald-500">${(globalStats.pledged / 1000).toFixed(1)}k</p>
                     </div>
                  </div>
               </div>
