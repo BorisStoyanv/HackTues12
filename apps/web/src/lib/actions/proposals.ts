@@ -1,5 +1,4 @@
 import { createBackendActor } from "../api/icp";
-import { MAPBOX_API_KEY } from "../env";
 import { AuditLog, ContractRecord, Proposal } from "../types/api";
 
 export interface SerializedProposal {
@@ -113,46 +112,35 @@ function normalizeLookupKey(value: string) {
 }
 
 async function geocodeRegionTag(regionTag: string) {
-	if (!MAPBOX_API_KEY) {
-		return null;
-	}
-
 	try {
-		const response = await fetch(
-			`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(regionTag)}.json?access_token=${MAPBOX_API_KEY}&types=locality,place,region,address,neighborhood&limit=1`,
-		);
+		const response = await fetch("/api/geocode", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ address: regionTag }),
+		});
+
 		if (!response.ok) {
 			return null;
 		}
+
 		const data = (await response.json()) as {
-			features?: Array<{
-				place_name?: string;
-				text?: string;
-				center?: [number, number];
-				context?: Array<{ id?: string; text?: string }>;
-			}>;
+			lat: number;
+			lng: number;
+			city: string;
+			country: string;
+			formattedAddress: string;
 		};
-		const feature = data.features?.[0];
-		const center = feature?.center;
-		if (!feature || !center || center.length < 2) {
+
+		if (!data.lat || !data.lng) {
 			return null;
 		}
 
-		let country = "";
-		for (const item of feature.context ?? []) {
-			if (item.id?.startsWith("country")) {
-				country = item.text ?? "";
-			}
-		}
-
 		return {
-			lat: center[1],
-			lng: center[0],
-			city: feature.text || regionTag,
-			country: country || "Unknown Country",
-			formatted_address:
-				feature.place_name ||
-				`${feature.text || regionTag}, ${country || "Unknown Country"}`,
+			lat: data.lat,
+			lng: data.lng,
+			city: data.city || regionTag,
+			country: data.country || "Unknown Country",
+			formatted_address: data.formattedAddress || regionTag,
 		};
 	} catch (error) {
 		console.error(`Failed to geocode proposal region ${regionTag}:`, error);

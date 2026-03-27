@@ -137,13 +137,20 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
 
   // Sync prop value to internal view state (e.g. initial load or programmatic changes)
   useEffect(() => {
-    if (value.lat && value.lng && (value.lat !== viewState.latitude || value.lng !== viewState.longitude)) {
-       setViewState((prev) => ({ ...prev, longitude: value.lng, latitude: value.lat, zoom: 14 }));
-       if (value.formatted_address && value.formatted_address !== searchQuery) {
-         setSearchQuery(value.formatted_address);
-       }
+    if (value.lat && value.lng) {
+      const latDiff = Math.abs(value.lat - (viewState.latitude || 0));
+      const lngDiff = Math.abs(value.lng - (viewState.longitude || 0));
+      
+      // Only sync if there is a significant difference to avoid loops
+      if (latDiff > 0.0001 || lngDiff > 0.0001) {
+        setViewState((prev) => ({ ...prev, longitude: value.lng, latitude: value.lat, zoom: 14 }));
+      }
+
+      if (value.formatted_address && value.formatted_address !== searchQuery) {
+        setSearchQuery(value.formatted_address);
+      }
     }
-  }, [value]);
+  }, [value.lat, value.lng, value.formatted_address]);
 
   return (
     <div className="space-y-4">
@@ -191,6 +198,10 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
           onMove={(e) => setViewState(e.viewState)}
           mapStyle={mapStyle}
           mapboxAccessToken={MAPBOX_API_KEY}
+          onError={(e) => {
+            // Suppress Mapbox GL JS errors from flooding the console if the token is invalid or tiles fail to load
+            console.warn("Mapbox warning/error suppressed:", e.error?.message || "Unknown Mapbox error");
+          }}
         >
           <NavigationControl position="bottom-right" />
           

@@ -35,7 +35,7 @@ interface AuthState {
     location?: { city: string; country: string },
   ) => void;
   syncIdentity: (identity: Identity | null, isAuthenticated: boolean) => void;
-  loginAsDev: () => Promise<void>;
+  loginAsDev: (isNew?: boolean) => Promise<void>;
 }
 
 let globalAuthClient: AuthClient | null = null;
@@ -101,7 +101,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   identity: null,
   principal: null,
   isAuthenticated: false,
-  isInitializing: true,
+  isInitializing: false,
   hasProfile: false,
   user: null,
 
@@ -125,9 +125,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
 
       const actor = await createBackendActor(identity);
-      const profile = await actor.get_my_profile();
+      
+      // Add a 5s timeout to prevent hanging the whole app
+      const profilePromise = actor.get_my_profile();
+      const timeoutPromise = new Promise<any[]>((_, reject) => 
+        setTimeout(() => reject(new Error("Timeout")), 5000)
+      );
+      
+      const profile = await Promise.race([profilePromise, timeoutPromise]);
 
-      if (profile.length > 0) {
+      if (profile && profile.length > 0) {
         set({
           user: mapProfileToAuthUser(principal, profile[0]!, get().user),
           hasProfile: true,
@@ -194,6 +201,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const isActuallyAuthenticated =
       isAuthenticated && principal !== null && principal !== "2vxsx-fae";
 
+    // Prevent redundant syncs if the principal is already the same
+    if (get().principal === principal && get().isAuthenticated === isActuallyAuthenticated) {
+      return;
+    }
+
     if (!isActuallyAuthenticated || !principal) {
       set({
         identity: null,
@@ -218,26 +230,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     void get().initialize();
   },
 
-  loginAsDev: async () => {
+  loginAsDev: async (isNew = false) => {
     // Only allow on localhost
     if (typeof window !== "undefined" && !window.location.hostname.includes("localhost") && !window.location.hostname.includes("127.0.0.1")) {
       return;
     }
 
     try {
-      // Use a fixed "dev" seed to keep the same principal for the dev session
-      // We use a dynamic import to avoid bundling @dfinity/identity in prod if possible
       const { Ed25519KeyIdentity } = await import("@dfinity/identity");
       
-      // Fixed 32-byte seed for the dev identity
-      const seed = new Uint8Array(32).fill(0);
-      seed[0] = 1; // Just something unique
+      let identity;
+      if (isNew) {
+        // Generate a completely random identity
+        identity = Ed25519KeyIdentity.generate();
+      } else {
+        // Use a fixed "dev" seed to keep the same principal for the dev session
+        const seed = new Uint8Array(32).fill(0);
+        seed[0] = 1;
+        identity = Ed25519KeyIdentity.fromSecretKey(seed);
+      }
       
-      const identity = Ed25519KeyIdentity.fromSecretKey(seed);
-      // We have to cast because of slight type mismatches between @dfinity/agent and @icp-sdk/core
       get().syncIdentity(identity as any, true);
       
-      console.log("[Auth] Dev bypass active. Principal:", identity.getPrincipal().toString());
+      console.log(`[Auth] Dev bypass active (${isNew ? 'New User' : 'Existing User'}). Principal:`, identity.getPrincipal().toString());
     } catch (error) {
       console.error("[Auth] Dev bypass failed:", error);
     }
