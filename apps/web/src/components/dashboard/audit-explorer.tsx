@@ -96,9 +96,9 @@ export function AuditExplorer({ initialLogs }: AuditExplorerProps) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col h-full space-y-6 min-h-0">
       {/* Filters & Controls */}
-      <div className="flex flex-col sm:flex-row items-center gap-4 bg-background border border-border p-4 rounded-2xl shadow-sm">
+      <div className="shrink-0 flex flex-col sm:flex-row items-center gap-4 bg-background border border-border p-4 rounded-2xl shadow-sm">
         <div className="relative w-full sm:w-96">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
@@ -140,7 +140,7 @@ export function AuditExplorer({ initialLogs }: AuditExplorerProps) {
       </div>
 
       {/* Stats Summary */}
-      <div className="flex items-center gap-4 text-xs font-medium text-muted-foreground px-2">
+      <div className="shrink-0 flex items-center gap-4 text-xs font-medium text-muted-foreground px-2">
         <span className="flex items-center gap-1.5">
           <Database className="h-3.5 w-3.5" />
           {filteredLogs.length} Records Found
@@ -148,10 +148,10 @@ export function AuditExplorer({ initialLogs }: AuditExplorerProps) {
       </div>
 
       {/* Ledger Table */}
-      <Card className="border-border shadow-sm rounded-2xl overflow-hidden bg-background">
-        <div className="overflow-x-auto">
+      <Card className="flex-1 flex flex-col min-h-0 border-border shadow-sm rounded-2xl overflow-hidden bg-background">
+        <div className="flex-1 overflow-auto">
           <table className="w-full text-sm text-left whitespace-nowrap">
-            <thead className="bg-muted/50 border-b border-border">
+            <thead className="bg-muted/50 border-b border-border sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-4 font-semibold text-muted-foreground text-[10px] uppercase tracking-widest w-[180px]">Transaction ID</th>
                 <th className="px-6 py-4 font-semibold text-muted-foreground text-[10px] uppercase tracking-widest w-[140px]">Date & Time</th>
@@ -247,7 +247,7 @@ export function AuditExplorer({ initialLogs }: AuditExplorerProps) {
         
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/20">
+          <div className="shrink-0 flex items-center justify-between px-6 py-4 border-t border-border bg-muted/20">
             <p className="text-xs text-muted-foreground">
               Showing <span className="font-medium text-foreground">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium text-foreground">{Math.min(currentPage * itemsPerPage, filteredLogs.length)}</span> of <span className="font-medium text-foreground">{filteredLogs.length}</span> entries
             </p>

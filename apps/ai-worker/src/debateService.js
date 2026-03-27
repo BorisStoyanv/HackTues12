@@ -558,28 +558,44 @@ function computeStatementQualityScore({ statement, role }) {
   const proposalAttributions = countProposalAttributionSignals(statement);
   const scenarioSignals = countScenarioSignals(statement);
   const mitigationSignals = countMitigationSignals(statement);
+  const missingInfoSignals = countMissingInfoSignals(statement);
   const uncertaintyLabels = (String(statement || "").match(
     /(assum|estimate|range|scenario|conservative|baseline|if\b|may|might|could|likely|stress|sensitivity|downside)/gi
   ) || []).length;
+  const isAdvocate = role === "advocate";
+  const unsupportedPenalty = isAdvocate ? 0.13 : 0.18;
+  const proposalOnlyPenalty = isAdvocate ? 0.04 : 0.09;
+  const overconfidencePenalty = isAdvocate ? 0.06 : 0.08;
 
   let quality =
-    Math.min(5, concreteSignals) * 0.16 +
-    Math.min(2, citations) * 0.24 +
-    (citations > 0 ? Math.min(2, proposalAttributions) * 0.06 : 0) +
+    Math.min(5, concreteSignals) * 0.17 +
+    Math.min(2, citations) * 0.23 +
+    Math.min(3, proposalAttributions) * (isAdvocate ? 0.05 : 0.02) +
     Math.min(2, scenarioSignals) * 0.1 +
-    Math.min(2, mitigationSignals) * 0.08 +
-    Math.min(2, uncertaintyLabels) * 0.08 -
-    unsupportedNumericClaims * 0.18 -
-    proposalOnlyNumericClaims * 0.1 -
-    overconfidentClaims * 0.08;
+    Math.min(2, mitigationSignals) * 0.1 +
+    Math.min(2, uncertaintyLabels) * 0.06 -
+    unsupportedNumericClaims * unsupportedPenalty -
+    proposalOnlyNumericClaims * proposalOnlyPenalty -
+    overconfidentClaims * overconfidencePenalty;
 
   if (unsupportedNumericClaims >= 2 && citations === 0) {
-    quality -= 0.06;
+    quality -= isAdvocate ? 0.03 : 0.06;
   }
 
   // Skeptical claims with numbers but no source/caveat should not be treated as inherently stronger.
   if (role === "skeptic" && concreteSignals > 0 && citations === 0 && unsupportedNumericClaims > 0) {
     quality -= 0.1;
+  }
+  if (role === "skeptic" && missingInfoSignals > 1 && concreteSignals < 2) {
+    quality -= Math.min(0.12, (missingInfoSignals - 1) * 0.04);
+  }
+  if (
+    isAdvocate &&
+    citations > 0 &&
+    concreteSignals >= 2 &&
+    (scenarioSignals > 0 || mitigationSignals > 0)
+  ) {
+    quality += 0.06;
   }
 
   return Number(quality.toFixed(3));
@@ -655,7 +671,7 @@ function assessProposalViability(proposal) {
     { pattern: /\bno contracting strategy\b/i, label: "no contracting strategy" },
     { pattern: /\bsomehow\b/i, label: "vague delivery language" },
     { pattern: /\bto be determined\b|\btbd\b/i, label: "to-be-determined plan" },
-    { pattern: /\bexpected .* assumed\b|\bassumed\b/i, label: "assumption-heavy projection" },
+    { pattern: /\b(unverified|unsupported|purely) assumptions?\b/i, label: "assumption-heavy projection" },
     { pattern: /\bhuge (tourism )?growth\b/i, label: "overstated growth language" },
   ];
 
@@ -733,38 +749,46 @@ function computeViabilityScoreAdjustment({
   const skepticCitations = countUrls(skepticStatement);
 
   if (viabilityScore < 0.45) {
-    let penalty = (0.45 - viabilityScore) * 0.3;
+    let penalty = (0.45 - viabilityScore) * 0.2;
 
     if (advocateCitations > 0) {
-      penalty *= 0.75;
+      penalty *= 0.8;
     }
     if (advocateMitigationSignals > 0 && advocateScenarioSignals > 0) {
       penalty *= 0.75;
     }
 
-    penalty += Math.min(0.05, advocateUnsupportedNumericClaims * 0.015);
+    penalty += Math.min(0.03, advocateUnsupportedNumericClaims * 0.01);
 
     if (skepticConcreteSignals >= 2) {
-      penalty += 0.015;
+      penalty += 0.01;
     }
     if (skepticCitations > 0) {
-      penalty += 0.015;
+      penalty += 0.01;
     }
 
-    return -Math.min(0.11, penalty);
+    return -Math.min(0.07, penalty);
   }
 
   if (viabilityScore > 0.72) {
-    let bonus = (viabilityScore - 0.72) * 0.2;
+    let bonus = (viabilityScore - 0.72) * 0.3;
 
     if (advocateCitations === 0) {
-      bonus *= 0.75;
+      bonus *= 0.85;
     }
     if (advocateMitigationSignals === 0 || advocateScenarioSignals === 0) {
-      bonus *= 0.7;
+      bonus *= 0.8;
     }
 
-    return Math.min(0.06, bonus);
+    return Math.min(0.09, bonus);
+  }
+
+  if (
+    viabilityScore >= 0.45 &&
+    advocateCitations > 0 &&
+    (advocateMitigationSignals > 0 || advocateScenarioSignals > 0)
+  ) {
+    return 0.015;
   }
 
   return 0;
@@ -791,6 +815,12 @@ function calibrateRoundScore({
   let adjusted = score;
   const advocateConcreteSignals = countConcreteSignals(advocateStatement);
   const skepticConcreteSignals = countConcreteSignals(skepticStatement);
+  const advocateCitations = countUrls(advocateStatement);
+  const skepticCitations = countUrls(skepticStatement);
+  const skepticMissingSignals = countMissingInfoSignals(skepticStatement);
+  const skepticUnsupportedNumericClaims = countUnsupportedNumericClaims(skepticStatement);
+  const advocateScenarioSignals = countScenarioSignals(advocateStatement);
+  const advocateMitigationSignals = countMitigationSignals(advocateStatement);
   const advocateQuality = computeStatementQualityScore({
     statement: advocateStatement,
     role: "advocate",
@@ -815,6 +845,23 @@ function calibrateRoundScore({
     adjusted = 0.5 + (adjusted - 0.5) * 0.7;
   }
 
+  // Discourage generic doubt from dominating when skeptic does not ground critique.
+  if (skepticMissingSignals > 1 && skepticCitations === 0) {
+    adjusted += Math.min(0.06, (skepticMissingSignals - 1) * 0.02);
+  }
+  if (skepticUnsupportedNumericClaims > 0 && skepticCitations === 0) {
+    adjusted += Math.min(0.05, skepticUnsupportedNumericClaims * 0.02);
+  }
+
+  // Reward advocate arguments that combine evidence with risk-aware execution controls.
+  if (
+    advocateCitations > 0 &&
+    advocateConcreteSignals >= 2 &&
+    (advocateScenarioSignals > 0 || advocateMitigationSignals > 0)
+  ) {
+    adjusted += 0.03;
+  }
+
   // Deterministic prior from proposal viability profile.
   adjusted += computeViabilityScoreAdjustment({
     proposalViability,
@@ -824,7 +871,16 @@ function calibrateRoundScore({
 
   // Missing-info framing should not dominate round scoring.
   if (adjusted < 0.5 && countMissingInfoSignals(rationale) > 0) {
-    adjusted = Math.min(0.5, adjusted + 0.06);
+    adjusted = Math.min(0.5, adjusted + 0.08);
+  }
+
+  // If quality is comparable or advocate-leaning, avoid default drift into skeptic territory.
+  if (
+    adjusted < 0.5 &&
+    qualityDelta >= -0.02 &&
+    advocateConcreteSignals >= skepticConcreteSignals
+  ) {
+    adjusted = Math.min(0.54, adjusted + 0.04);
   }
 
   return Number(clamp(adjusted, 0, 1).toFixed(3));
@@ -860,7 +916,7 @@ async function generateDebaterStatement({
       ? "Use the economic baseline to anchor at least one quantified argument (visitors, income, or payback), explicitly labeling assumptions where needed."
       : "Critique weak assumptions and overconfident projections from the economic baseline, but do not ignore credible quantified points.",
     isAdvocate
-      ? "Use real-world internet datapoints and cite at least one source URL exactly as given."
+      ? "Use real-world internet datapoints. Prefer citing at least one source URL when it supports your numeric claim."
       : "Engage with concrete datapoints directly instead of dismissing them, and cite source URL(s) when making quantitative critiques.",
     isAdvocate
       ? "Reasonable, clearly labeled assumptions are allowed when hard data is incomplete."
@@ -869,10 +925,10 @@ async function generateDebaterStatement({
       ? "Avoid overconfident certainty language; make confidence proportional to evidence."
       : "If you use numeric claims (cost overruns, percentages, ROI windows), either cite a provided source URL or explicitly label them as hypothetical scenarios.",
     isAdvocate
-      ? "When using proposal-provided numbers (MOUs, co-funding, visitor targets, unit economics), explicitly mark them as proposal-stated facts and distinguish them from assumptions."
+      ? "When using proposal-provided numbers (MOUs, co-funding, visitor targets, unit economics), distinguish proposal-stated facts from assumptions when possible."
       : "If you challenge proposal-provided numbers, explain whether the issue is conversion risk, execution risk, or governance risk instead of generic dismissal.",
     isAdvocate
-      ? "Include one downside sensitivity case and one concrete mitigation control linked to delivery mechanics (performance bond, fixed-price scope, reserve, phased disbursement, audit, KPI gates)."
+      ? "Include at least one of: downside sensitivity case OR concrete mitigation control linked to delivery mechanics (performance bond, fixed-price scope, reserve, phased disbursement, audit, KPI gates)."
       : "A strong rebuttal should engage the advocate's mitigation controls directly when present.",
     isAdvocate
       ? "When making upside claims, explicitly state preconditions required for those outcomes."
@@ -924,13 +980,13 @@ async function generateDebaterStatement({
       ? "Mandatory: include at least one quantified economic point (visitors, income, or payback) and clearly flag assumptions."
       : "Mandatory: challenge at least one concrete economic number or assumption.",
     isAdvocate
-      ? "Mandatory: cite at least one source URL from the datapoints pack in parentheses."
+      ? "Strong preference: include one source URL from the datapoints pack when using external numeric datapoints."
       : "Mandatory: reference at least one datapoint from the pack when rebutting and include at least one source URL if you use any numeric critique.",
     isAdvocate
-      ? "Mandatory: if evidence is incomplete, still provide a defendable range estimate with explicit assumptions and mark proposal-stated numbers as such."
+      ? "Mandatory: if evidence is incomplete, still provide a defendable range estimate with explicit assumptions."
       : "Mandatory: include at least two concrete risk arguments (execution, cost overrun, OPEX, demand volatility, governance, opportunity cost).",
     isAdvocate
-      ? "Mandatory: include one downside sensitivity scenario and one concrete mitigation control."
+      ? "Mandatory: include at least one risk-aware element (downside sensitivity OR mitigation control)."
       : "Mandatory: if you claim downside, show why existing mitigation controls are insufficient.",
     `Write exactly one strong statement ${finalAction}.`,
     retryInstruction ? `Revision requirement: ${retryInstruction}` : "",
@@ -985,20 +1041,18 @@ async function generateDebaterStatementWithRetry({
   const isSkeptic = speaker === "skeptic";
   const skepticOverusesGenericMissingData =
     isSkeptic && countMissingInfoSignals(firstAttempt) > 2 && countConcreteSignals(firstAttempt) < 2;
-  const advocateMissingCitation = speaker === "advocate" && !containsUrl(firstAttempt);
-  const advocateMissingProposalAttribution =
-    speaker === "advocate" && countProposalAttributionSignals(firstAttempt) === 0;
-  const advocateMissingScenario = speaker === "advocate" && countScenarioSignals(firstAttempt) === 0;
-  const advocateMissingMitigation = speaker === "advocate" && countMitigationSignals(firstAttempt) === 0;
+  const advocateWeakConcrete = speaker === "advocate" && countConcreteSignals(firstAttempt) < 2;
+  const advocateNoRiskAwareElement =
+    speaker === "advocate" &&
+    countScenarioSignals(firstAttempt) === 0 &&
+    countMitigationSignals(firstAttempt) === 0;
   const skepticUncitedNumbers = isSkeptic && countUnsupportedNumericClaims(firstAttempt) > 0 && !containsUrl(firstAttempt);
 
   if (
     !previousStatements.length &&
     !skepticOverusesGenericMissingData &&
-    !advocateMissingCitation &&
-    !advocateMissingProposalAttribution &&
-    !advocateMissingScenario &&
-    !advocateMissingMitigation &&
+    !advocateWeakConcrete &&
+    !advocateNoRiskAwareElement &&
     !skepticUncitedNumbers
   ) {
     return firstAttempt;
@@ -1008,42 +1062,24 @@ async function generateDebaterStatementWithRetry({
   if (
     firstSimilarity < REPETITION_SIMILARITY_THRESHOLD &&
     !skepticOverusesGenericMissingData &&
-    !advocateMissingCitation &&
-    !advocateMissingProposalAttribution &&
-    !advocateMissingScenario &&
-    !advocateMissingMitigation &&
+    !advocateWeakConcrete &&
+    !advocateNoRiskAwareElement &&
     !skepticUncitedNumbers
   ) {
     return firstAttempt;
   }
 
   let retryInstruction = "";
-  if (
-    speaker === "advocate" &&
-    (advocateMissingCitation ||
-      advocateMissingProposalAttribution ||
-      advocateMissingScenario ||
-      advocateMissingMitigation)
-  ) {
+  if (speaker === "advocate" && (advocateWeakConcrete || advocateNoRiskAwareElement)) {
     const advocateRequirements = [];
-    if (advocateMissingCitation) {
+    if (advocateWeakConcrete) {
       advocateRequirements.push(
-        "Include at least one concrete numeric datapoint and one source URL exactly as given in the datapoints pack."
+        "Increase argument concreteness with at least two specific claims (numbers, milestones, controls, or ranges)."
       );
     }
-    if (advocateMissingProposalAttribution) {
+    if (advocateNoRiskAwareElement) {
       advocateRequirements.push(
-        "Explicitly mark at least one key numeric claim as proposal-stated fact."
-      );
-    }
-    if (advocateMissingScenario) {
-      advocateRequirements.push(
-        "Add one downside sensitivity scenario (for example lower conversion or attendance)."
-      );
-    }
-    if (advocateMissingMitigation) {
-      advocateRequirements.push(
-        "Add one concrete mitigation control tied to execution/governance (for example performance bond, reserve, phased disbursement, audit, KPI gate)."
+        "Add at least one risk-aware element: downside sensitivity scenario OR concrete mitigation control."
       );
     }
 
@@ -1122,8 +1158,10 @@ async function judgeRound({
     "Score mapping guideline: keep score in [0.45, 0.55] unless one side has a clear, evidence-backed argument-quality edge.",
     "Use the provided deterministic proposal viability profile as prior context: fragile proposals require stronger advocate proof; robust proposals require stronger skeptic proof to overturn.",
     "Do not automatically favor the skeptic just because some evidence is missing.",
+    "Do not treat absence of signed contracts, operator commitments, or finalized co-funding terms as automatically fatal unless the proposal explicitly claims those are already secured.",
     "Proposal-stated numeric facts are admissible when explicitly attributed to the proposal; they are weaker than external evidence but should not be treated as fabricated.",
     "Reasonable, explicitly labeled assumptions and ranges are valid argumentation when hard data is limited.",
+    "If advocate provides a coherent commercial pathway with assumptions, downside sensitivity, and mitigation controls, do not score below tie unless skeptic provides a stronger evidence-grounded contradiction.",
     "Reward explicit downside sensitivity and concrete mitigation controls when they are coherent and relevant.",
     "Penalize any side that introduces concrete facts not supported by proposal text, internet evidence, or prior-round statements.",
     "Penalize generic or repetitive 'missing information' claims if they are not paired with substantive alternative risk analysis.",
@@ -1171,6 +1209,8 @@ async function judgeRound({
     "- Penalize unsupported assertions from either side equally.",
     "- Penalize uncited precise numeric claims from either side.",
     "- Penalize weakly relevant citations or citations that do not support the numeric claim being made.",
+    "- Do not treat missing signed contracts/co-funding certainty as decisive by itself.",
+    "- If advocate presents coherent assumptions + mitigation controls and skeptic does not falsify them with evidence, keep score at tie or advocate-leaning.",
     "",
     "Return exactly this JSON schema:",
     '{"winner":"advocate|skeptic|tie","score":0.5,"rationale":"short explanation"}',
@@ -1261,6 +1301,7 @@ async function judgeFinal({ proposalText, evidenceText, economicBriefText, respo
     "For neglect_and_age and potential_tourism_benefit, high values imply higher funding priority.",
     "Apply equal skepticism to both sides in the round summaries; do not treat skeptical claims as true by default.",
     "Do not automatically penalize the advocate for every evidence gap if assumptions were explicit and reasonable.",
+    "Do not treat unfinalized contracts or co-funding certainty as automatically disqualifying unless contradicted by concrete evidence.",
     "Treat clearly attributed proposal-stated numbers as admissible (lower confidence than external evidence, but not invalid by default).",
     "Reward coherent downside sensitivity framing and concrete mitigation controls.",
     "Do not over-reward repetitive generic skepticism focused only on missing information.",

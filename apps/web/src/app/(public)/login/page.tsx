@@ -105,11 +105,12 @@ export default function LoginPage() {
 									<span className="text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/40">Lab</span>
 									<div className="h-px flex-1 bg-border/40" />
 								</div>
-								<div className="grid grid-cols-2 gap-3">
+								<div className="grid grid-cols-3 gap-3">
 									<Button
 										variant="outline"
 										className="h-9 text-[10px] font-bold border-border/60 hover:bg-muted/30 transition-all uppercase tracking-widest rounded-lg"
 										onClick={() => loginAsDev(false)}
+										title="Stored Identity + Onboarding"
 									>
 										Stored
 									</Button>
@@ -117,8 +118,17 @@ export default function LoginPage() {
 										variant="outline"
 										className="h-9 text-[10px] font-bold border-border/60 hover:bg-muted/30 transition-all uppercase tracking-widest rounded-lg"
 										onClick={() => loginAsDev(true)}
+										title="Fresh Identity + Onboarding"
 									>
 										Fresh
+									</Button>
+									<Button
+										variant="outline"
+										className="h-9 text-[10px] font-bold border-border/60 hover:bg-muted/30 transition-all uppercase tracking-widest rounded-lg bg-primary/5 border-primary/20 text-primary"
+										onClick={() => loginAsDev(false, true)}
+										title="Skip to Dashboard"
+									>
+										Dash
 									</Button>
 								</div>
 							</div>

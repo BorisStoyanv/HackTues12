@@ -13,7 +13,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle2, ChevronRight, ChevronLeft, Building2, MapPin, FileText, Landmark, ShieldCheck, Globe, Loader2, Zap, Info, AlertCircle } from "lucide-react";
+import { 
+  CheckCircle2, 
+  ChevronRight, 
+  ChevronLeft, 
+  MapPin, 
+  FileText, 
+  ShieldCheck, 
+  Globe, 
+  Loader2, 
+  Zap, 
+  Info, 
+  AlertCircle,
+  ArrowRight,
+  TrendingUp,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LocationPicker } from "./location-picker";
 import {
@@ -24,22 +38,34 @@ import { useAuthStore } from "@/lib/auth-store";
 import { Location, ProposalCategory } from "@/lib/types/api";
 import { normalizeRegionTag } from "@/lib/profile-utils";
 import { runProposalDebateEvaluation } from "@/lib/ai/debate";
+import { CategoryPicker } from "./category-picker";
+import { EUROPEAN_CURRENCIES } from "@/lib/currencies";
+import { Form } from "@/components/ui/form";
+import { Badge } from "@/components/ui/badge";
+import { MoneyInput } from "./money-input";
+import { Separator } from "@/components/ui/separator";
 
-const STEPS = [
-  { id: "basic", title: "Basic Information", description: "Identity & Type", icon: Building2 },
-  { id: "location", title: "Geographic Context", description: "Mapping & Region", icon: MapPin },
-  { id: "impact", title: "Social Impact", description: "Projected Outcomes", icon: FileText },
-  { id: "execution", title: "Execution Strategy", description: "Logistics & Timeline", icon: Zap },
-  { id: "financials", title: "Financial Model", description: "Budget & Allocation", icon: Landmark },
+export const WIZARD_STEPS = [
+  { id: "basic", title: "Identity", description: "Classification" },
+  { id: "mission", title: "Mission", description: "Objective" },
+  { id: "location", title: "Anchor", description: "Impact Zone" },
+  { id: "strategy", title: "Logistics", description: "Execution" },
+  { id: "financials", title: "Capital", description: "Budget" },
+  { id: "review", title: "Protocol", description: "Submission" },
 ];
 
-export function ProposalWizard() {
+interface ProposalWizardProps {
+  currentStep: number;
+  onStepChange: (step: number) => void;
+}
+
+export function ProposalWizard({ currentStep, onStepChange }: ProposalWizardProps) {
   const router = useRouter();
-  const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [direction, setDirection] = useState(1);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitPhase, setSubmitPhase] = useState<string | null>(null);
+  const [createdId, setCreatedId] = useState<string | null>(null);
   
   const identity = useAuthStore((state) => state.identity);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -55,7 +81,7 @@ export function ProposalWizard() {
       region_tag: "",
       category: "Infrastructure",
       budget_amount: 0,
-      budget_currency: "USD",
+      budget_currency: "EUR",
       budget_breakdown: "",
       executor_name: "",
       execution_plan: "",
@@ -69,7 +95,7 @@ export function ProposalWizard() {
 
   // Persist form state
   useEffect(() => {
-    const savedData = localStorage.getItem("proposal_draft_v3");
+    const savedData = localStorage.getItem("proposal_draft_v9");
     if (savedData) {
       try {
         const parsed = JSON.parse(savedData) as Partial<ProposalFormValues>;
@@ -86,7 +112,7 @@ export function ProposalWizard() {
 
   useEffect(() => {
     const subscription = watch((value) => {
-      localStorage.setItem("proposal_draft_v3", JSON.stringify(value));
+      localStorage.setItem("proposal_draft_v9", JSON.stringify(value));
     });
     return () => subscription.unsubscribe();
   }, [watch]);
@@ -95,60 +121,33 @@ export function ProposalWizard() {
     let fieldsToValidate: (keyof ProposalFormValues)[] = [];
     
     switch (currentStep) {
-      case 0:
-        fieldsToValidate = ["title", "category", "description"];
-        break;
-      case 1:
-        fieldsToValidate = ["region_tag", "location"];
-        break;
-      case 2:
-        fieldsToValidate = ["expected_impact"];
-        break;
-      case 3:
-        fieldsToValidate = ["executor_name", "execution_plan", "timeline"];
-        break;
-      case 4:
-        fieldsToValidate = ["budget_amount", "budget_currency", "budget_breakdown"];
-        break;
-      default:
-        break;
+      case 0: fieldsToValidate = ["title", "category"]; break;
+      case 1: fieldsToValidate = ["description", "expected_impact"]; break;
+      case 2: fieldsToValidate = ["region_tag", "location"]; break;
+      case 3: fieldsToValidate = ["executor_name", "execution_plan", "timeline"]; break;
+      case 4: fieldsToValidate = ["budget_amount", "budget_currency", "budget_breakdown"]; break;
+      default: break;
     }
 
     const isStepValid = await trigger(fieldsToValidate);
     if (isStepValid) {
       setDirection(1);
-      setCurrentStep((prev) => Math.min(prev + 1, STEPS.length - 1));
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      onStepChange(Math.min(currentStep + 1, WIZARD_STEPS.length - 1));
     }
   };
 
   const handleBack = () => {
     setDirection(-1);
-    setCurrentStep((prev) => Math.max(prev - 1, 0));
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    onStepChange(Math.max(currentStep - 1, 0));
   };
 
   const onSubmit = async (data: ProposalFormValues) => {
-    if (isInitializing) {
-      setSubmitError("Your account is still loading. Please wait a moment and try again.");
-      return;
+    // Safety check: ensure we are actually on the review step before allowing submission
+    if (currentStep !== WIZARD_STEPS.length - 1) {
+        return;
     }
 
-    if (!identity) {
-      setSubmitError("Please sign in with Internet Identity to submit this proposal.");
-      return;
-    }
-
-    if (!hasProfile) {
-      setSubmitError("Complete community onboarding before submitting a proposal.");
-      router.push("/onboarding/role");
-      return;
-    }
-
-    if (userRole !== "regional") {
-      setSubmitError("Only community users can submit proposals.");
-      return;
-    }
+    if (isInitializing || !identity || !hasProfile || userRole !== "regional") return;
 
     setIsSubmitting(true);
     setSubmitError(null);
@@ -176,6 +175,7 @@ export function ProposalWizard() {
       });
 
       const createdProposalId = result.id.toString();
+      setCreatedId(createdProposalId);
 
       try {
         setSubmitPhase("Running AI debate");
@@ -201,122 +201,86 @@ export function ProposalWizard() {
         console.error("Proposal created but AI debate could not be saved", aiError);
       }
       
-      console.log("Broadcasting successful:", result);
-      localStorage.removeItem("proposal_draft_v3");
-      router.push(`/dashboard/proposals/detail?id=${result.id.toString()}`);
+      localStorage.removeItem("proposal_draft_v9");
+      setSubmitPhase("Success");
     } catch (error) {
       console.error(error);
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Blockchain communication failed. Please check the console.";
+      const message = error instanceof Error ? error.message : "Blockchain failed.";
       setSubmitError(message);
       setSubmitPhase(null);
-
-      if (
-        message.includes("Register before submitting proposals") ||
-        message.includes("Only community users can submit proposals")
-      ) {
-        router.push("/onboarding/role");
-      }
-      
       setIsSubmitting(false);
     }
   };
 
   const variants = {
-    enter: (dir: number) => ({ x: dir > 0 ? 15 : -15, opacity: 0 }),
+    enter: (dir: number) => ({ x: dir > 0 ? 30 : -30, opacity: 0 }),
     center: { x: 0, opacity: 1 },
-    exit: (dir: number) => ({ x: dir < 0 ? 15 : -15, opacity: 0 })
+    exit: (dir: number) => ({ x: dir < 0 ? 30 : -30, opacity: 0 })
   };
 
-  return (
-    <div className="flex flex-col xl:flex-row gap-12 items-start w-full">
-      {/* Refined Step Navigation */}
-      <div className="w-full xl:w-64 shrink-0">
-        <div className="sticky top-24 space-y-6">
-          <div className="space-y-2">
-             <div className="flex items-center justify-between">
-                <h3 className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground/60">
-                  Protocol Stage
-                </h3>
-                <span className="text-[10px] font-mono font-bold text-primary">
-                  {currentStep + 1} / {STEPS.length}
-                </span>
-             </div>
-             <div className="h-1 w-full bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
-                <motion.div 
-                  className="h-full bg-primary"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${((currentStep + 1) / STEPS.length) * 100}%` }}
-                  transition={{ duration: 0.5 }}
-                />
-             </div>
-          </div>
-
-          <div className="space-y-0.5">
-            {STEPS.map((step, index) => {
-              const Icon = step.icon;
-              const isActive = index === currentStep;
-              const isPast = index < currentStep;
-
-              return (
-                <div 
-                  key={step.id} 
-                  className={cn(
-                    "flex gap-3 p-2.5 rounded-lg transition-all duration-200 border border-transparent",
-                    isActive ? "bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 shadow-sm" : "opacity-50"
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "flex items-center justify-center w-7 h-7 rounded-md border transition-all duration-300 shrink-0",
-                      isActive
-                        ? "bg-primary border-primary text-primary-foreground shadow-sm"
-                        : isPast
-                        ? "bg-green-500/10 border-transparent text-green-500"
-                        : "bg-transparent border-neutral-200 dark:border-neutral-800 text-neutral-400"
-                    )}
-                  >
-                    {isPast ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Icon className="w-3.5 h-3.5" />}
-                  </div>
-                  <div className="flex-1 flex flex-col justify-center min-w-0">
-                    <p className={cn(
-                      "text-xs font-semibold truncate",
-                      isActive ? "text-foreground" : "text-muted-foreground"
-                    )}>
-                      {step.title}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/50">
-             <div className="flex items-center gap-2 mb-2 text-primary">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span className="text-[9px] font-bold uppercase tracking-widest text-foreground">Integrity Note</span>
-             </div>
-             <p className="text-[11px] text-muted-foreground leading-relaxed">
-               All data is immutable once broadcasted. AI agents will cross-reference claims against regional ground-truth.
-             </p>
-          </div>
+  if (submitPhase === "Success") {
+    return (
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="w-full py-20 text-center space-y-12"
+      >
+        <div className="mx-auto h-32 w-32 rounded-full bg-green-500 flex items-center justify-center shadow-2xl shadow-green-500/20 animate-in zoom-in-50 duration-700">
+           <CheckCircle2 className="h-16 w-16 text-white" />
         </div>
-      </div>
+        <div className="space-y-4">
+           <h2 className="text-5xl font-black tracking-tight uppercase italic leading-tight text-foreground">Broadcast <br /><span className="text-muted-foreground/30">Successful</span></h2>
+           <p className="text-xl text-muted-foreground font-medium max-w-lg mx-auto">
+             Your proposal has been committed to the ledger and is now entering the consensus phase.
+           </p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-xl mx-auto pt-6">
+           <Button 
+             className="h-16 rounded-2xl bg-foreground text-background font-black text-sm uppercase tracking-widest shadow-xl active:scale-95"
+             onClick={() => router.push(`/dashboard/proposals/detail?id=${createdId}`)}
+           >
+              Detail Packet
+           </Button>
+           <Button 
+             variant="outline"
+             className="h-16 rounded-2xl border-2 border-border font-black text-sm uppercase tracking-widest hover:bg-muted/50 transition-all active:scale-95"
+             onClick={() => router.push(`/dashboard/explore?id=${createdId}`)}
+           >
+              <MapPin className="mr-2 h-4 w-4" />
+              View on Map
+           </Button>
+        </div>
+      </motion.div>
+    );
+  }
 
-      {/* Main Wizard Form Container */}
-      <div className="flex-1 w-full max-w-4xl mx-auto">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-12 pb-24">
+  return (
+    <div className="w-full">
+      <Form {...form}>
+        <form 
+            onSubmit={handleSubmit(onSubmit)} 
+            className="space-y-16"
+            onKeyDown={(e) => {
+                // Prevent 'Enter' from submitting the form prematurely
+                if (e.key === "Enter" && currentStep < WIZARD_STEPS.length - 1) {
+                    e.preventDefault();
+                }
+            }}
+        >
           {submitError && (
-            <div className="flex items-start gap-3 rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              <p>{submitError}</p>
+            <div className="flex items-start gap-4 p-6 rounded-[2rem] border border-destructive/20 bg-destructive/5 text-destructive animate-in fade-in zoom-in-95">
+              <AlertCircle className="h-6 w-6 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-lg font-bold uppercase tracking-tight italic">Protocol Rejection</p>
+                <p className="text-sm font-medium opacity-80">{submitError}</p>
+              </div>
             </div>
           )}
-          <div className="relative min-h-[500px] flex flex-col">
+
+          <div className="relative min-h-[450px] flex flex-col">
             <AnimatePresence mode="wait" custom={direction} initial={false}>
-              {/* STEP 1: Basic Info */}
+              
+              {/* STEP 0: IDENTITY */}
               {currentStep === 0 && (
                 <motion.div
                   key="step0"
@@ -325,80 +289,43 @@ export function ProposalWizard() {
                   initial="enter"
                   animate="center"
                   exit="exit"
-                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                  className="flex-1"
+                  transition={{ duration: 0.4, ease: [0.19, 1, 0.22, 1] }}
+                  className="space-y-10"
                 >
                   <div className="space-y-10">
-                    <div className="space-y-1">
-                      <h2 className="text-xl font-bold tracking-tight">Classification & Identity</h2>
-                      <p className="text-muted-foreground text-sm">Define the core project identity and classification.</p>
+                    <div className="space-y-4">
+                      <Label htmlFor="title" className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground ml-1">
+                         Transaction Title
+                      </Label>
+                      <Input 
+                        id="title" 
+                        placeholder="e.g. Urban Solar Grid Expansion" 
+                        {...register("title")} 
+                        className={cn(
+                          "h-16 text-xl font-bold rounded-2xl border-border/40 bg-background/50 px-6 focus:ring-0 focus:border-foreground transition-all duration-500",
+                          errors.title ? "border-destructive text-destructive" : ""
+                        )}
+                      />
+                      {errors.title && <p className="text-[10px] font-bold text-destructive px-2 uppercase">{errors.title.message}</p>}
                     </div>
 
-                    <div className="space-y-8">
-                      <div className="space-y-2.5">
-                        <Label htmlFor="title" className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                           Project Title
-                        </Label>
-                        <Input 
-                          id="title" 
-                          placeholder="e.g. Urban Solar Grid: Central District" 
-                          {...register("title")} 
-                          className={cn(
-                            "h-10 text-base font-medium rounded-lg border-neutral-200 dark:border-neutral-800 bg-background focus-visible:ring-1 focus-visible:ring-primary transition-all duration-200",
-                            errors.title ? "border-destructive focus-visible:ring-destructive" : ""
-                          )}
-                        />
-                        {errors.title && <p className="text-[11px] text-destructive font-medium">{errors.title.message}</p>}
-                      </div>
-
-                      <div className="grid md:grid-cols-2 gap-8">
-                         <div className="space-y-2.5">
-                            <Label className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                               Category
-                            </Label>
-                            <Controller
-                              name="category"
-                              control={control}
-                              render={({ field }) => (
-                                <Select onValueChange={field.onChange} value={field.value}>
-                                  <SelectTrigger className="h-10 rounded-lg border-neutral-200 dark:border-neutral-800 bg-background">
-                                    <SelectValue placeholder="Select Category" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {["Infrastructure", "Marketing", "Events", "Conservation", "Education", "Technology", "Other"].map(cat => (
-                                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              )}
-                            />
-                         </div>
-                      </div>
-
-                      <div className="space-y-2.5">
-                        <Label htmlFor="description" className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                           Executive Summary
-                        </Label>
-                        <Textarea 
-                          id="description" 
-                          placeholder="What specific problem are you solving? Summarize project objectives..." 
-                          className={cn(
-                            "min-h-[140px] p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-background text-sm leading-relaxed transition-all resize-none focus-visible:ring-1",
-                            errors.description ? "border-destructive focus-visible:ring-destructive" : ""
-                          )}
-                          {...register("description")} 
-                        />
-                        <div className="flex justify-between items-center px-1">
-                           {errors.description ? <p className="text-[11px] text-destructive font-medium">{errors.description.message}</p> : <div />}
-                           <p className="text-[10px] font-mono text-muted-foreground">{(watch("description") || "").length} / 1000</p>
-                        </div>
-                      </div>
+                    <div className="space-y-4">
+                      <Label className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground ml-1">
+                         Governance Category
+                      </Label>
+                      <Controller
+                        name="category"
+                        control={control}
+                        render={({ field }) => (
+                          <CategoryPicker value={field.value} onChange={field.onChange} />
+                        )}
+                      />
                     </div>
                   </div>
                 </motion.div>
               )}
 
-              {/* STEP 2: Location */}
+              {/* STEP 1: MISSION */}
               {currentStep === 1 && (
                 <motion.div
                   key="step1"
@@ -407,59 +334,49 @@ export function ProposalWizard() {
                   initial="enter"
                   animate="center"
                   exit="exit"
-                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                  className="flex-1"
+                  transition={{ duration: 0.4, ease: [0.19, 1, 0.22, 1] }}
+                  className="space-y-10"
                 >
-                  <div className="space-y-10">
-                    <div className="space-y-1">
-                      <h2 className="text-xl font-bold tracking-tight">Geographic Anchor</h2>
-                      <p className="text-muted-foreground text-sm">Specify the impact zone to reach relevant regional voters.</p>
+                  <div className="grid grid-cols-1 gap-12">
+                    <div className="space-y-4">
+                      <Label htmlFor="description" className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground ml-1">
+                         Executive Summary
+                      </Label>
+                      <div className="relative">
+                        <Textarea 
+                          id="description" 
+                          placeholder="What specific problem are you solving?..." 
+                          className={cn(
+                            "min-h-[220px] p-8 rounded-[2.5rem] border-border/40 bg-background/50 text-lg leading-relaxed resize-none focus:ring-0 focus:border-foreground transition-all duration-500",
+                            errors.description ? "border-destructive" : ""
+                          )}
+                          {...register("description")} 
+                        />
+                        <div className="absolute bottom-6 right-8 text-[10px] font-black uppercase text-muted-foreground opacity-40">
+                          {(watch("description") || "").length} / 1000
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="space-y-8">
-                      <div className="p-1 border border-neutral-200 dark:border-neutral-800 rounded-2xl bg-neutral-50 dark:bg-neutral-950 overflow-hidden shadow-sm">
-                        <Controller
-                          name="location"
-                          control={control}
-                          render={({ field }) => (
-                            <LocationPicker 
-                              value={{
-                                formatted_address: field.value?.formatted_address || "",
-                                city: field.value?.city || "",
-                                country: field.value?.country || "",
-                                lat: field.value?.lat || 0,
-                                lng: field.value?.lng || 0
-                              }} 
-                              onChange={(val) => {
-                                 field.onChange(val);
-                                 setValue("region_tag", val.city ? normalizeRegionTag(val.city) : "global");
-                                 void trigger(["location", "region_tag"]);
-                              }}
-                              error={typeof errors.location?.message === "string" ? errors.location.message : undefined}
-                            />
-                          )}
-                        />
-                      </div>
-
-                      <div className="space-y-2.5">
-                        <Label htmlFor="region_tag" className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                           <Globe className="w-3 h-3" />
-                           Region Tag
-                        </Label>
-                        <Input 
-                          id="region_tag" 
-                          placeholder="e.g. sofia_center" 
-                          className="h-10 rounded-lg border-neutral-200 dark:border-neutral-800 font-mono text-sm bg-background"
-                          {...register("region_tag")} 
-                        />
-                        {errors.region_tag && <p className="text-[11px] text-destructive font-medium">{errors.region_tag.message}</p>}
-                      </div>
+                    <div className="space-y-4">
+                      <Label htmlFor="expected_impact" className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground ml-1">
+                         Measurable Impact & KPIs
+                      </Label>
+                      <Textarea 
+                        id="expected_impact" 
+                        placeholder="Identify specific community benefits and metrics..." 
+                        className={cn(
+                          "min-h-[160px] p-8 rounded-[2.5rem] border-border/40 bg-background/50 text-lg leading-relaxed resize-none focus:ring-0 focus:border-foreground transition-all duration-500",
+                          errors.expected_impact ? "border-destructive" : ""
+                        )}
+                        {...register("expected_impact")} 
+                      />
                     </div>
                   </div>
                 </motion.div>
               )}
 
-              {/* STEP 3: Impact */}
+              {/* STEP 2: LOCATION */}
               {currentStep === 2 && (
                 <motion.div
                   key="step2"
@@ -468,44 +385,51 @@ export function ProposalWizard() {
                   initial="enter"
                   animate="center"
                   exit="exit"
-                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                  className="flex-1"
+                  transition={{ duration: 0.4, ease: [0.19, 1, 0.22, 1] }}
+                  className="space-y-10"
                 >
-                  <div className="space-y-10">
-                    <div className="space-y-1">
-                      <h2 className="text-xl font-bold tracking-tight">Social Impact</h2>
-                      <p className="text-muted-foreground text-sm">Define positive externalities and measurable outcomes.</p>
+                  <div className="space-y-12">
+                    <div className="p-1 border border-border/20 rounded-[2.5rem] bg-muted/5 overflow-hidden shadow-2xl min-h-[450px]">
+                      <Controller
+                        name="location"
+                        control={control}
+                        render={({ field }) => (
+                          <LocationPicker 
+                            value={{
+                              formatted_address: field.value?.formatted_address || "",
+                              city: field.value?.city || "",
+                              country: field.value?.country || "",
+                              lat: field.value?.lat || 0,
+                              lng: field.value?.lng || 0
+                            }} 
+                            onChange={(val) => {
+                               field.onChange(val);
+                               setValue("region_tag", val.city ? normalizeRegionTag(val.city) : "global");
+                               void trigger(["location", "region_tag"]);
+                            }}
+                            error={typeof errors.location?.message === "string" ? errors.location.message : undefined}
+                          />
+                        )}
+                      />
                     </div>
 
-                    <div className="space-y-8">
-                      <div className="space-y-2.5">
-                        <Label htmlFor="expected_impact" className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                           Measurable Outcomes & KPIs
-                        </Label>
-                        <Textarea 
-                          id="expected_impact" 
-                          placeholder="How exactly does the community benefit? Provide specific data points..." 
-                          className={cn(
-                            "min-h-[220px] p-5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-background text-sm leading-relaxed resize-none transition-all duration-200 focus-visible:ring-1",
-                            errors.expected_impact ? "border-destructive focus-visible:ring-destructive" : ""
-                          )}
-                          {...register("expected_impact")} 
-                        />
-                        {errors.expected_impact && <p className="text-[11px] text-destructive font-medium mt-1">{errors.expected_impact.message}</p>}
-                      </div>
-
-                      <div className="p-4 rounded-xl bg-blue-50/50 dark:bg-blue-950/10 border border-blue-100 dark:border-blue-900/30 flex gap-4">
-                         <ShieldCheck className="w-4 h-4 text-blue-500 shrink-0" />
-                         <p className="text-xs text-blue-800/80 dark:text-blue-300/80 leading-relaxed">
-                           Claims will be cross-referenced by our AI Analyst against regional data.
-                         </p>
-                      </div>
+                    <div className="space-y-4 max-w-md">
+                      <Label htmlFor="region_tag" className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground ml-1 flex items-center gap-2">
+                         <Globe className="w-3 h-3" />
+                         Protocol Tag
+                      </Label>
+                      <Input 
+                        id="region_tag" 
+                        placeholder="e.g. sofia_center" 
+                        className="h-14 rounded-2xl border-border/40 font-mono text-sm bg-background/50 px-6 uppercase tracking-widest"
+                        {...register("region_tag")} 
+                      />
                     </div>
                   </div>
                 </motion.div>
               )}
 
-              {/* STEP 4: Execution */}
+              {/* STEP 3: STRATEGY */}
               {currentStep === 3 && (
                 <motion.div
                   key="step3"
@@ -514,45 +438,45 @@ export function ProposalWizard() {
                   initial="enter"
                   animate="center"
                   exit="exit"
-                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                  className="flex-1"
+                  transition={{ duration: 0.4, ease: [0.19, 1, 0.22, 1] }}
+                  className="space-y-10"
                 >
-                  <div className="space-y-10">
-                    <div className="space-y-1">
-                      <h2 className="text-xl font-bold tracking-tight">Strategy & Timeline</h2>
-                      <p className="text-muted-foreground text-sm">Who will execute the project and when will milestones be reached?</p>
+                  <div className="grid grid-cols-1 gap-12">
+                    <div className="grid md:grid-cols-2 gap-8">
+                       <div className="space-y-4">
+                          <Label htmlFor="executor_name" className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground ml-1">Responsible Executor</Label>
+                          <Input 
+                            id="executor_name" 
+                            placeholder="Organization or Individual" 
+                            className="h-16 px-6 rounded-2xl border-border/40 bg-background/50 text-lg font-semibold focus:border-foreground" 
+                            {...register("executor_name")} 
+                          />
+                       </div>
+                       <div className="space-y-4">
+                          <Label htmlFor="timeline" className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground ml-1">Estimated Timeline</Label>
+                          <Input 
+                            id="timeline" 
+                            placeholder="e.g. 12 Months" 
+                            className="h-16 px-6 rounded-2xl border-border/40 bg-background/50 text-lg font-semibold focus:border-foreground" 
+                            {...register("timeline")} 
+                          />
+                       </div>
                     </div>
 
-                    <div className="space-y-8">
-                      <div className="grid md:grid-cols-2 gap-8">
-                         <div className="space-y-2.5">
-                            <Label htmlFor="executor_name" className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Executor Identity</Label>
-                            <Input id="executor_name" placeholder="Lead organization or individual" className="h-10 px-4 rounded-lg border-neutral-200 dark:border-neutral-800 bg-background text-sm" {...register("executor_name")} />
-                            {errors.executor_name && <p className="text-[11px] text-destructive font-medium">{errors.executor_name.message}</p>}
-                         </div>
-                         <div className="space-y-2.5">
-                            <Label htmlFor="timeline" className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Timeline</Label>
-                            <Input id="timeline" placeholder="e.g. 6 months" className="h-10 px-4 rounded-lg border-neutral-200 dark:border-neutral-800 bg-background text-sm" {...register("timeline")} />
-                            {errors.timeline && <p className="text-[11px] text-destructive font-medium">{errors.timeline.message}</p>}
-                         </div>
-                      </div>
-
-                      <div className="space-y-2.5">
-                        <Label htmlFor="execution_plan" className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Operational Roadmap</Label>
-                        <Textarea 
-                          id="execution_plan" 
-                          placeholder="Step-by-step roadmap including technical milestones..." 
-                          className="min-h-[180px] p-5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-background text-sm leading-relaxed resize-none focus-visible:ring-1" 
-                          {...register("execution_plan")} 
-                        />
-                        {errors.execution_plan && <p className="text-[11px] text-destructive font-medium mt-1">{errors.execution_plan.message}</p>}
-                      </div>
+                    <div className="space-y-4">
+                      <Label htmlFor="execution_plan" className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground ml-1">Operational Roadmap</Label>
+                      <Textarea 
+                        id="execution_plan" 
+                        placeholder="Step-by-step roadmap including technical milestones..." 
+                        className="min-h-[200px] p-8 rounded-[2.5rem] border-border/40 bg-background/50 text-lg leading-relaxed resize-none focus:border-foreground transition-all duration-500" 
+                        {...register("execution_plan")} 
+                      />
                     </div>
                   </div>
                 </motion.div>
               )}
 
-              {/* STEP 5: Financials */}
+              {/* STEP 4: CAPITAL */}
               {currentStep === 4 && (
                 <motion.div
                   key="step4"
@@ -561,65 +485,161 @@ export function ProposalWizard() {
                   initial="enter"
                   animate="center"
                   exit="exit"
-                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                  className="flex-1"
+                  transition={{ duration: 0.4, ease: [0.19, 1, 0.22, 1] }}
+                  className="space-y-10"
                 >
-                  <div className="space-y-10">
-                    <div className="space-y-1">
-                      <h2 className="text-xl font-bold tracking-tight">Financial Model</h2>
-                      <p className="text-muted-foreground text-sm">Specify the capital requirement and budget breakdown.</p>
-                    </div>
-
-                    <div className="space-y-8">
-                      <div className="grid md:grid-cols-3 gap-8 items-end">
-                        <div className="md:col-span-2 space-y-2.5">
-                          <Label htmlFor="budget_amount" className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Funding Target</Label>
-                          <div className="relative">
-                            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">$</span>
-                            <Input 
-                              id="budget_amount" 
-                              type="number"
-                              placeholder="0.00" 
-                              className="h-11 pl-8 text-lg font-bold border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 rounded-lg"
-                              {...register("budget_amount", { valueAsNumber: true })} 
-                            />
-                          </div>
-                          {errors.budget_amount && <p className="text-[11px] text-destructive font-medium">{errors.budget_amount.message}</p>}
-                        </div>
-                        
-                        <div className="space-y-2.5 pb-0.5">
-                          <Label htmlFor="budget_currency" className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Currency</Label>
-                          <Input 
-                            id="budget_currency" 
-                            placeholder="e.g. USD" 
-                            className="h-11 px-4 rounded-lg border border-neutral-200 dark:border-neutral-800 font-semibold"
-                            {...register("budget_currency")} 
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2.5">
-                        <Label htmlFor="budget_breakdown" className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Budget Breakdown</Label>
-                        <Textarea 
-                          id="budget_breakdown" 
-                          placeholder="Itemized allocation: 40% Infrastructure, 30% Labor, etc." 
-                          className="min-h-[140px] p-5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-background text-sm leading-relaxed resize-none focus-visible:ring-1" 
-                          {...register("budget_breakdown")} 
+                  <div className="grid grid-cols-1 gap-12">
+                    <div className="grid md:grid-cols-4 gap-8 items-end">
+                      <div className="md:col-span-3">
+                        <MoneyInput
+                          form={form}
+                          name="budget_amount"
+                          label="Target Amount"
+                          currencyCode={watch("budget_currency")}
                         />
-                        {errors.budget_breakdown && <p className="text-[11px] text-destructive font-medium mt-1">{errors.budget_breakdown.message}</p>}
                       </div>
                       
-                      <div className="p-4 rounded-xl bg-primary/[0.02] border border-primary/10 flex items-center gap-4">
-                         <div className="h-10 w-10 rounded-lg bg-primary flex items-center justify-center shrink-0 shadow-md">
-                            <ShieldCheck className="w-5 h-5 text-primary-foreground" />
-                         </div>
-                         <div className="space-y-0.5">
-                            <h4 className="text-xs font-bold text-foreground tracking-tight">Protocol Agreement</h4>
-                            <p className="text-[10px] text-muted-foreground leading-relaxed">
-                              Funds released via milestone verification. Transparency is enforced at the ledger level.
-                            </p>
-                         </div>
+                      <div className="space-y-4">
+                        <Label htmlFor="budget_currency" className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground ml-1">Currency</Label>
+                        <Controller
+                          name="budget_currency"
+                          control={control}
+                          render={({ field }) => (
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <SelectTrigger className="h-16 rounded-[1.5rem] border-border/40 bg-background text-xl font-black uppercase tracking-widest focus:border-foreground">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="rounded-2xl shadow-2xl border-border/40">
+                                {EUROPEAN_CURRENCIES.map(curr => (
+                                  <SelectItem key={curr.code} value={curr.code} className="py-3 font-bold">{curr.code}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
                       </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <Label htmlFor="budget_breakdown" className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground ml-1">Itemized Breakdown</Label>
+                      <Textarea 
+                        id="budget_breakdown" 
+                        placeholder="e.g. 60% Procurement, 20% Logistics, 20% Quality Control..." 
+                        className="min-h-[160px] p-8 rounded-[2.5rem] border-border/40 bg-background/50 text-lg leading-relaxed resize-none focus:border-foreground transition-all duration-500" 
+                        {...register("budget_breakdown")} 
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* STEP 5: REVIEW (Sophisticated Redesign) */}
+              {currentStep === 5 && (
+                <motion.div
+                  key="step5"
+                  custom={direction}
+                  variants={variants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{ duration: 0.4, ease: [0.19, 1, 0.22, 1] }}
+                  className="space-y-10"
+                >
+                  <div className="space-y-6">
+                    <div className="flex flex-col gap-2">
+                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Final Audit Review</p>
+                        <h2 className="text-3xl font-black tracking-tighter uppercase italic leading-none">Initialization Packet</h2>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        {/* Summary Column */}
+                        <div className="lg:col-span-2 space-y-6">
+                            <Card className="border-border/40 bg-neutral-50/50 dark:bg-neutral-950/50 shadow-sm rounded-3xl overflow-hidden">
+                                <div className="p-8 space-y-8">
+                                    <div className="flex justify-between items-start">
+                                        <div className="space-y-1">
+                                            <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Initiative Identity</p>
+                                            <h3 className="text-2xl font-black tracking-tight leading-tight uppercase italic truncate pr-4">
+                                                {watch("title") || "Untitled Initiative"}
+                                            </h3>
+                                        </div>
+                                        <Badge variant="secondary" className="text-[8px] font-black uppercase px-3 py-1 rounded-full bg-background border-border/60">
+                                            {watch("category").toUpperCase()}
+                                        </Badge>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-8">
+                                        <div className="space-y-1.5">
+                                            <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Mission Context</p>
+                                            <p className="text-sm font-medium leading-relaxed line-clamp-3 italic opacity-70">
+                                                "{watch("description") || "No summary provided."}"
+                                            </p>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Impact Vectors</p>
+                                            <p className="text-sm font-medium leading-relaxed line-clamp-3 opacity-70">
+                                                {watch("expected_impact") || "Not defined."}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <Separator className="bg-border/40" />
+
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div className="space-y-1">
+                                            <p className="text-[9px] font-black uppercase text-muted-foreground">Region</p>
+                                            <p className="text-xs font-bold truncate flex items-center gap-1">
+                                                <MapPin className="h-3 w-3 text-primary" />
+                                                {watch("region_tag").toUpperCase()}
+                                            </p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-[9px] font-black uppercase text-muted-foreground">Executor</p>
+                                            <p className="text-xs font-bold truncate">{watch("executor_name") || "TBD"}</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-[9px] font-black uppercase text-muted-foreground">Timeline</p>
+                                            <p className="text-xs font-bold">{watch("timeline") || "TBD"}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </Card>
+                        </div>
+
+                        {/* Financial Sidebar */}
+                        <div className="space-y-6">
+                            <Card className="border-primary/20 bg-primary/5 shadow-xl shadow-primary/5 rounded-3xl p-8 flex flex-col justify-between min-h-[200px]">
+                                <div className="space-y-1">
+                                    <p className="text-[9px] font-black uppercase text-primary tracking-[0.2em]">Requested Capital</p>
+                                    <div className="flex items-baseline gap-1">
+                                        <span className="text-2xl font-black text-primary/60">{EUROPEAN_CURRENCIES.find(c => c.code === watch("budget_currency"))?.symbol}</span>
+                                        <h4 className="text-4xl font-black tracking-tighter tabular-nums">
+                                            {watch("budget_amount").toLocaleString()}
+                                        </h4>
+                                    </div>
+                                </div>
+                                
+                                <div className="space-y-3 pt-6 border-t border-primary/10">
+                                    <div className="flex items-center gap-2">
+                                        <Zap className="h-3.5 w-3.5 text-primary" />
+                                        <p className="text-[10px] font-bold uppercase tracking-tight text-primary">Protocol Status: ACTIVE</p>
+                                    </div>
+                                    <p className="text-[10px] text-primary/60 font-medium leading-tight">
+                                        Funds locked in programmatic escrow upon successful consensus.
+                                    </p>
+                                </div>
+                            </Card>
+
+                            <div className="p-6 rounded-3xl border border-dashed border-border/60 space-y-4">
+                                <div className="flex items-center gap-2 opacity-50">
+                                    <ShieldCheck className="h-4 w-4" />
+                                    <span className="text-[9px] font-black uppercase tracking-widest">Ledger Proof</span>
+                                </div>
+                                <p className="text-[11px] font-medium leading-relaxed italic opacity-40">
+                                    "I authorize the permanent broadcast of this initiative to the OpenFairTrip protocol."
+                                </p>
+                            </div>
+                        </div>
                     </div>
                   </div>
                 </motion.div>
@@ -627,79 +647,50 @@ export function ProposalWizard() {
             </AnimatePresence>
           </div>
 
-          {/* Navigation Controls */}
-          <div className="sticky bottom-6 z-10 pt-4">
-             <div className="p-2.5 rounded-xl bg-background/80 backdrop-blur-md border border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row justify-between items-center gap-3 shadow-lg">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={handleBack}
-                  disabled={currentStep === 0 || isSubmitting}
-                  className="h-10 px-5 rounded-lg font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-all text-xs"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5 mr-1.5" />
-                  Back
-                </Button>
-                
-                {currentStep < STEPS.length - 1 ? (
-                  <Button 
-                    type="button" 
-                    onClick={handleNext}
-                    className="w-full sm:w-auto h-10 px-8 rounded-lg font-bold text-xs bg-foreground text-background hover:bg-foreground/90 transition-all"
-                  >
-                    Continue
-                    <ChevronRight className="w-3.5 h-3.5 ml-1.5" />
-                  </Button>
+          {/* COMPACT NAVIGATION */}
+          <div className="pt-12 border-t border-border/40 flex justify-between items-center gap-6">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleBack}
+              disabled={currentStep === 0 || isSubmitting}
+              className="h-14 px-10 rounded-full font-black uppercase tracking-widest text-[10px] hover:bg-foreground/5 transition-all"
+            >
+              <ChevronLeft className="w-5 h-5 mr-2" />
+              Back
+            </Button>
+            
+            {currentStep < WIZARD_STEPS.length - 1 ? (
+              <Button 
+                type="button" 
+                onClick={handleNext}
+                className="h-14 px-14 rounded-2xl font-black text-xs bg-foreground text-background hover:bg-foreground/90 transition-all shadow-lg active:scale-95 group"
+              >
+                Continue Step
+                <ChevronRight className="w-5 h-5 ml-2 transition-transform group-hover:translate-x-1" />
+              </Button>
+            ) : (
+              <Button 
+                type="submit" 
+                disabled={isSubmitting || !identity || !hasProfile || userRole !== "regional"}
+                className="h-16 px-20 rounded-2xl font-black text-sm shadow-xl bg-primary text-primary-foreground hover:opacity-90 transition-all active:scale-95 group"
+              >
+                {isSubmitting ? (
+                  <div className="flex items-center gap-4">
+                     <Loader2 className="h-5 w-5 animate-spin" />
+                     <span className="uppercase italic">{submitPhase ?? "Wait..."}</span>
+                  </div>
                 ) : (
-                  <Button 
-                    type="submit" 
-                    disabled={
-                      isSubmitting ||
-                      !identity ||
-                      !isAuthenticated ||
-                      isInitializing ||
-                      !hasProfile ||
-                      userRole !== "regional"
-                    }
-                    className="w-full sm:w-auto h-10 px-8 rounded-lg font-bold text-xs shadow-md bg-primary text-primary-foreground hover:opacity-90 transition-all"
-                  >
-                    {isSubmitting ? (
-                      <div className="flex items-center gap-2">
-                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                         {submitPhase ?? "Broadcasting..."}
-                      </div>
-                    ) : (
-                      <>
-                        Commit Proposal
-                        <CheckCircle2 className="w-3.5 h-3.5 ml-1.5" />
-                      </>
-                    )}
-                  </Button>
+                  <span className="flex items-center gap-3 uppercase italic tracking-widest">
+                    Broadcast to Ledger
+                    <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-2" />
+                  </span>
                 )}
-             </div>
-             {!identity && currentStep === STEPS.length - 1 && (
-               <p className="text-[9px] text-destructive font-bold uppercase text-center mt-2 tracking-widest">
-                 Identity Required to Sign Transaction
-               </p>
-             )}
-             {identity && isInitializing && currentStep === STEPS.length - 1 && (
-               <p className="text-[9px] text-muted-foreground font-bold uppercase text-center mt-2 tracking-widest">
-                 Restoring Account Profile
-               </p>
-             )}
-             {identity && !isInitializing && !hasProfile && currentStep === STEPS.length - 1 && (
-               <p className="text-[9px] text-destructive font-bold uppercase text-center mt-2 tracking-widest">
-                 Complete Community Onboarding Before Submitting
-               </p>
-             )}
-             {identity && !isInitializing && hasProfile && userRole !== "regional" && currentStep === STEPS.length - 1 && (
-               <p className="text-[9px] text-destructive font-bold uppercase text-center mt-2 tracking-widest">
-                 Proposal Submission Is For Community Users Only
-               </p>
-             )}
+              </Button>
+            )}
           </div>
         </form>
-      </div>
+      </Form>
     </div>
   );
 }
