@@ -126,20 +126,6 @@ export default function LoginPage() {
 							.
 						</div>
 					</CardContent>
-					<CardFooter className="flex flex-col items-center justify-center gap-4">
-						<div className="pt-2 border-t w-full text-center">
-							<button
-								onClick={() => {
-									loginMock();
-									router.push("/onboarding/role");
-								}}
-								className="text-xs text-muted-foreground hover:text-primary transition-colors italic"
-							>
-								[Dev Mode] Skip authentication and start
-								onboarding
-							</button>
-						</div>
-					</CardFooter>
 				</Card>
 			</div>
 		</div>

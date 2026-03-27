@@ -27,7 +27,6 @@ interface AuthState {
   user: AuthUser | null;
   initialize: () => Promise<void>;
   login: () => Promise<void>;
-  loginMock: () => void;
   logout: () => Promise<void>;
   setRole: (role: UserRole) => void;
   setKycStatus: (status: "pending" | "verified" | "unverified") => void;
@@ -162,24 +161,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return Promise.resolve();
   },
 
-  loginMock: () => {
-    const mockPrincipal = "aaaaa-aa-mock-user";
-    set({
-      identity: new AnonymousIdentity(),
-      principal: mockPrincipal,
-      isAuthenticated: true,
-      isInitializing: false,
-      hasProfile: false,
-      user: {
-        id: mockPrincipal,
-        role: null,
-        reputation: 0,
-        kyc_status: "unverified",
-        geo_verified: false,
-      },
-    });
-  },
-
   logout: async () => {
     // Similarly, actual logout should happen via useInternetIdentity
     set({
@@ -252,7 +233,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const seed = new Uint8Array(32).fill(0);
       seed[0] = 1; // Just something unique
       
-      const identity = Ed25519KeyIdentity.generate(seed);
+      const identity = Ed25519KeyIdentity.fromSecretKey(seed);
       // We have to cast because of slight type mismatches between @dfinity/agent and @icp-sdk/core
       get().syncIdentity(identity as any, true);
       
