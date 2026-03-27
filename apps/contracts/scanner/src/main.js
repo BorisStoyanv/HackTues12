@@ -7,7 +7,7 @@ const urlParams = new URLSearchParams(window.location.search);
 const envNetwork = (import.meta.env.DFX_NETWORK ?? "ic").replaceAll("'", "");
 const canisterId =
   urlParams.get("canister") ??
-  import.meta.env.CANISTER_ID_ICP_PROPOSALS_MVP ??
+  import.meta.env.CANISTER_ID_CONSENSUS_MECHANISM ??
   DEFAULT_CANISTER_ID;
 const host =
   urlParams.get("host") ??
@@ -20,7 +20,8 @@ const statusFilters = [
   "Active",
   "AwaitingFunding",
   "Backed",
-  "Signed",
+  "Released",
+  "Refunded",
   "Rejected",
   "QuorumNotMet",
 ];
@@ -54,12 +55,19 @@ function shorten(value, head = 8, tail = 6) {
   if (!value) return "Unassigned";
   const text = String(value);
   if (text.length <= head + tail + 1) return text;
-  return `${text.slice(0, head)}…${text.slice(-tail)}`;
+  return `${text.slice(0, head)}...${text.slice(-tail)}`;
+}
+
+function toBigInt(value) {
+  if (typeof value === "bigint") return value;
+  if (typeof value === "number") return BigInt(Math.trunc(value));
+  if (value == null) return 0n;
+  return BigInt(value);
 }
 
 function formatDate(ns) {
   if (!ns) return "Unknown";
-  const millis = Number(BigInt(ns) / 1_000_000n);
+  const millis = Number(toBigInt(ns) / 1_000_000n);
   return new Date(millis).toLocaleString(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
@@ -68,7 +76,7 @@ function formatDate(ns) {
 
 function formatRelative(ns) {
   if (!ns) return "Unknown";
-  const millis = Number(BigInt(ns) / 1_000_000n);
+  const millis = Number(toBigInt(ns) / 1_000_000n);
   const diffMs = Date.now() - millis;
   const absSeconds = Math.round(Math.abs(diffMs) / 1000);
   if (absSeconds < 60) return diffMs >= 0 ? "just now" : "in seconds";
@@ -84,15 +92,6 @@ function formatRelative(ns) {
   return diffMs >= 0 ? `${days}d ago` : `in ${days}d`;
 }
 
-function formatAmount(amount, currency) {
-  if (amount == null) return "Not set";
-  const code = currency || "EUR";
-  return `${Number(amount).toLocaleString(undefined, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  })} ${code}`;
-}
-
 function formatPercent(value, digits = 0) {
   if (value == null || Number.isNaN(value)) return "0%";
   return `${(value * 100).toFixed(digits)}%`;
@@ -105,7 +104,7 @@ function formatMetricPercent(value, digits = 0) {
 
 function countdown(endNs) {
   if (!endNs) return "Unknown";
-  const diff = BigInt(endNs) - BigInt(Date.now()) * 1_000_000n;
+  const diff = toBigInt(endNs) - BigInt(Date.now()) * 1_000_000n;
   if (diff <= 0n) return "Voting ended";
   const totalSeconds = Number(diff / 1_000_000_000n);
   const hours = Math.floor(totalSeconds / 3600);
@@ -124,26 +123,67 @@ function humanizeLabel(value) {
     .replaceAll("_", " ");
 }
 
+function formatIcp(amountE8s) {
+  if (amountE8s == null) return "Not set";
+  const amount = Number(toBigInt(amountE8s)) / 100_000_000;
+  return `${amount.toLocaleString(undefined, {
+    minimumFractionDigits: amount < 10 ? 2 : 0,
+    maximumFractionDigits: 4,
+  })} ICP`;
+}
+
+function formatWindow(ns) {
+  if (!ns) return "Unknown";
+  const totalMinutes = Number(toBigInt(ns) / 60_000_000_000n);
+  if (totalMinutes >= 1440) return `${Math.round(totalMinutes / 1440)}d`;
+  if (totalMinutes >= 60) return `${Math.round(totalMinutes / 60)}h`;
+  return `${totalMinutes}m`;
+}
+
+function calculateQuorumThreshold(activeUsers, settings) {
+  if (!settings) return 0;
+  if (activeUsers < settings.smallRegionCutoff) {
+    return settings.smallRegionMinVotes;
+  }
+  return Math.ceil((activeUsers * settings.quorumBasisPoints) / 10_000);
+}
+
+function normalizeEscrow(escrow) {
+  if (!escrow) return null;
+  return {
+    funder: principalText(escrow.funder),
+    beneficiary: principalText(escrow.beneficiary),
+    amountE8s: escrow.amount_e8s,
+    transferFeeE8s: escrow.transfer_fee_e8s,
+    escrowSubaccountHex: escrow.escrow_subaccount_hex,
+    depositBlockIndex: escrow.deposit_block_index.toString(),
+    state: variantKey(escrow.state),
+    depositReference: optionValue(escrow.deposit_reference),
+    releaseReference: optionValue(escrow.release_reference),
+    refundReference: optionValue(escrow.refund_reference),
+    depositedAt: escrow.deposited_at,
+    releasedAt: optionValue(escrow.released_at),
+    refundedAt: optionValue(escrow.refunded_at),
+    releaseBlockIndex: optionValue(escrow.release_block_index)?.toString() ?? null,
+    refundBlockIndex: optionValue(escrow.refund_block_index)?.toString() ?? null,
+  };
+}
+
 function normalizeProposal(proposal) {
   return {
     id: proposal.id,
     idText: proposal.id.toString(),
+    kind: variantKey(proposal.kind),
     title: proposal.title,
     description: proposal.description,
+    budgetDescription: proposal.budget_description,
     submitter: principalText(proposal.submitter),
+    beneficiary: principalText(proposal.beneficiary),
     region: proposal.region_tag,
-    category: optionValue(proposal.category)
-      ? variantKey(optionValue(proposal.category))
-      : "Other",
-    budgetAmount: optionValue(proposal.budget_amount),
-    budgetCurrency: optionValue(proposal.budget_currency),
-    budgetBreakdown: optionValue(proposal.budget_breakdown),
-    executorName: optionValue(proposal.executor_name),
-    executionPlan: optionValue(proposal.execution_plan),
-    timeline: optionValue(proposal.timeline),
-    expectedImpact: optionValue(proposal.expected_impact),
+    requestedFundingE8s: proposal.requested_funding_e8s,
     fairnessScore: optionValue(proposal.fairness_score),
     riskFlags: proposal.risk_flags ?? [],
+    fundingProgramId: optionValue(proposal.funding_program_id)?.toString() ?? null,
     backedBy: principalText(optionValue(proposal.backed_by)),
     backedAt: optionValue(proposal.backed_at),
     resolvedTotalVp: optionValue(proposal.resolved_total_vp),
@@ -153,46 +193,24 @@ function normalizeProposal(proposal) {
     yesWeight: proposal.yes_weight,
     noWeight: proposal.no_weight,
     voterCount: proposal.voter_count,
+    escrow: normalizeEscrow(optionValue(proposal.escrow)),
+    category: variantKey(optionValue(proposal.category)),
+    budgetAmount: optionValue(proposal.budget_amount),
+    budgetCurrency: optionValue(proposal.budget_currency),
   };
 }
 
-function normalizeContract(contract) {
-  return {
-    proposalId: contract.proposal_id.toString(),
-    createdBy: principalText(contract.created_by),
-    investorPrincipal: principalText(contract.investor_principal),
-    company: {
-      legalName: contract.company.legal_name,
-      registrationId: contract.company.registration_id,
-      representativeName: contract.company.representative_name,
-      representativePrincipal: principalText(
-        optionValue(contract.company.representative_principal),
-      ),
-    },
-    documentHash: contract.document_hash,
-    documentUri: contract.document_uri,
-    milestoneHash: optionValue(contract.milestone_hash),
-    signatureMode: variantKey(contract.signature_mode),
-    externalProvider: optionValue(contract.external_provider),
-    externalEnvelopeId: optionValue(contract.external_envelope_id),
-    investorAckAt: optionValue(contract.investor_ack_at),
-    companyAckAt: optionValue(contract.company_ack_at),
-    externalSignedAt: optionValue(contract.external_signed_at),
-    status: variantKey(contract.status),
-    createdAt: contract.created_at,
-    updatedAt: contract.updated_at,
-  };
-}
-
-function normalizePhase(result) {
+function normalizeEscrowAccount(result) {
   if (!result || !("Ok" in result)) return null;
   return {
     proposalId: result.Ok.proposal_id.toString(),
-    proposalStatus: variantKey(result.Ok.proposal_status),
-    contractStatus: optionValue(result.Ok.contract_status)
-      ? variantKey(optionValue(result.Ok.contract_status))
-      : null,
-    phaseLabel: result.Ok.phase_label,
+    ledgerCanisterId: principalText(result.Ok.ledger_canister_id),
+    accountOwner: principalText(result.Ok.account_owner),
+    subaccountHex: result.Ok.subaccount_hex,
+    accountIdHex: result.Ok.account_id_hex,
+    requestedAmountE8s: result.Ok.requested_amount_e8s,
+    suggestedTransferFeeE8s: result.Ok.suggested_transfer_fee_e8s,
+    suggestedDepositE8s: result.Ok.suggested_deposit_e8s,
   };
 }
 
@@ -217,9 +235,22 @@ function normalizeAudit(event) {
   };
 }
 
+function normalizeSettings(settings) {
+  return {
+    controller: principalText(settings.controller),
+    ledgerCanisterId: principalText(settings.ledger_canister_id),
+    quorumBasisPoints: Number(settings.quorum_basis_points),
+    approvalBasisPoints: Number(settings.approval_basis_points),
+    activeWindowNs: settings.active_window_ns,
+    votingWindowNs: settings.voting_window_ns,
+    smallRegionCutoff: Number(settings.small_region_cutoff),
+    smallRegionMinVotes: Number(settings.small_region_min_votes),
+  };
+}
+
 function getProposalVotingMetrics(proposal, totalRegionalVp) {
-  const yesWeight = proposal.yesWeight ?? 0;
-  const noWeight = proposal.noWeight ?? 0;
+  const yesWeight = proposal.yes_weight ?? 0;
+  const noWeight = proposal.no_weight ?? 0;
   const totalCastWeight = yesWeight + noWeight;
   const leadingWeight = Math.max(yesWeight, noWeight);
 
@@ -240,6 +271,11 @@ function getProposalVotingMetrics(proposal, totalRegionalVp) {
   };
 }
 
+function formatAmount(amount, currency) {
+  if (amount == null) return "Unknown";
+  return `${amount.toLocaleString()} ${currency || "USD"}`;
+}
+
 async function sha256Hex(value) {
   const digest = await crypto.subtle.digest("SHA-256", encoder.encode(value));
   return Array.from(new Uint8Array(digest), (byte) =>
@@ -247,23 +283,23 @@ async function sha256Hex(value) {
   ).join("");
 }
 
-async function createFingerprints(proposals, phases, contracts, auditByProposal) {
+async function createFingerprints(proposals, escrowAccounts, auditByProposal) {
   const records = await Promise.all(
     proposals.map(async (proposal) => {
-      const phase = phases.get(proposal.idText);
-      const contract = contracts.get(proposal.idText);
+      const escrowAccount = escrowAccounts.get(proposal.idText) ?? null;
       const auditTrail = auditByProposal.get(proposal.idText) ?? [];
       const canonical = JSON.stringify({
         id: proposal.idText,
         title: proposal.title,
-        submitter: proposal.submitter,
-        createdAt: proposal.createdAt.toString(),
         status: proposal.status,
-        yesWeight: proposal.yesWeight,
-        noWeight: proposal.noWeight,
-        region: proposal.region,
-        phase: phase?.phaseLabel ?? null,
-        contractHash: contract?.documentHash ?? null,
+        kind: proposal.kind,
+        requestedFundingE8s: proposal.requestedFundingE8s.toString(),
+        submitter: proposal.submitter,
+        beneficiary: proposal.beneficiary,
+        backedBy: proposal.backedBy,
+        escrowState: proposal.escrow?.state ?? null,
+        depositBlockIndex: proposal.escrow?.depositBlockIndex ?? null,
+        escrowAccountId: escrowAccount?.accountIdHex ?? null,
         auditCount: auditTrail.length,
       });
       return [proposal.idText, await sha256Hex(canonical)];
@@ -293,15 +329,14 @@ class ScannerApp {
       lastSync: null,
       search: "",
       filter: "All",
-      config: null,
+      settings: null,
       proposals: [],
-      contracts: new Map(),
-      phases: new Map(),
-      regionVp: new Map(),
+      proposalViews: new Map(),
+      escrowAccounts: new Map(),
+      quorumByRegion: new Map(),
       auditEvents: [],
       auditByProposal: new Map(),
       votesByProposal: new Map(),
-      voteLoadingId: null,
       fingerprints: new Map(),
       scanRoot: null,
       copiedValue: "",
@@ -328,22 +363,59 @@ class ScannerApp {
 
     try {
       const actor = this.state.actor ?? (await createActor());
-      const [config, rawProposals, rawContracts, rawAudit] = await Promise.all([
-        actor.get_config(),
-        actor.list_proposals([]),
-        actor.list_contracts([]),
-        actor.get_audit_log(80, 0),
+      const [rawSettings, rawProposals, rawAudit] = await Promise.all([
+        actor.get_settings_view(),
+        actor.list_proposals(),
+        actor.list_audit_events([]),
       ]);
 
+      const settings = normalizeSettings(rawSettings);
       const proposals = rawProposals
         .map(normalizeProposal)
         .sort((left, right) => Number(right.id - left.id));
-      const contracts = new Map(
-        rawContracts.map((contract) => {
-          const normalized = normalizeContract(contract);
-          return [normalized.proposalId, normalized];
+
+      const proposalViewPairs = await Promise.all(
+        proposals.map(async (proposal) => {
+          const rawView = await actor.get_proposal_view(proposal.id);
+          const normalized = optionValue(rawView)
+            ? normalizeProposal(optionValue(rawView))
+            : proposal;
+          return [proposal.idText, normalized];
         }),
       );
+      const proposalViews = new Map(proposalViewPairs);
+
+      const escrowPairs = await Promise.all(
+        proposals.map(async (proposal) => {
+          const result = await actor.get_proposal_escrow_account(proposal.id);
+          return [proposal.idText, normalizeEscrowAccount(result)];
+        }),
+      );
+      const escrowAccounts = new Map(escrowPairs);
+
+      const regionNames = [...new Set(proposals.map((proposal) => proposal.region))];
+      const quorumByRegion = new Map(
+        await Promise.all(
+          regionNames.map(async (region) => [
+            region,
+            Number(await actor.get_quorum_snapshot(region)),
+          ]),
+        ),
+      );
+
+      const votePairs = await Promise.all(
+        proposals.map(async (proposal) => {
+          const votes = await actor.list_votes(proposal.id);
+          return [
+            proposal.idText,
+            votes
+              .map(normalizeVote)
+              .sort((left, right) => Number(toBigInt(right.timestamp) - toBigInt(left.timestamp))),
+          ];
+        }),
+      );
+      const votesByProposal = new Map(votePairs);
+
       const auditEvents = rawAudit.map(normalizeAudit);
       const auditByProposal = auditEvents.reduce((groups, event) => {
         if (!event.proposalId) return groups;
@@ -353,38 +425,12 @@ class ScannerApp {
         return groups;
       }, new Map());
 
-      const phasePairs = await Promise.all(
-        proposals.map(async (proposal) => {
-          const result = await actor.get_proposal_phase(proposal.id);
-          return [proposal.idText, normalizePhase(result)];
-        }),
+      const proposalsWithViews = proposals.map(
+        (proposal) => proposalViews.get(proposal.idText) ?? proposal,
       );
-      const phases = new Map(phasePairs);
-
-      const regionNames = [...new Set(proposals.map((proposal) => proposal.region))];
-      const regionVp = new Map(
-        await Promise.all(
-          regionNames.map(async (region) => [region, await actor.get_region_total_vp(region)]),
-        ),
-      );
-
-      const votePairs = await Promise.all(
-        proposals.map(async (proposal) => {
-          const votes = await actor.get_proposal_votes(proposal.id);
-          return [
-            proposal.idText,
-            votes
-              .map(normalizeVote)
-              .sort((left, right) => Number(BigInt(right.timestamp) - BigInt(left.timestamp))),
-          ];
-        }),
-      );
-      const votesByProposal = new Map(votePairs);
-
       const fingerprints = await createFingerprints(
-        proposals,
-        phases,
-        contracts,
+        proposalsWithViews,
+        escrowAccounts,
         auditByProposal,
       );
       const scanRoot = await sha256Hex(
@@ -400,11 +446,11 @@ class ScannerApp {
         actor,
         loading: false,
         refreshing: false,
-        config,
-        proposals,
-        contracts,
-        phases,
-        regionVp,
+        settings,
+        proposals: proposalsWithViews,
+        proposalViews,
+        escrowAccounts,
+        quorumByRegion,
         auditEvents,
         auditByProposal,
         votesByProposal,
@@ -421,28 +467,6 @@ class ScannerApp {
       };
     }
 
-    this.render();
-  }
-
-  async loadVotes(proposalId) {
-    if (!this.state.actor || this.state.votesByProposal.has(proposalId)) return;
-
-    this.state.voteLoadingId = proposalId;
-    this.render();
-
-    try {
-      const votes = await this.state.actor.get_proposal_votes(BigInt(proposalId));
-      this.state.votesByProposal.set(
-        proposalId,
-        votes
-          .map(normalizeVote)
-          .sort((left, right) => Number(BigInt(right.timestamp) - BigInt(left.timestamp))),
-      );
-    } catch (error) {
-      this.state.error = error.message || String(error);
-    }
-
-    this.state.voteLoadingId = null;
     this.render();
   }
 
@@ -486,10 +510,8 @@ class ScannerApp {
 
     const openButton = event.target.closest("[data-open-proposal]");
     if (openButton) {
-      const proposalId = openButton.dataset.openProposal;
-      this.state.selectedId = proposalId;
+      this.state.selectedId = openButton.dataset.openProposal;
       this.render();
-      this.loadVotes(proposalId);
     }
   }
 
@@ -501,23 +523,28 @@ class ScannerApp {
     }
   }
 
+  proposalMatchesFilter(proposal) {
+    if (this.state.filter === "All") return true;
+    if (proposal.status === this.state.filter) return true;
+    if (this.state.filter === "Released") return proposal.escrow?.state === "Released";
+    if (this.state.filter === "Refunded") return proposal.escrow?.state === "Refunded";
+    return false;
+  }
+
   getVisibleProposals() {
     const query = this.state.search.trim().toLowerCase();
     return this.state.proposals.filter((proposal) => {
-      const contract = this.state.contracts.get(proposal.idText);
-      const statusMatch =
-        this.state.filter === "All" ||
-        proposal.status === this.state.filter ||
-        (this.state.filter === "Signed" && contract?.status === "Signed");
-      if (!statusMatch) return false;
+      if (!this.proposalMatchesFilter(proposal)) return false;
       if (!query) return true;
       const haystack = [
         proposal.title,
         proposal.description,
         proposal.region,
         proposal.submitter,
-        proposal.category,
-        proposal.executorName,
+        proposal.beneficiary,
+        proposal.kind,
+        proposal.backedBy,
+        proposal.escrow?.state,
       ]
         .filter(Boolean)
         .join(" ")
@@ -534,12 +561,11 @@ class ScannerApp {
     if (!proposal) return null;
     return {
       proposal,
-      contract: this.state.contracts.get(proposal.idText) ?? null,
-      phase: this.state.phases.get(proposal.idText) ?? null,
+      escrowAccount: this.state.escrowAccounts.get(proposal.idText) ?? null,
       fingerprint: this.state.fingerprints.get(proposal.idText) ?? null,
       votes: this.state.votesByProposal.get(proposal.idText) ?? [],
       auditTrail: this.state.auditByProposal.get(proposal.idText) ?? [],
-      totalRegionVp: this.state.regionVp.get(proposal.region) ?? 0,
+      activeRegionUsers: this.state.quorumByRegion.get(proposal.region) ?? 0,
     };
   }
 
@@ -550,17 +576,15 @@ class ScannerApp {
   }
 
   renderSummaryCards() {
-    const { proposals, contracts, auditEvents, config, lastSync } = this.state;
+    const { proposals, auditEvents, settings, lastSync } = this.state;
     const active = proposals.filter((proposal) => proposal.status === "Active").length;
     const awaitingFunding = proposals.filter(
       (proposal) => proposal.status === "AwaitingFunding",
     ).length;
-    const signedContracts = [...contracts.values()].filter(
-      (contract) => contract.status === "Signed",
+    const funded = proposals.filter((proposal) => proposal.escrow?.state === "Held").length;
+    const released = proposals.filter(
+      (proposal) => proposal.escrow?.state === "Released",
     ).length;
-    const votingWindowMinutes = config
-      ? Math.round(Number(config.voting_period_ns / 1_000_000_000n) / 60)
-      : null;
     const totalVotes = [...this.state.votesByProposal.values()].reduce(
       (sum, votes) => sum + votes.length,
       0,
@@ -572,7 +596,7 @@ class ScannerApp {
           <div class="chain-brand">
             <div class="brand-mark">OF</div>
             <div>
-              <p class="brand-kicker">OpenFairTrip Scanner</p>
+              <p class="brand-kicker">Consensus Scanner</p>
               <code class="brand-hash">${escapeHtml(
                 this.state.scanRoot
                   ? shorten(this.state.scanRoot, 16, 12)
@@ -608,24 +632,29 @@ class ScannerApp {
             <strong>${awaitingFunding}</strong>
           </article>
           <article class="chain-box">
-            <span>Signed</span>
-            <strong>${signedContracts}</strong>
+            <span>Escrow Held</span>
+            <strong>${funded}</strong>
           </article>
         </div>
 
         <div class="chain-ticker">
           <span class="ticker-chip">${active} live</span>
+          <span class="ticker-chip">${released} released</span>
           <span class="ticker-chip">${pluralize(auditEvents.length, "audit", "audits")}</span>
           ${
-            votingWindowMinutes
-              ? `<span class="ticker-chip">${votingWindowMinutes}m window</span>`
+            settings
+              ? `<span class="ticker-chip">${formatWindow(
+                  settings.votingWindowNs,
+                )} voting window</span>`
               : ""
           }
           ${
-            config
+            settings
               ? `<span class="ticker-chip">${formatPercent(
-                  config.quorum_percent,
-                )} quorum / ${formatPercent(config.majority_threshold)} yes</span>`
+                  settings.quorumBasisPoints / 10_000,
+                )} quorum / ${formatPercent(
+                  settings.approvalBasisPoints / 10_000,
+                )} yes</span>`
               : ""
           }
           <span class="ticker-chip">
@@ -647,7 +676,7 @@ class ScannerApp {
           <input
             data-search
             type="search"
-            placeholder="hash / title / principal / region"
+            placeholder="title / principal / region / escrow"
             value="${escapeHtml(this.state.search)}"
           />
         </label>
@@ -689,14 +718,11 @@ class ScannerApp {
   }
 
   renderProposalCard(proposal) {
-    const phase = this.state.phases.get(proposal.idText);
-    const contract = this.state.contracts.get(proposal.idText);
     const votes = this.state.votesByProposal.get(proposal.idText) ?? [];
     const fingerprint = this.state.fingerprints.get(proposal.idText) ?? "pending";
-    const regionTotalVp =
-      proposal.resolvedTotalVp ?? (this.state.regionVp.get(proposal.region) ?? 0);
+    const regionTotalVp = this.state.quorumByRegion.get(proposal.region) ?? 0;
     const metrics = getProposalVotingMetrics(proposal, regionTotalVp);
-    const anchorHash = contract?.documentHash ?? fingerprint;
+    
     const isPassedStatus =
       proposal.status === "AwaitingFunding" || proposal.status === "Backed";
     const isResolvedWithQuorum = isPassedStatus || proposal.status === "Rejected";
@@ -705,16 +731,10 @@ class ScannerApp {
     const approvalReached =
       metrics.supportPercent >= ABSOLUTE_MAJORITY_PERCENT_OF_TOTAL;
     const approvalRulePassed = approvalReached || isPassedStatus;
-    const passedByDeadlineMajority =
-      isPassedStatus &&
-      metrics.supportPercent < ABSOLUTE_MAJORITY_PERCENT_OF_TOTAL &&
-      metrics.supportShareOfCastPercent >= 50;
+
     const supportLabel = metrics.totalRegionalVp > 0
       ? `${metrics.yesWeight.toFixed(1)} / ${metrics.totalRegionalVp.toFixed(1)} yes VP`
       : `${metrics.yesWeight.toFixed(1)} yes VP`;
-    const oppositionLabel = metrics.totalRegionalVp > 0
-      ? `${metrics.noWeight.toFixed(1)} / ${metrics.totalRegionalVp.toFixed(1)} no VP`
-      : `${metrics.noWeight.toFixed(1)} no VP`;
     const turnoutLabel = metrics.totalRegionalVp > 0
       ? `${metrics.totalCastWeight.toFixed(1)} / ${metrics.totalRegionalVp.toFixed(1)} VP`
       : `${metrics.totalCastWeight.toFixed(1)} VP cast`;
@@ -726,38 +746,46 @@ class ScannerApp {
             <div class="status-row">
               <span class="proposal-id">#${escapeHtml(proposal.idText)}</span>
               ${this.renderStatusPill(proposal.status)}
+              ${proposal.escrow?.state ? this.renderStatusPill(proposal.escrow.state) : ""}
             </div>
-            <code class="fingerprint-inline">${escapeHtml(shorten(anchorHash, 12, 10))}</code>
+            <code class="fingerprint-inline">${escapeHtml(shorten(fingerprint, 12, 10))}</code>
           </div>
 
           <h3>${escapeHtml(proposal.title)}</h3>
-          <p class="card-caption">${escapeHtml(phase?.phaseLabel ?? humanizeLabel(proposal.status))}</p>
+          <p class="card-caption">${escapeHtml(humanizeLabel(proposal.status))}</p>
 
           <div class="tag-row">
             <span class="tag-chip">${escapeHtml(proposal.region)}</span>
-            <span class="tag-chip">${escapeHtml(proposal.category)}</span>
-            ${contract ? `<span class="tag-chip">contract</span>` : ""}
+            <span class="tag-chip">${escapeHtml(proposal.category || "General")}</span>
+          </div>
+
+          <div class="hash-stack">
+            <div class="hash-line">
+              <span>submitter</span>
+              <code>${escapeHtml(shorten(proposal.submitter, 12, 8))}</code>
+            </div>
+            <div class="hash-line">
+              <span>beneficiary</span>
+              <code>${escapeHtml(shorten(proposal.beneficiary, 12, 8))}</code>
+            </div>
+            <div class="hash-line">
+              <span>funder</span>
+              <code>${escapeHtml(shorten(proposal.backedBy ?? "Awaiting NPO", 12, 8))}</code>
+            </div>
           </div>
         </div>
 
         <section class="governance-panel">
-          <div class="governance-panel__head">
-            <div>
-              <h4>Governance Status</h4>
-              <p>${escapeHtml(humanizeLabel(proposal.status))}</p>
-            </div>
-          </div>
-
           <div class="governance-metrics">
             <article class="governance-metric governance-metric--yes">
               <span>Yes of total VP</span>
               <strong>${formatMetricPercent(metrics.supportPercent, 1)}</strong>
               <small>${escapeHtml(metrics.hasVotes ? supportLabel : "0.0 yes VP")}</small>
             </article>
-            <article class="governance-metric governance-metric--no">
-              <span>No of total VP</span>
-              <strong>${formatMetricPercent(metrics.oppositionPercent, 1)}</strong>
-              <small>${escapeHtml(metrics.hasVotes ? oppositionLabel : "0.0 no VP")}</small>
+            <article class="governance-metric">
+              <span>Turnout</span>
+              <strong>${formatMetricPercent(metrics.turnoutPercent, 1)}</strong>
+              <small>${escapeHtml(turnoutLabel)}</small>
             </article>
           </div>
 
@@ -766,82 +794,27 @@ class ScannerApp {
               <span class="vote-meter__yes" style="width:${Math.min(metrics.supportPercent, 100)}%"></span>
               <span class="vote-meter__no" style="width:${Math.min(metrics.oppositionPercent, 100)}%"></span>
             </div>
-            <span class="vote-meter__marker" style="left:${QUORUM_PERCENT_OF_TOTAL}%">
-              <span>${QUORUM_PERCENT_OF_TOTAL}%</span>
-            </span>
-            <span class="vote-meter__marker" style="left:${ABSOLUTE_MAJORITY_PERCENT_OF_TOTAL}%">
-              <span>${ABSOLUTE_MAJORITY_PERCENT_OF_TOTAL}%</span>
-            </span>
           </div>
 
           <div class="governance-rules">
             <article class="governance-rule">
               <span class="governance-rule__icon ${quorumReached ? "is-met" : ""}"></span>
               <div>
-                <strong>Quorum: at least ${QUORUM_PERCENT_OF_TOTAL}% of eligible VP has voted</strong>
-                <small>${formatMetricPercent(metrics.turnoutPercent, 1)} turnout so far</small>
+                <strong>Quorum reached</strong>
+                <small>${formatMetricPercent(metrics.turnoutPercent, 1)} turnout</small>
               </div>
             </article>
             <article class="governance-rule">
               <span class="governance-rule__icon ${approvalRulePassed ? "is-met" : ""}"></span>
               <div>
-                <strong>Passes automatically at ${ABSOLUTE_MAJORITY_PERCENT_OF_TOTAL}% Yes VP, or by majority after time ends</strong>
-                <small>${
-                  escapeHtml(
-                    passedByDeadlineMajority
-                      ? `Approved after deadline with ${formatMetricPercent(
-                          metrics.supportShareOfCastPercent,
-                          1,
-                        )} Yes share of cast VP`
-                      : `${formatMetricPercent(
-                          metrics.supportPercent,
-                          1,
-                        )} Yes of total eligible VP`,
-                  )
-                }</small>
+                <strong>Approval threshold</strong>
+                <small>${formatMetricPercent(metrics.supportPercent, 1)} Yes VP</small>
               </div>
-            </article>
-          </div>
-
-          <div class="governance-summary">
-            <article>
-              <span>Turnout</span>
-              <strong>${formatMetricPercent(metrics.turnoutPercent, 1)}</strong>
-              <small>${escapeHtml(turnoutLabel)}</small>
-            </article>
-            <article>
-              <span>Yes / No</span>
-              <strong>${metrics.yesWeight.toFixed(1)} / ${metrics.noWeight.toFixed(1)}</strong>
-              <small>${proposal.voterCount} voters</small>
             </article>
           </div>
         </section>
 
         <section class="ledger-snapshot">
-          <div class="ledger-snapshot__grid">
-            <div class="hash-line">
-              <span>proposal</span>
-              <code>${escapeHtml(shorten(fingerprint, 18, 14))}</code>
-            </div>
-            ${
-              contract
-                ? `<div class="hash-line"><span>contract</span><code>${escapeHtml(
-                    shorten(contract.documentHash, 18, 14),
-                  )}</code></div>`
-                : ""
-            }
-            <div class="hash-line">
-              <span>submitter</span>
-              <code>${escapeHtml(shorten(proposal.submitter, 12, 8))}</code>
-            </div>
-            <div class="hash-line">
-              <span>budget</span>
-              <code>${escapeHtml(
-                formatAmount(proposal.budgetAmount, proposal.budgetCurrency),
-              )}</code>
-            </div>
-          </div>
-
           <div class="proposal-card__footer">
             <div class="proposal-card__votes">
               <span class="vote-strip-label">Who voted</span>
@@ -882,7 +855,7 @@ class ScannerApp {
 
   renderTimeline(events) {
     if (!events.length) {
-      return `<p class="section-empty">No audit events were returned for this proposal in the recent slice.</p>`;
+      return `<p class="section-empty">No audit events were returned for this proposal.</p>`;
     }
 
     return `
@@ -908,10 +881,7 @@ class ScannerApp {
     `;
   }
 
-  renderVotes(votes, isLoading) {
-    if (isLoading) {
-      return `<p class="section-empty">Loading vote weights...</p>`;
-    }
+  renderVotes(votes) {
     if (!votes.length) {
       return `<p class="section-empty">No vote records returned for this proposal.</p>`;
     }
@@ -944,11 +914,17 @@ class ScannerApp {
       return "";
     }
 
-    const { proposal, contract, phase, fingerprint, votes, auditTrail, totalRegionVp } =
+    const { proposal, escrowAccount, fingerprint, votes, auditTrail, activeRegionUsers } =
       selected;
-    const effectiveTotalRegionVp = proposal.resolvedTotalVp ?? totalRegionVp;
-    const metrics = getProposalVotingMetrics(proposal, effectiveTotalRegionVp);
-    const anchorHash = contract?.documentHash ?? fingerprint ?? "pending";
+    
+    const metrics = getProposalVotingMetrics(proposal, activeRegionUsers);
+    const anchorHash = fingerprint ?? "pending";
+    const latestFundingEvent = auditTrail.find(
+      (event) =>
+        event.eventType === "ProposalBacked" ||
+        event.eventType === "EscrowReleased" ||
+        event.eventType === "EscrowRefunded",
+    );
 
     return `
       <div class="sheet-backdrop is-open" data-close-sheet></div>
@@ -958,7 +934,11 @@ class ScannerApp {
             <p class="eyebrow">Proposal #${escapeHtml(proposal.idText)}</p>
             <h2>${escapeHtml(proposal.title)}</h2>
             <p class="sheet-copy">${escapeHtml(
-              phase?.phaseLabel ?? humanizeLabel(proposal.status),
+              proposal.escrow?.state
+                ? `${humanizeLabel(proposal.status)} with ${humanizeLabel(
+                    proposal.escrow.state,
+                  )} escrow`
+                : humanizeLabel(proposal.status),
             )}</p>
           </div>
           <button class="sheet-close" type="button" data-close-sheet>Close</button>
@@ -966,16 +946,16 @@ class ScannerApp {
 
         <div class="detail-status-row">
           ${this.renderStatusPill(proposal.status)}
-          ${contract ? this.renderStatusPill(contract.status) : ""}
+          ${proposal.escrow?.state ? this.renderStatusPill(proposal.escrow.state) : ""}
           <span class="tag-chip">${escapeHtml(proposal.region)}</span>
-          <span class="tag-chip">${escapeHtml(proposal.category)}</span>
+          <span class="tag-chip">${escapeHtml(humanizeLabel(proposal.kind))}</span>
         </div>
 
         <section class="detail-block detail-block--proof">
           <div class="proof-header">
             <div>
-              <p class="eyebrow">Hashes</p>
-              <h3>Proposal + contract anchors</h3>
+              <p class="eyebrow">Anchors</p>
+              <h3>Proposal and ledger references</h3>
             </div>
             <button class="copy-button" type="button" data-copy="${escapeHtml(anchorHash)}">
               ${this.state.copiedValue === anchorHash ? "Copied" : "Copy hash"}
@@ -988,16 +968,16 @@ class ScannerApp {
               <code>${escapeHtml(fingerprint ?? "Pending")}</code>
             </article>
             <article>
-              <span>Anchor hash</span>
-              <code>${escapeHtml(anchorHash)}</code>
+              <span>Escrow account id</span>
+              <code>${escapeHtml(escrowAccount?.accountIdHex ?? "Not available")}</code>
             </article>
             <article>
               <span>Submitter principal</span>
               <code>${escapeHtml(proposal.submitter)}</code>
             </article>
             <article>
-              <span>Backer principal</span>
-              <code>${escapeHtml(contract?.investorPrincipal ?? proposal.backedBy ?? "Not backed")}</code>
+              <span>NPO principal</span>
+              <code>${escapeHtml(proposal.backedBy ?? "Awaiting funding")}</code>
             </article>
           </div>
         </section>
@@ -1011,65 +991,72 @@ class ScannerApp {
               <small>${metrics.yesWeight.toFixed(2)} / ${metrics.totalRegionalVp.toFixed(2)} yes VP</small>
             </article>
             <article>
-              <span>No of total VP</span>
-              <strong>${formatMetricPercent(metrics.oppositionPercent, 1)}</strong>
-              <small>${metrics.noWeight.toFixed(2)} / ${metrics.totalRegionalVp.toFixed(2)} no VP</small>
-            </article>
-            <article>
               <span>Turnout</span>
               <strong>${formatMetricPercent(metrics.turnoutPercent, 1)}</strong>
               <small>${metrics.totalCastWeight.toFixed(2)} of ${metrics.totalRegionalVp.toFixed(2)} VP</small>
             </article>
             <article>
-              <span>Yes share of cast VP</span>
-              <strong>${formatMetricPercent(metrics.supportShareOfCastPercent, 1)}</strong>
-              <small>${proposal.riskFlags.length ? proposal.riskFlags.join(", ") : "No risk flags recorded"}</small>
+              <span>Quorum threshold</span>
+              <strong>${QUORUM_PERCENT_OF_TOTAL}%</strong>
+              <small>${activeRegionUsers} active users in ${escapeHtml(proposal.region)}</small>
+            </article>
+            <article>
+              <span>Fairness score</span>
+              <strong>${proposal.fairnessScore != null ? proposal.fairnessScore.toFixed(2) : "Pending"}</strong>
+              <small>${escapeHtml(
+                proposal.riskFlags.length
+                  ? proposal.riskFlags.join(", ")
+                  : "No risk flags recorded",
+              )}</small>
             </article>
           </div>
         </section>
 
         <section class="detail-block">
+          <p class="eyebrow">Funding</p>
+          <div class="detail-list">
+            <div><span>Requested amount</span><strong>${escapeHtml(formatIcp(proposal.requestedFundingE8s))}</strong></div>
+            <div><span>Suggested deposit</span><strong>${escapeHtml(formatIcp(escrowAccount?.suggestedDepositE8s ?? null))}</strong></div>
+            <div><span>Ledger canister</span><strong>${escapeHtml(
+              escrowAccount?.ledgerCanisterId ?? this.state.settings?.ledgerCanisterId ?? "Unknown",
+            )}</strong></div>
+            <div><span>Proposal escrow owner</span><strong>${escapeHtml(escrowAccount?.accountOwner ?? "Unknown")}</strong></div>
+            <div><span>Escrow subaccount</span><strong>${escapeHtml(escrowAccount?.subaccountHex ?? "Unknown")}</strong></div>
+            <div><span>Beneficiary</span><strong>${escapeHtml(proposal.beneficiary)}</strong></div>
+            <div><span>Funded by</span><strong>${escapeHtml(proposal.backedBy ?? "Awaiting NPO")}</strong></div>
+            <div><span>Backed at</span><strong>${escapeHtml(
+              proposal.backedAt ? formatDate(proposal.backedAt) : "Not funded yet",
+            )}</strong></div>
+            <div><span>Escrow state</span><strong>${escapeHtml(proposal.escrow?.state ?? "None")}</strong></div>
+            <div><span>Deposit block</span><strong>${escapeHtml(proposal.escrow?.depositBlockIndex ?? "Pending")}</strong></div>
+            <div><span>Release block</span><strong>${escapeHtml(proposal.escrow?.releaseBlockIndex ?? "Pending")}</strong></div>
+            <div><span>Refund block</span><strong>${escapeHtml(proposal.escrow?.refundBlockIndex ?? "Pending")}</strong></div>
+          </div>
+          ${
+            latestFundingEvent
+              ? `<p class="body-copy">${escapeHtml(
+                  `${humanizeLabel(latestFundingEvent.eventType)} recorded ${formatRelative(
+                    latestFundingEvent.timestamp,
+                  )}.`,
+                )}</p>`
+              : ""
+          }
+        </section>
+
+        <section class="detail-block">
           <p class="eyebrow">Payload</p>
           <div class="detail-list">
-            <div><span>Budget</span><strong>${escapeHtml(
-              formatAmount(proposal.budgetAmount, proposal.budgetCurrency),
-            )}</strong></div>
-            <div><span>Executor</span><strong>${escapeHtml(proposal.executorName ?? "Not set")}</strong></div>
-            <div><span>Timeline</span><strong>${escapeHtml(proposal.timeline ?? "Not set")}</strong></div>
+            <div><span>Budget description</span><strong>${escapeHtml(proposal.budgetDescription)}</strong></div>
             <div><span>Created</span><strong>${escapeHtml(formatDate(proposal.createdAt))}</strong></div>
             <div><span>Voting ends</span><strong>${escapeHtml(formatDate(proposal.votingEndsAt))}</strong></div>
-            <div><span>Budget breakdown</span><strong>${escapeHtml(proposal.budgetBreakdown ?? "No breakdown")}</strong></div>
-            <div><span>Execution plan</span><strong>${escapeHtml(proposal.executionPlan ?? "No execution plan")}</strong></div>
-            <div><span>Expected impact</span><strong>${escapeHtml(proposal.expectedImpact ?? "No impact statement")}</strong></div>
+            <div><span>Funding program</span><strong>${escapeHtml(proposal.fundingProgramId ?? "Open funding")}</strong></div>
           </div>
           <p class="body-copy">${escapeHtml(proposal.description)}</p>
         </section>
 
-        ${
-          contract
-            ? `
-              <section class="detail-block">
-                <p class="eyebrow">Contract</p>
-                <div class="detail-list">
-                  <div><span>Status</span><strong>${escapeHtml(contract.status)}</strong></div>
-                  <div><span>Signature mode</span><strong>${escapeHtml(contract.signatureMode)}</strong></div>
-                  <div><span>Company</span><strong>${escapeHtml(contract.company.legalName)}</strong></div>
-                  <div><span>Representative</span><strong>${escapeHtml(contract.company.representativeName)}</strong></div>
-                  <div><span>Representative principal</span><strong>${escapeHtml(
-                    contract.company.representativePrincipal ?? "Unassigned",
-                  )}</strong></div>
-                  <div><span>External provider</span><strong>${escapeHtml(contract.externalProvider ?? "Not used")}</strong></div>
-                  <div><span>Created</span><strong>${escapeHtml(formatDate(contract.createdAt))}</strong></div>
-                  <div><span>Updated</span><strong>${escapeHtml(formatDate(contract.updatedAt))}</strong></div>
-                </div>
-              </section>
-            `
-            : ""
-        }
-
         <section class="detail-block">
           <p class="eyebrow">Votes</p>
-          ${this.renderVotes(votes, this.state.voteLoadingId === proposal.idText)}
+          ${this.renderVotes(votes)}
         </section>
 
         <section class="detail-block">
@@ -1089,7 +1076,6 @@ class ScannerApp {
           ${Array.from({ length: 4 }, () => `<article class="proposal-card skeleton"></article>`).join("")}
         </section>
       </div>
-      ${this.renderDetailSheet()}
     `;
   }
 

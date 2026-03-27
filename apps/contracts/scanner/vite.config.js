@@ -2,10 +2,10 @@ import { defineConfig } from "vite";
 import { resolve } from "path";
 
 const workspaceRoot = resolve(__dirname, "..");
-const icpRoot = resolve(__dirname, "../icp_proposals_mvp");
+const consensusRoot = resolve(__dirname, "../consensus_mechanism");
 
 export default defineConfig({
-  envDir: icpRoot,
+  envDir: consensusRoot,
   envPrefix: ["VITE_", "CANISTER_", "DFX_"],
   server: {
     host: "0.0.0.0",

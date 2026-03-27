@@ -36,6 +36,7 @@ interface AuthState {
   ) => void;
   syncIdentity: (identity: Identity | null, isAuthenticated: boolean) => void;
   loginAsDev: (isNew?: boolean) => Promise<void>;
+  loginMock: () => void;
 }
 
 let globalAuthClient: AuthClient | null = null;
@@ -166,6 +167,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       "[Auth] Store login called directly, please use useInternetIdentity hook instead",
     );
     return Promise.resolve();
+  },
+
+  loginMock: () => {
+    const mockPrincipal = "aaaaa-aa-mock-user";
+    set({
+      identity: new AnonymousIdentity(),
+      principal: mockPrincipal,
+      isAuthenticated: true,
+      user: {
+        id: mockPrincipal,
+        role: null,
+        reputation: 0,
+        kyc_status: 'unverified',
+        geo_verified: false,
+      },
+    });
   },
 
   logout: async () => {
