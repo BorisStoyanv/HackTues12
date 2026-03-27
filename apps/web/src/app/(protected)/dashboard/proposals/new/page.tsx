@@ -60,13 +60,13 @@ export default function NewProposalPage() {
 						<div className="bg-foreground text-background rounded-lg p-2 shadow-sm">
 							<Landmark className="h-5 w-5" />
 						</div>
-						<span className="text-sm font-black uppercase tracking-[0.2em] italic">
+						<span className="text-sm font-semibold uppercase tracking-[0.2em]">
 							Impact Ledger
 						</span>
 					</div>
 
 					<div className="space-y-1">
-						<h2 className="text-4xl font-black tracking-tighter leading-[0.9] uppercase italic text-foreground">
+						<h2 className="text-2xl font-semibold tracking-tight leading-[0.9]  text-foreground">
 							Protocol <br />
 							Initialization
 						</h2>
@@ -102,7 +102,7 @@ export default function NewProposalPage() {
 										{isCompleted ? (
 											<CheckCircle2 className="h-5 w-5" />
 										) : (
-											<span className="text-xs font-black">
+											<span className="text-xs font-semibold">
 												{idx + 1}
 											</span>
 										)}
@@ -110,7 +110,7 @@ export default function NewProposalPage() {
 									<div className="pt-1 space-y-0.5">
 										<p
 											className={cn(
-												"text-[10px] font-black uppercase tracking-[0.2em] transition-colors",
+												"text-[10px] font-semibold uppercase tracking-[0.2em] transition-colors",
 												isActive
 													? "text-primary"
 													: isCompleted
@@ -140,7 +140,7 @@ export default function NewProposalPage() {
 				<div className="relative z-10 pt-10 border-t border-border/40">
 					<div className="flex items-center gap-4">
 						<div className="space-y-0.5">
-							<p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
+							<p className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground/60">
 								Node Identity
 							</p>
 							<p className="text-xs font-mono font-bold text-foreground">
@@ -149,7 +149,7 @@ export default function NewProposalPage() {
 						</div>
 						<div className="h-8 w-px bg-border/40" />
 						<div className="space-y-0.5">
-							<p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
+							<p className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground/60">
 								Encryption
 							</p>
 							<p className="text-xs font-bold text-foreground uppercase">
@@ -166,12 +166,12 @@ export default function NewProposalPage() {
 					<div className="px-8 lg:px-12 flex h-16 items-center justify-between">
 						<div className="flex items-center gap-6">
 							<div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-							<span className="text-[10px] font-black uppercase tracking-[0.3em] text-foreground">
+							<span className="text-[10px] font-semibold uppercase tracking-[0.3em] text-foreground">
 								Broadcast Mode
 							</span>
 						</div>
 						<div className="flex items-center gap-4">
-							<span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+							<span className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground">
 								Fee
 							</span>
 							<Badge className="bg-green-500/10 text-green-600 border-none px-3 font-mono font-bold text-xs">

@@ -39,7 +39,7 @@ export default function AuditLogPage() {
           <div className="flex items-center gap-3">
              <div className="h-10 px-4 bg-background border border-neutral-200 dark:border-neutral-800 rounded-xl flex items-center gap-2 shadow-sm">
                 <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-[10px] font-black uppercase tracking-tighter">Live Sync Active</span>
+                <span className="text-[10px] font-semibold uppercase tracking-tight">Live Sync Active</span>
              </div>
           </div>
         </div>

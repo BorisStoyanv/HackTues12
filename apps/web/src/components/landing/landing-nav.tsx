@@ -42,7 +42,7 @@ export function LandingNav() {
           {is_logged_in ? (
             <div className="flex items-center gap-4">
               <div className="hidden sm:flex flex-col items-end leading-none">
-                <span className="text-[9px] font-black uppercase tracking-widest text-primary mb-1">
+                <span className="text-[9px] font-semibold uppercase tracking-widest text-primary mb-1">
                   Network Active
                 </span>
                 <span className="text-xs font-mono font-bold">

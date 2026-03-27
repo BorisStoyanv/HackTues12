@@ -275,7 +275,7 @@ export default function VerificationPage() {
         {step === "geo" && (
           <div className="space-y-12">
             <div className="space-y-3">
-              <h3 className="text-4xl font-semibold tracking-tight text-foreground">Location Anchor</h3>
+              <h3 className="text-2xl font-semibold tracking-tight text-foreground">Location Anchor</h3>
               <p className="text-muted-foreground text-lg font-medium">Identify your regional governance zone.</p>
             </div>
             <Form {...geoForm}>
@@ -312,7 +312,7 @@ export default function VerificationPage() {
         {step === "location-confirmed" && (
           <div className="space-y-12">
             <div className="space-y-3">
-              <h3 className="text-4xl font-semibold tracking-tight text-foreground">Location Resolved</h3>
+              <h3 className="text-2xl font-semibold tracking-tight text-foreground">Location Resolved</h3>
               <p className="text-muted-foreground text-lg font-medium">Confirming residency for {detectedLocation?.city}</p>
             </div>
             
@@ -321,7 +321,7 @@ export default function VerificationPage() {
                 <MapPin className="h-10 w-10" />
               </div>
               <div className="space-y-2">
-                <p className="text-4xl font-semibold tracking-tight">{detectedLocation?.city}</p>
+                <p className="text-2xl font-semibold tracking-tight">{detectedLocation?.city}</p>
                 <p className="text-[11px] text-muted-foreground font-bold uppercase tracking-[0.3em]">{detectedLocation?.country}</p>
               </div>
             </div>
@@ -344,7 +344,7 @@ export default function VerificationPage() {
         {step === "verify" && (
           <div className="space-y-12">
             <div className="space-y-3">
-              <h3 className="text-4xl font-semibold tracking-tight text-foreground">Identity Proof</h3>
+              <h3 className="text-2xl font-semibold tracking-tight text-foreground">Identity Proof</h3>
               <p className="text-muted-foreground text-lg font-medium">Enter your legal details as they appear on ID.</p>
             </div>
 
@@ -396,7 +396,7 @@ export default function VerificationPage() {
               <Loader2 className="h-14 w-14 animate-spin text-foreground/40" />
             </div>
             <div className="space-y-4">
-              <h3 className="text-4xl font-semibold tracking-tight text-foreground">Consensus Pending</h3>
+              <h3 className="text-2xl font-semibold tracking-tight text-foreground">Consensus Pending</h3>
               <p className="text-muted-foreground text-xl font-medium leading-relaxed max-w-lg mx-auto">
                 Your identity proof is being validated by the ledger consensus engine. This usually takes 2-3 minutes.
               </p>
@@ -426,7 +426,7 @@ export default function VerificationPage() {
         {step === "expertise" && (
           <div className="space-y-12">
             <div className="space-y-3">
-              <h3 className="text-4xl font-semibold tracking-tight text-foreground">Reputation Vector</h3>
+              <h3 className="text-2xl font-semibold tracking-tight text-foreground">Reputation Vector</h3>
               <p className="text-muted-foreground text-lg font-medium leading-relaxed">Identity verified. Now define your expertise domain.</p>
             </div>
 
@@ -482,9 +482,9 @@ export default function VerificationPage() {
                       <div className="bg-foreground/10 p-2 rounded-xl">
                         <Award className="h-6 w-6 text-foreground" />
                       </div>
-                      <span className="text-[11px] font-black uppercase tracking-[0.3em]">Multiplier</span>
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.3em]">Multiplier</span>
                     </div>
-                    <span className="text-3xl font-black text-foreground">1.65x</span>
+                    <span className="text-3xl font-semibold text-foreground">1.65x</span>
                   </div>
                   <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                     <div className="h-full bg-foreground w-[65%] transition-all duration-1000 ease-out" />
@@ -509,7 +509,7 @@ export default function VerificationPage() {
               <CheckCircle2 className="h-20 w-20" />
             </div>
             <div className="space-y-4">
-              <h3 className="text-5xl font-semibold tracking-tight text-foreground leading-tight">Identity Resolved</h3>
+              <h3 className="text-3xl font-semibold tracking-tight text-foreground leading-tight">Identity Resolved</h3>
               <p className="text-muted-foreground text-xl leading-relaxed font-medium max-w-lg mx-auto">
                 Your node is now active on the OpenFairTrip protocol. Access your regional governance dashboard to begin.
               </p>
@@ -521,7 +521,7 @@ export default function VerificationPage() {
               Enter Protocol
             </Button>
             <div className="pt-12 space-y-2">
-              <p className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground/60">Node Active: {detectedLocation?.city}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.4em] text-muted-foreground/60">Node Active: {detectedLocation?.city}</p>
               <p className="text-[10px] font-mono text-muted-foreground/40 uppercase tracking-[0.2em]">Authorized Status • 1.65 VP</p>
             </div>
           </div>

@@ -75,7 +75,7 @@ export function MoneyInput({
         return (
           <FormItem className="space-y-3">
             {label && (
-              <FormLabel className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground ml-1">
+              <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground ml-1">
                 {label}
               </FormLabel>
             )}
@@ -84,7 +84,7 @@ export function MoneyInput({
                 placeholder={placeholder}
                 type="text"
                 className={cn(
-                  "h-16 text-3xl font-black tracking-tighter border-border/40 bg-muted/5 rounded-2xl focus:border-foreground transition-all tabular-nums px-8",
+                  "h-16 text-3xl font-semibold tracking-tight border-border/40 bg-muted/5 rounded-2xl focus:border-foreground transition-all tabular-nums px-8",
                   className
                 )}
                 value={displayValue}

@@ -20,10 +20,10 @@ function SidebarContent({ pathname }: { pathname: string }) {
           <div className="bg-foreground text-background rounded-lg p-2">
             <Building2 className="h-6 w-6" />
           </div>
-          <span className="text-xl font-bold tracking-tighter uppercase italic text-foreground">Institutional Node</span>
+          <span className="text-xl font-bold tracking-tight uppercase text-foreground">Institutional Node</span>
         </div>
         <div className="space-y-6">
-          <h2 className="text-5xl font-semibold tracking-tighter leading-tight text-foreground">
+          <h2 className="text-3xl font-semibold tracking-tight leading-tight text-foreground">
             Establish your institutional profile.
           </h2>
           <p className="text-lg text-muted-foreground leading-relaxed font-medium">
@@ -41,10 +41,10 @@ function SidebarContent({ pathname }: { pathname: string }) {
           <div className="bg-foreground text-background rounded-lg p-2">
             <Globe className="h-6 w-6" />
           </div>
-          <span className="text-xl font-bold tracking-tighter uppercase italic text-foreground">Protocol Node</span>
+          <span className="text-xl font-bold tracking-tight uppercase text-foreground">Protocol Node</span>
         </div>
         <div className="space-y-6">
-          <h2 className="text-5xl font-semibold tracking-tighter leading-tight text-foreground">
+          <h2 className="text-3xl font-semibold tracking-tight leading-tight text-foreground">
             Anchor your identity in the ledger.
           </h2>
           <p className="text-lg text-muted-foreground leading-relaxed font-medium">
@@ -62,10 +62,10 @@ function SidebarContent({ pathname }: { pathname: string }) {
         <div className="bg-foreground text-background rounded-lg p-2">
           <Zap className="h-6 w-6" />
         </div>
-        <span className="text-xl font-bold tracking-tighter uppercase italic text-foreground">Network Entry</span>
+        <span className="text-xl font-bold tracking-tight uppercase text-foreground">Network Entry</span>
       </div>
       <div className="space-y-6">
-        <h2 className="text-5xl font-semibold tracking-tighter leading-tight text-foreground">
+        <h2 className="text-3xl font-semibold tracking-tight leading-tight text-foreground">
           Define your protocol role.
         </h2>
         <p className="text-lg text-muted-foreground leading-relaxed font-medium">
@@ -115,14 +115,14 @@ export default function OnboardingLayout({
         <div className="relative z-10 space-y-8">
            <div className="grid grid-cols-2 gap-8">
               <div className="space-y-1">
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Network Status</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">Network Status</p>
                 <p className="text-sm font-bold flex items-center gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
                   Operational
                 </p>
               </div>
               <div className="space-y-1">
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Encryption</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">Encryption</p>
                 <p className="text-sm font-bold">AES-256 GCM</p>
               </div>
            </div>
@@ -160,7 +160,7 @@ export default function OnboardingLayout({
                         {idx + 1}
                       </span>
                       <span className={cn(
-                        "text-[10px] font-black uppercase tracking-[0.2em] transition-colors",
+                        "text-[10px] font-semibold uppercase tracking-[0.2em] transition-colors",
                         idx <= currentStepIndex ? "text-foreground" : "text-muted-foreground/40"
                       )}>
                         {step.label}
@@ -176,7 +176,7 @@ export default function OnboardingLayout({
 
             <div className="flex items-center gap-6">
               <div className="flex flex-col items-end gap-1">
-                <span className="text-[9px] font-black uppercase tracking-[0.3em] text-muted-foreground leading-none">
+                <span className="text-[9px] font-semibold uppercase tracking-[0.3em] text-muted-foreground leading-none">
                   Principal Node
                 </span>
                 <span className="text-[11px] font-mono font-bold text-foreground bg-foreground/5 px-2 py-0.5 rounded border border-foreground/5">
