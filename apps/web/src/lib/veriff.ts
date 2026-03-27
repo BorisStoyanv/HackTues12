@@ -2,7 +2,7 @@ export const VERIFF_PENDING_SESSION_KEY = "openfairtrip.veriff.pending-session";
 
 export type PendingVeriffSession = {
   sessionId: string;
-  role: "funder";
+  role: "funder" | "regional";
   startedAt: string;
 };
 
