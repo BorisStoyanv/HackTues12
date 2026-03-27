@@ -34,6 +34,7 @@ export async function POST(req: Request) {
     }
 
     const addressComponents = data.results[0].address_components;
+    const { lat, lng } = data.results[0].geometry.location;
     
     let city = "Unknown City";
     let country = "Unknown Country";
@@ -53,6 +54,8 @@ export async function POST(req: Request) {
     return NextResponse.json({
       city,
       country,
+      lat,
+      lng,
       formattedAddress: data.results[0].formatted_address
     });
   } catch (error) {

@@ -44,46 +44,49 @@ function parseContext(feature: MapboxFeature) {
 }
 
 export async function geocodeAddress(address: string) {
-  if (!MAPBOX_API_KEY) {
-    throw new Error("Mapbox token is missing.");
+  if (!address) {
+    throw new Error("Address is required.");
   }
 
   let response: Response;
   try {
-    response = await fetch(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${MAPBOX_API_KEY}&types=locality,place,address,poi,neighborhood&limit=1`,
-    );
+    response = await fetch("/api/geocode", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ address }),
+    });
   } catch (error) {
     throw new Error(
       "Unable to reach the location service. Check your connection and try again.",
     );
   }
 
-  let data: { features?: MapboxFeature[]; message?: string };
+  let data: {
+    city?: string;
+    country?: string;
+    formattedAddress?: string;
+    lat?: number;
+    lng?: number;
+    error?: string;
+  };
+
   try {
     data = await response.json();
   } catch (error) {
     throw new Error("Location service returned an invalid response.");
   }
 
-  const feature = (data.features?.[0] ?? null) as MapboxFeature | null;
-
   if (!response.ok) {
-    throw new Error(data.message || "Location lookup failed. Please try again.");
+    throw new Error(data.error || "Location lookup failed. Please try again.");
   }
-
-  if (!feature) {
-    throw new Error("No matching location found.");
-  }
-
-  const { city, country } = parseContext(feature);
-  const [lng, lat] = feature.center;
 
   return {
-    city,
-    country,
-    formatted_address: feature.place_name,
-    lat,
-    lng,
+    city: data.city || "Unknown City",
+    country: data.country || "Unknown Country",
+    formatted_address: data.formattedAddress || address,
+    lat: data.lat ?? 0,
+    lng: data.lng ?? 0,
   };
 }
