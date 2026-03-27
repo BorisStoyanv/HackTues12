@@ -519,7 +519,7 @@ code {
 
 .proposal-card {
   position: relative;
-  padding: 16px;
+  padding: 0;
   overflow: hidden;
   background: white;
   border-radius: 2.5rem;
@@ -539,6 +539,17 @@ code {
 .proposal-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 24px 50px rgba(0, 0, 0, 0.08);
+}
+
+.proposal-card__hero,
+.governance-panel,
+.ledger-snapshot {
+  padding: 20px;
+}
+
+.proposal-card__hero,
+.governance-panel {
+  border-bottom: 1px solid var(--line);
 }
 
 .status-row {
@@ -594,6 +605,143 @@ code {
   -webkit-box-orient: vertical;
 }
 
+.governance-panel__head h4 {
+  margin: 0;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+}
+
+.governance-panel__head p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.governance-metrics,
+.governance-summary,
+.ledger-snapshot__grid {
+  display: grid;
+  gap: 16px;
+}
+
+.governance-metrics,
+.governance-summary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.governance-metrics {
+  margin-top: 28px;
+  align-items: end;
+}
+
+.governance-metric span,
+.governance-summary span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.governance-metric strong {
+  display: block;
+  margin-top: 10px;
+  font-size: 3.05rem;
+  line-height: 0.94;
+  letter-spacing: -0.06em;
+}
+
+.governance-metric small,
+.governance-summary small,
+.governance-rule small {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.95rem;
+  line-height: 1.25;
+  color: var(--muted);
+}
+
+.governance-metric--yes strong,
+.governance-metric--yes small {
+  color: #10b981;
+}
+
+.governance-metric--no {
+  text-align: right;
+}
+
+.governance-metric--no strong,
+.governance-metric--no small {
+  color: #ef4444;
+}
+
+.governance-rules {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.governance-rule {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: rgba(245, 245, 245, 0.58);
+}
+
+.governance-rule strong,
+.governance-summary strong {
+  display: block;
+  margin-top: 10px;
+  font-size: 1.1rem;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+}
+
+.governance-rule small {
+  margin-top: 8px;
+}
+
+.governance-rule__icon {
+  position: relative;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  margin-top: 2px;
+  border-radius: 999px;
+  border: 2px solid #d4d4d4;
+}
+
+.governance-rule__icon::after {
+  position: absolute;
+  inset: 5px;
+  border-radius: inherit;
+  background: transparent;
+  content: "";
+}
+
+.governance-rule__icon.is-met {
+  border-color: #10b981;
+}
+
+.governance-rule__icon.is-met::after {
+  background: #10b981;
+}
+
+.governance-summary {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.governance-summary article:last-child {
+  text-align: right;
+}
+
 .signal-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -610,6 +758,10 @@ code {
   display: grid;
   gap: 8px;
   margin-top: 14px;
+}
+
+.ledger-snapshot__grid {
+  margin-top: 0;
 }
 
 .hash-line {
@@ -671,113 +823,75 @@ code {
 }
 
 .vote-meter {
+  position: relative;
   margin-top: 18px;
-}
-
-.vote-meter__labels {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  font-size: 0.68rem;
-  font-weight: 900;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
-}
-
-.vote-meter__label--yes {
-  color: #15803d;
-}
-
-.vote-meter__label--turnout {
-  color: var(--muted);
-}
-
-.vote-meter__label--no {
-  color: #dc2626;
+  padding-top: 28px;
 }
 
 .vote-meter__bar {
   position: relative;
-  height: 10px;
-  margin-top: 8px;
+  height: 12px;
+  margin-top: 0;
   border-radius: 999px;
-  background: var(--accent-soft);
-  overflow: visible;
-}
-
-.vote-meter__fill {
-  display: flex;
-  width: 100%;
-  height: 100%;
+  background: #ececec;
   overflow: hidden;
-  border-radius: inherit;
 }
 
 .vote-meter__yes,
 .vote-meter__no {
+  position: absolute;
+  top: 0;
+  bottom: 0;
   display: block;
-  height: 100%;
   transition: width 400ms ease;
 }
 
 .vote-meter__yes {
-  background: linear-gradient(90deg, #22c55e, #16a34a);
+  left: 0;
+  border-radius: inherit;
+  background: rgba(16, 185, 129, 0.92);
 }
 
 .vote-meter__no {
-  background: linear-gradient(90deg, #f87171, #dc2626);
+  right: 0;
+  border-radius: inherit;
+  background: rgba(239, 68, 68, 0.9);
 }
 
 .vote-meter__marker {
   position: absolute;
-  top: -6px;
-  bottom: -6px;
-  width: 0;
-  border-left: 2px dashed rgba(23, 23, 23, 0.5);
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transform: translateX(-50%);
   pointer-events: none;
 }
 
+.vote-meter__marker::after {
+  display: block;
+  height: 22px;
+  border-left: 1px dashed rgba(115, 115, 115, 0.5);
+  content: "";
+}
+
 .vote-meter__marker span {
-  position: absolute;
-  top: -18px;
-  left: 50%;
-  transform: translateX(-50%);
-  min-height: 18px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: white;
-  border: 1px solid var(--line);
-  color: var(--ink);
+  min-height: auto;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
   display: inline-flex;
   align-items: center;
-  font-size: 0.6rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-}
-
-.vote-meter__marker--quorum {
-  border-left-color: rgba(21, 128, 61, 0.6);
-}
-
-.vote-meter__marker--majority {
-  border-left-color: rgba(220, 38, 38, 0.55);
-}
-
-.vote-meter__legend {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 14px;
-  color: var(--muted);
   font-size: 0.68rem;
-  font-weight: 700;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
 
 .proposal-card__footer {
   gap: 10px;
-  margin-top: 12px;
+  margin-top: 18px;
   align-items: flex-start;
 }
 
@@ -839,7 +953,7 @@ code {
 }
 
 .live-ribbon {
-  margin-top: 16px;
+  margin: 0 20px 20px;
   padding: 10px 12px;
   border-radius: 14px;
   background: var(--accent-soft);
@@ -1137,8 +1251,10 @@ code {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .ledger-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  .governance-metrics,
+  .governance-summary,
+  .ledger-snapshot__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .detail-sheet {

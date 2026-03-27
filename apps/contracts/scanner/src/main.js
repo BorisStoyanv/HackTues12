@@ -24,6 +24,8 @@ const statusFilters = [
   "Rejected",
   "QuorumNotMet",
 ];
+const QUORUM_PERCENT_OF_TOTAL = 5;
+const ABSOLUTE_MAJORITY_PERCENT_OF_TOTAL = 51;
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -94,6 +96,11 @@ function formatAmount(amount, currency) {
 function formatPercent(value, digits = 0) {
   if (value == null || Number.isNaN(value)) return "0%";
   return `${(value * 100).toFixed(digits)}%`;
+}
+
+function formatMetricPercent(value, digits = 0) {
+  const safeValue = Number.isFinite(value) ? Math.max(0, value) : 0;
+  return `${safeValue.toFixed(digits)}%`;
 }
 
 function countdown(endNs) {
@@ -206,6 +213,29 @@ function normalizeAudit(event) {
     timestamp: event.timestamp,
     eventType: variantKey(event.event_type),
     payload: event.payload,
+  };
+}
+
+function getProposalVotingMetrics(proposal, totalRegionalVp) {
+  const yesWeight = proposal.yesWeight ?? 0;
+  const noWeight = proposal.noWeight ?? 0;
+  const totalCastWeight = yesWeight + noWeight;
+  const leadingWeight = Math.max(yesWeight, noWeight);
+
+  return {
+    yesWeight,
+    noWeight,
+    totalCastWeight,
+    totalRegionalVp,
+    supportPercent: totalRegionalVp > 0 ? (yesWeight / totalRegionalVp) * 100 : 0,
+    oppositionPercent: totalRegionalVp > 0 ? (noWeight / totalRegionalVp) * 100 : 0,
+    turnoutPercent:
+      totalRegionalVp > 0 ? (totalCastWeight / totalRegionalVp) * 100 : 0,
+    leadingPercentOfRegion:
+      totalRegionalVp > 0 ? (leadingWeight / totalRegionalVp) * 100 : 0,
+    supportShareOfCastPercent:
+      totalCastWeight > 0 ? (yesWeight / totalCastWeight) * 100 : 0,
+    hasVotes: totalCastWeight > 0,
   };
 }
 
@@ -663,117 +693,163 @@ class ScannerApp {
     const votes = this.state.votesByProposal.get(proposal.idText) ?? [];
     const fingerprint = this.state.fingerprints.get(proposal.idText) ?? "pending";
     const regionTotalVp = this.state.regionVp.get(proposal.region) ?? 0;
-    const totalCastWeight = proposal.yesWeight + proposal.noWeight;
-    const yesRatio = totalCastWeight > 0 ? proposal.yesWeight / totalCastWeight : 0;
-    const noRatio = totalCastWeight > 0 ? proposal.noWeight / totalCastWeight : 0;
-    const yesRegionRatio = regionTotalVp > 0 ? proposal.yesWeight / regionTotalVp : 0;
-    const noRegionRatio = regionTotalVp > 0 ? proposal.noWeight / regionTotalVp : 0;
-    const participation = regionTotalVp > 0 ? totalCastWeight / regionTotalVp : 0;
+    const metrics = getProposalVotingMetrics(proposal, regionTotalVp);
     const anchorHash = contract?.documentHash ?? fingerprint;
-    const quorumMarker = (this.state.config?.quorum_percent ?? 0.05) * 100;
-    const majorityMarker = (this.state.config?.absolute_majority ?? 0.5) * 100;
+    const isPassedStatus =
+      proposal.status === "AwaitingFunding" || proposal.status === "Backed";
+    const isResolvedWithQuorum = isPassedStatus || proposal.status === "Rejected";
+    const quorumReached =
+      metrics.turnoutPercent >= QUORUM_PERCENT_OF_TOTAL || isResolvedWithQuorum;
+    const approvalReached =
+      metrics.supportPercent >= ABSOLUTE_MAJORITY_PERCENT_OF_TOTAL;
+    const approvalRulePassed = approvalReached || isPassedStatus;
+    const passedByDeadlineMajority =
+      isPassedStatus &&
+      metrics.supportPercent < ABSOLUTE_MAJORITY_PERCENT_OF_TOTAL &&
+      metrics.supportShareOfCastPercent >= 50;
+    const supportLabel = metrics.totalRegionalVp > 0
+      ? `${metrics.yesWeight.toFixed(1)} / ${metrics.totalRegionalVp.toFixed(1)} yes VP`
+      : `${metrics.yesWeight.toFixed(1)} yes VP`;
+    const oppositionLabel = metrics.totalRegionalVp > 0
+      ? `${metrics.noWeight.toFixed(1)} / ${metrics.totalRegionalVp.toFixed(1)} no VP`
+      : `${metrics.noWeight.toFixed(1)} no VP`;
+    const turnoutLabel = metrics.totalRegionalVp > 0
+      ? `${metrics.totalCastWeight.toFixed(1)} / ${metrics.totalRegionalVp.toFixed(1)} VP`
+      : `${metrics.totalCastWeight.toFixed(1)} VP cast`;
 
     return `
       <article class="proposal-card" data-open-proposal="${proposal.idText}">
-        <div class="proposal-card__header">
-          <div class="status-row">
-            <span class="proposal-id">#${escapeHtml(proposal.idText)}</span>
-            ${this.renderStatusPill(proposal.status)}
-          </div>
-          <code class="fingerprint-inline">${escapeHtml(shorten(anchorHash, 12, 10))}</code>
-        </div>
-
-        <h3>${escapeHtml(proposal.title)}</h3>
-        <p class="card-caption">${escapeHtml(phase?.phaseLabel ?? humanizeLabel(proposal.status))}</p>
-
-        <div class="tag-row">
-          <span class="tag-chip">${escapeHtml(proposal.region)}</span>
-          <span class="tag-chip">${escapeHtml(proposal.category)}</span>
-          ${contract ? `<span class="tag-chip">contract</span>` : ""}
-        </div>
-
-        <div class="hash-stack">
-          <div class="hash-line">
-            <span>proposal</span>
-            <code>${escapeHtml(shorten(fingerprint, 18, 14))}</code>
-          </div>
-          ${
-            contract
-              ? `<div class="hash-line"><span>contract</span><code>${escapeHtml(
-                  shorten(contract.documentHash, 18, 14),
-                )}</code></div>`
-              : ""
-          }
-          <div class="hash-line">
-            <span>submitter</span>
-            <code>${escapeHtml(shorten(proposal.submitter, 12, 8))}</code>
-          </div>
-        </div>
-
-        <div class="ledger-grid">
-          <div>
-            <span>Yes</span>
-            <strong>${proposal.yesWeight.toFixed(2)}</strong>
-          </div>
-          <div>
-            <span>No</span>
-            <strong>${proposal.noWeight.toFixed(2)}</strong>
-          </div>
-          <div>
-            <span>Voters</span>
-            <strong>${proposal.voterCount}</strong>
-          </div>
-          <div>
-            <span>Budget</span>
-            <strong>${escapeHtml(
-              formatAmount(proposal.budgetAmount, proposal.budgetCurrency),
-            )}</strong>
-          </div>
-        </div>
-
-        <div class="vote-meter" aria-hidden="true">
-          <div class="vote-meter__labels">
-            <span class="vote-meter__label vote-meter__label--yes">
-              Yes ${formatPercent(yesRatio)}
-            </span>
-            <span class="vote-meter__label vote-meter__label--turnout">
-              Turnout ${formatPercent(participation)}
-            </span>
-            <span class="vote-meter__label vote-meter__label--no">
-              No ${formatPercent(noRatio)}
-            </span>
-          </div>
-          <div class="vote-meter__bar">
-            <div class="vote-meter__fill">
-              <span class="vote-meter__yes" style="width:${yesRegionRatio * 100}%"></span>
-              <span class="vote-meter__no" style="width:${noRegionRatio * 100}%"></span>
+        <div class="proposal-card__hero">
+          <div class="proposal-card__header">
+            <div class="status-row">
+              <span class="proposal-id">#${escapeHtml(proposal.idText)}</span>
+              ${this.renderStatusPill(proposal.status)}
             </div>
-            <span class="vote-meter__marker vote-meter__marker--quorum" style="left:${quorumMarker}%">
-              <span>${formatPercent(this.state.config?.quorum_percent ?? 0.05)}</span>
-            </span>
-            <span class="vote-meter__marker vote-meter__marker--majority" style="left:${majorityMarker}%">
-              <span>${formatPercent(this.state.config?.absolute_majority ?? 0.5)}</span>
-            </span>
+            <code class="fingerprint-inline">${escapeHtml(shorten(anchorHash, 12, 10))}</code>
           </div>
-          <div class="vote-meter__legend">
-            <span>Green/Red against total regional VP</span>
-            <span>${proposal.yesWeight.toFixed(2)} / ${proposal.noWeight.toFixed(2)} VP</span>
+
+          <h3>${escapeHtml(proposal.title)}</h3>
+          <p class="card-caption">${escapeHtml(phase?.phaseLabel ?? humanizeLabel(proposal.status))}</p>
+
+          <div class="tag-row">
+            <span class="tag-chip">${escapeHtml(proposal.region)}</span>
+            <span class="tag-chip">${escapeHtml(proposal.category)}</span>
+            ${contract ? `<span class="tag-chip">contract</span>` : ""}
           </div>
         </div>
 
-        <div class="proposal-card__footer">
-          <div class="proposal-card__votes">
-            <span class="vote-strip-label">Voters</span>
-            <div class="proof-cluster vote-strip">
-            ${this.renderVotePreview(votes)}
+        <section class="governance-panel">
+          <div class="governance-panel__head">
+            <div>
+              <h4>Governance Status</h4>
+              <p>${escapeHtml(humanizeLabel(proposal.status))}</p>
             </div>
           </div>
-          <span class="meta-inline">
-            ${escapeHtml(formatPercent(participation))} / ${escapeHtml(
-              formatRelative(proposal.createdAt),
-            )}
-          </span>
-        </div>
+
+          <div class="governance-metrics">
+            <article class="governance-metric governance-metric--yes">
+              <span>Yes of total VP</span>
+              <strong>${formatMetricPercent(metrics.supportPercent, 1)}</strong>
+              <small>${escapeHtml(metrics.hasVotes ? supportLabel : "0.0 yes VP")}</small>
+            </article>
+            <article class="governance-metric governance-metric--no">
+              <span>No of total VP</span>
+              <strong>${formatMetricPercent(metrics.oppositionPercent, 1)}</strong>
+              <small>${escapeHtml(metrics.hasVotes ? oppositionLabel : "0.0 no VP")}</small>
+            </article>
+          </div>
+
+          <div class="vote-meter" aria-hidden="true">
+            <div class="vote-meter__bar">
+              <span class="vote-meter__yes" style="width:${Math.min(metrics.supportPercent, 100)}%"></span>
+              <span class="vote-meter__no" style="width:${Math.min(metrics.oppositionPercent, 100)}%"></span>
+            </div>
+            <span class="vote-meter__marker" style="left:${QUORUM_PERCENT_OF_TOTAL}%">
+              <span>${QUORUM_PERCENT_OF_TOTAL}%</span>
+            </span>
+            <span class="vote-meter__marker" style="left:${ABSOLUTE_MAJORITY_PERCENT_OF_TOTAL}%">
+              <span>${ABSOLUTE_MAJORITY_PERCENT_OF_TOTAL}%</span>
+            </span>
+          </div>
+
+          <div class="governance-rules">
+            <article class="governance-rule">
+              <span class="governance-rule__icon ${quorumReached ? "is-met" : ""}"></span>
+              <div>
+                <strong>Quorum: at least ${QUORUM_PERCENT_OF_TOTAL}% of eligible VP has voted</strong>
+                <small>${formatMetricPercent(metrics.turnoutPercent, 1)} turnout so far</small>
+              </div>
+            </article>
+            <article class="governance-rule">
+              <span class="governance-rule__icon ${approvalRulePassed ? "is-met" : ""}"></span>
+              <div>
+                <strong>Passes automatically at ${ABSOLUTE_MAJORITY_PERCENT_OF_TOTAL}% Yes VP, or by majority after time ends</strong>
+                <small>${
+                  escapeHtml(
+                    passedByDeadlineMajority
+                      ? `Approved after deadline with ${formatMetricPercent(
+                          metrics.supportShareOfCastPercent,
+                          1,
+                        )} Yes share of cast VP`
+                      : `${formatMetricPercent(
+                          metrics.supportPercent,
+                          1,
+                        )} Yes of total eligible VP`,
+                  )
+                }</small>
+              </div>
+            </article>
+          </div>
+
+          <div class="governance-summary">
+            <article>
+              <span>Turnout</span>
+              <strong>${formatMetricPercent(metrics.turnoutPercent, 1)}</strong>
+              <small>${escapeHtml(turnoutLabel)}</small>
+            </article>
+            <article>
+              <span>Yes / No</span>
+              <strong>${metrics.yesWeight.toFixed(1)} / ${metrics.noWeight.toFixed(1)}</strong>
+              <small>${proposal.voterCount} voters</small>
+            </article>
+          </div>
+        </section>
+
+        <section class="ledger-snapshot">
+          <div class="ledger-snapshot__grid">
+            <div class="hash-line">
+              <span>proposal</span>
+              <code>${escapeHtml(shorten(fingerprint, 18, 14))}</code>
+            </div>
+            ${
+              contract
+                ? `<div class="hash-line"><span>contract</span><code>${escapeHtml(
+                    shorten(contract.documentHash, 18, 14),
+                  )}</code></div>`
+                : ""
+            }
+            <div class="hash-line">
+              <span>submitter</span>
+              <code>${escapeHtml(shorten(proposal.submitter, 12, 8))}</code>
+            </div>
+            <div class="hash-line">
+              <span>budget</span>
+              <code>${escapeHtml(
+                formatAmount(proposal.budgetAmount, proposal.budgetCurrency),
+              )}</code>
+            </div>
+          </div>
+
+          <div class="proposal-card__footer">
+            <div class="proposal-card__votes">
+              <span class="vote-strip-label">Who voted</span>
+              <div class="proof-cluster vote-strip">
+                ${this.renderVotePreview(votes)}
+              </div>
+            </div>
+            <span class="meta-inline">${escapeHtml(formatRelative(proposal.createdAt))}</span>
+          </div>
+        </section>
 
         ${
           proposal.status === "Active"
@@ -868,10 +944,7 @@ class ScannerApp {
 
     const { proposal, contract, phase, fingerprint, votes, auditTrail, totalRegionVp } =
       selected;
-    const totalCastWeight = proposal.yesWeight + proposal.noWeight;
-    const yesRatio = totalCastWeight > 0 ? proposal.yesWeight / totalCastWeight : 0;
-    const noRatio = totalCastWeight > 0 ? proposal.noWeight / totalCastWeight : 0;
-    const participation = totalRegionVp > 0 ? totalCastWeight / totalRegionVp : 0;
+    const metrics = getProposalVotingMetrics(proposal, totalRegionVp);
     const anchorHash = contract?.documentHash ?? fingerprint ?? "pending";
 
     return `
@@ -930,23 +1003,23 @@ class ScannerApp {
           <p class="eyebrow">Governance signal</p>
           <div class="stat-pair-grid">
             <article>
-              <span>Yes weight</span>
-              <strong>${proposal.yesWeight.toFixed(2)}</strong>
-              <small>${formatPercent(yesRatio)} of cast weight</small>
+              <span>Yes of total VP</span>
+              <strong>${formatMetricPercent(metrics.supportPercent, 1)}</strong>
+              <small>${metrics.yesWeight.toFixed(2)} / ${metrics.totalRegionalVp.toFixed(2)} yes VP</small>
             </article>
             <article>
-              <span>No weight</span>
-              <strong>${proposal.noWeight.toFixed(2)}</strong>
-              <small>${formatPercent(noRatio)} of cast weight</small>
+              <span>No of total VP</span>
+              <strong>${formatMetricPercent(metrics.oppositionPercent, 1)}</strong>
+              <small>${metrics.noWeight.toFixed(2)} / ${metrics.totalRegionalVp.toFixed(2)} no VP</small>
             </article>
             <article>
-              <span>Regional participation</span>
-              <strong>${formatPercent(participation)}</strong>
-              <small>${totalCastWeight.toFixed(2)} of ${totalRegionVp.toFixed(2)} VP</small>
+              <span>Turnout</span>
+              <strong>${formatMetricPercent(metrics.turnoutPercent, 1)}</strong>
+              <small>${metrics.totalCastWeight.toFixed(2)} of ${metrics.totalRegionalVp.toFixed(2)} VP</small>
             </article>
             <article>
-              <span>Fairness score</span>
-              <strong>${proposal.fairnessScore != null ? proposal.fairnessScore.toFixed(2) : "Pending"}</strong>
+              <span>Yes share of cast VP</span>
+              <strong>${formatMetricPercent(metrics.supportShareOfCastPercent, 1)}</strong>
               <small>${proposal.riskFlags.length ? proposal.riskFlags.join(", ") : "No risk flags recorded"}</small>
             </article>
           </div>

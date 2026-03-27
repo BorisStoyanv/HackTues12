@@ -128,6 +128,7 @@ pub struct Proposal {
     pub risk_flags: Vec<String>,
     pub backed_by: Option<Principal>,
     pub backed_at: Option<u64>,
+    pub resolved_total_vp: Option<f64>,
     pub status: ProposalStatus,
     pub created_at: u64,
     pub voting_ends_at: u64,
@@ -459,6 +460,7 @@ thread_local! {
 
 #[init]
 fn init() {
+    backfill_resolved_total_vp_snapshots();
     schedule_next_resolution_check();
 }
 
@@ -468,6 +470,7 @@ fn post_upgrade() {
     NEXT_PROPOSAL_ID.with(|c| *c.borrow_mut() = next_p);
     let next_e = AUDIT_LOG.with(|a| a.borrow().len() + 1);
     NEXT_EVENT_ID.with(|c| *c.borrow_mut() = next_e);
+    backfill_resolved_total_vp_snapshots();
     resolve_ready_proposals(
         ic_cdk::api::id(),
         ic_cdk::api::time(),
@@ -678,6 +681,48 @@ fn append_audit(
     });
 }
 
+fn parse_total_possible_vp(payload: &str) -> Option<f64> {
+    let marker = "total possible ";
+    let start = payload.find(marker)? + marker.len();
+    let tail = &payload[start..];
+    let end = tail.find(')')?;
+    tail[..end].trim().parse::<f64>().ok()
+}
+
+fn backfill_resolved_total_vp_snapshots() {
+    let finalized_totals = AUDIT_LOG.with(|audit| {
+        audit
+            .borrow()
+            .iter()
+            .filter_map(|(_, event)| {
+                if event.event_type != AuditEventType::ProposalFinalized {
+                    return None;
+                }
+
+                let proposal_id = event.proposal_id?;
+                parse_total_possible_vp(&event.payload).map(|total| (proposal_id, total))
+            })
+            .collect::<Vec<_>>()
+    });
+
+    for (proposal_id, snapshot_total) in finalized_totals {
+        PROPOSALS.with(|proposals| {
+            let mut proposals = proposals.borrow_mut();
+            let Some(mut proposal) = proposals.get(&proposal_id) else {
+                return;
+            };
+
+            if proposal.status == ProposalStatus::Active || proposal.resolved_total_vp.is_some() {
+                return;
+            }
+
+            proposal.resolved_total_vp =
+                Some(snapshot_total.max(proposal.yes_weight + proposal.no_weight));
+            proposals.insert(proposal_id, proposal);
+        });
+    }
+}
+
 fn ensure_contract_mutable(record: &ContractRecord) -> Result<(), String> {
     match record.status {
         ContractStatus::Signed | ContractStatus::Rejected | ContractStatus::Expired => Err(
@@ -848,6 +893,7 @@ fn resolve_active_proposal(
 
     let mut updated = proposal.clone();
     updated.status = next_status.clone();
+    updated.resolved_total_vp = Some(total_vp.max(updated.yes_weight + updated.no_weight));
 
     match next_status {
         ProposalStatus::AwaitingFunding => {
@@ -1109,6 +1155,7 @@ fn submit_proposal(input: SubmitProposalInput) -> Result<Proposal, String> {
         risk_flags: vec![],
         backed_by: None,
         backed_at: None,
+        resolved_total_vp: None,
         status: ProposalStatus::Active,
         created_at: now,
         voting_ends_at: now + VOTING_PERIOD_NS,
@@ -1784,6 +1831,7 @@ mod tests {
             risk_flags: vec![],
             backed_by: Some(Principal::management_canister()),
             backed_at: Some(1),
+            resolved_total_vp: None,
             status,
             created_at: 1,
             voting_ends_at: 2,
@@ -1958,6 +2006,14 @@ mod tests {
         assert!(newcomer_vp >= 1.1 && newcomer_vp <= 1.2);
         assert!(active_tester_vp < 2.3);
         assert!(active_tester_vp < newcomer_vp * 2.0);
+    }
+
+    #[test]
+    fn finalized_audit_payload_exposes_total_possible_vp() {
+        let payload =
+            "AwaitingFunding via automatic deadline — yes 3.80 / no 0.50 (total possible 4.30), 2 voters";
+
+        assert_eq!(parse_total_possible_vp(payload), Some(4.3));
     }
 
     #[test]

@@ -81,6 +81,7 @@ type Proposal = record {
   risk_flags : vec text;
   backed_by : opt principal;
   backed_at : opt nat64;
+  resolved_total_vp : opt float64;
   status : ProposalStatus;
   created_at : nat64;
   voting_ends_at : nat64;
