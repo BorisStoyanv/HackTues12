@@ -100,6 +100,12 @@ variable "ssh_public_key" {
   default     = ""
 }
 
+variable "ssh_public_keys" {
+  description = "Additional SSH public keys. All keys are injected for ssh_username."
+  type        = list(string)
+  default     = []
+}
+
 variable "service_account_email" {
   description = "Service account email. Use 'default' for Compute Engine default service account."
   type        = string

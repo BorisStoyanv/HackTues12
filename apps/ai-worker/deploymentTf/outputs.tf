@@ -33,6 +33,11 @@ output "app_firewall_rule_name" {
   value       = try(google_compute_firewall.allow_app[0].name, null)
 }
 
+output "http_https_firewall_rule_name" {
+  description = "Name of created HTTP/HTTPS ingress firewall rule for ai-worker"
+  value       = google_compute_firewall.allow_http_https_ai_worker.name
+}
+
 output "app_url" {
   description = "Public URL of the app endpoint"
   value       = var.assign_public_ip ? "http://${google_compute_instance.vm.network_interface[0].access_config[0].nat_ip}:${var.app_port}" : null

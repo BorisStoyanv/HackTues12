@@ -19,6 +19,10 @@ assign_public_ip = true
 # Optional SSH key injection (recommended)
 # ssh_username   = "ubuntu"
 # ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... your@email"
+# ssh_public_keys = [
+#   "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... first@email",
+#   "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... second@email"
+# ]
 
 # Optional startup script
 # startup_script = <<-EOT
