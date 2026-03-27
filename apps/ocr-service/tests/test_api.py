@@ -164,3 +164,83 @@ def test_supports_multi_file_upload_sync() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert len(payload["items"]) == 2
+
+
+def test_extracts_multiple_authorized_people() -> None:
+    pdf = fitz.open()
+    page = pdf.new_page()
+    page.insert_text(
+        (72, 72),
+        (
+            "LETTER OF AUTHORIZATION\n"
+            "Date: 2026-03-20\n"
+            "This letter serves to authorize Mr. Ivan Lambev, Mr. Borislav Borisov, and Boris Stoyanov to act on behalf of NovaTerra Impact Foundation.\n"
+            "This authorization is valid from 2026-03-20 until 2027-03-20.\n"
+            "Issued by:\n"
+            "Elena Markova\n"
+            "Executive Director\n"
+            "NovaTerra Impact Foundation"
+        ),
+    )
+
+    response = client.post(
+        "/v1/documents?sync=true",
+        files={"file": ("LETTER OF AUTHORIZATION (1).pdf", pdf.tobytes(), "application/pdf")},
+        data={"document_type_hint": "letter of authorization"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["document_specific_fields"]["authorized_person_names"]["value"] == [
+        "Ivan Lambev",
+        "Borislav Borisov",
+        "Boris Stoyanov",
+    ]
+    assert any(rule["rule"] == "beneficiaries_detected" for rule in payload["validation_results"])
+
+
+def test_extracts_board_resolution_signers() -> None:
+    pdf = fitz.open()
+    page = pdf.new_page()
+    page.insert_text(
+        (72, 72),
+        (
+            "BOARD RESOLUTION\n"
+            "NovaTerra Impact Foundation\n"
+            "Date: 2026-03-15\n"
+            "RESOLVED, that Ivan Lambev is hereby authorized to act as an official representative of the Foundation.\n"
+            "The authorized individual may:\n"
+            "- Approve and oversee project funding allocations\n"
+            "- Sign agreements related to environmental initiatives\n"
+            "This resolution remains in effect until further notice.\n"
+            "Board Members:\n"
+            "Elena Markova - Executive Director\n"
+            "Georgi Petrov - Board Member\n"
+            "Anna Dimitrova - Board Member\n"
+            "Signatures:\n"
+            "Elena Markova\n"
+            "Georgi Petrov\n"
+            "Anna Dimitrova\n"
+        ),
+    )
+
+    response = client.post(
+        "/v1/documents?sync=true",
+        files={"file": ("BOARD RESOLUTION.pdf", pdf.tobytes(), "application/pdf")},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["document_type"] == "board resolution"
+    assert payload["document_specific_fields"]["authorized_person_name"]["value"] == "Ivan Lambev"
+    assert payload["document_specific_fields"]["board_member_names"]["value"] == [
+        "Elena Markova",
+        "Georgi Petrov",
+        "Anna Dimitrova",
+    ]
+    assert payload["document_specific_fields"]["signer_names"]["value"] == [
+        "Elena Markova",
+        "Georgi Petrov",
+        "Anna Dimitrova",
+    ]
+    assert any(rule["rule"] == "signers_detected" for rule in payload["validation_results"])

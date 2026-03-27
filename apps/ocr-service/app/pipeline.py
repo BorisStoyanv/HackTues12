@@ -115,6 +115,18 @@ DOCUMENT_SPECIFIC_PATTERNS: dict[str, dict[str, tuple[str, ...]]] = {
             r"(?:until|through)\s*([0-9./-]+)",
         ),
     },
+    "board resolution": {
+        "authorized_person_name": (
+            r"RESOLVED,?\s+that\s+([A-Z][A-Za-z.' -]+?)\s+is hereby authorized",
+            r"authorized individual\s+is\s+([A-Z][A-Za-z.' -]+)",
+        ),
+        "organization_name": (
+            r"BOARD RESOLUTION\s+(.+?)\s+Date:",
+        ),
+        "resolution_effective_until": (
+            r"remains in effect until\s+(.+?)(?:\.|\n)",
+        ),
+    },
 }
 
 DOCUMENT_KEYWORDS = {
@@ -125,6 +137,7 @@ DOCUMENT_KEYWORDS = {
     "identity_card": ("identity card", "national id", "date of birth", "expiry date"),
     "letter of authorization": ("letter of authorization", "authorize", "act on behalf of", "to whom it may concern"),
     "power of attorney": ("power of attorney", "attorney-in-fact", "principal", "agent"),
+    "board resolution": ("board resolution", "board members", "resolved,", "board of directors", "signatures"),
 }
 
 DATE_FORMATS = ("%Y-%m-%d", "%d.%m.%Y", "%d/%m/%Y", "%m/%d/%Y", "%Y/%m/%d")
@@ -222,6 +235,7 @@ def classify_and_extract(raw_text: str, document_type_hint: str | None = None) -
         )
     _enrich_academic_fields(document_type, raw_text, specific_fields)
     _enrich_authorization_fields(document_type, raw_text, common_fields, specific_fields)
+    _enrich_board_resolution_fields(document_type, raw_text, common_fields, specific_fields)
 
     extraction_confidence = _average(
         [field.confidence for field in common_fields.values()]
@@ -353,6 +367,29 @@ def build_validation_results(
                 rule="credential_semantics_mismatch",
                 status=RuleStatus.warning,
                 details="The text contains certificate/course wording rather than classic diploma wording.",
+            )
+        )
+
+    signer_names = _field_value(extraction.document_specific_fields, "signer_names")
+    if signer_names:
+        results.append(
+            ValidationRuleResult(
+                rule="signers_detected",
+                status=RuleStatus.passed,
+                details=f"Detected {len(signer_names)} signer(s)." if isinstance(signer_names, list) else "Detected signer information.",
+            )
+        )
+
+    beneficiary_names = (
+        _field_value(extraction.document_specific_fields, "authorized_person_names")
+        or _field_value(extraction.document_specific_fields, "beneficiary_names")
+    )
+    if beneficiary_names:
+        results.append(
+            ValidationRuleResult(
+                rule="beneficiaries_detected",
+                status=RuleStatus.passed,
+                details=f"Detected {len(beneficiary_names)} beneficiary/authorized person(s)." if isinstance(beneficiary_names, list) else "Detected beneficiary information.",
             )
         )
 
@@ -708,6 +745,8 @@ def _infer_subtype(document_type: str, raw_text: str) -> str | None:
         return "delegation_letter"
     if document_type == "power of attorney":
         return "attorney_in_fact"
+    if document_type == "board resolution":
+        return "corporate_resolution"
     return None
 
 
@@ -827,18 +866,104 @@ def _enrich_authorization_fields(
                 confidence=_field_confidence(raw_text, value),
             )
 
+    authorized_people = _extract_named_list(
+        raw_text,
+        (
+            r"authorize\s+(.+?)\s+to act on behalf of",
+            r"authorize\s+(.+?)\s+to\b",
+        ),
+    )
+    if authorized_people:
+        specific_fields["authorized_person_names"] = ExtractedField(
+            value=authorized_people,
+            confidence=0.88,
+        )
+        if "authorized_person_name" not in specific_fields and len(authorized_people) == 1:
+            specific_fields["authorized_person_name"] = ExtractedField(
+                value=authorized_people[0],
+                confidence=0.88,
+            )
+
     scope_match = re.search(
         r"(?:is permitted to|is authorized to)\s*:\s*(.+?)(?:This authorization is valid|This power of attorney is valid|Issued by:|Signature:|$)",
         raw_text,
         flags=re.IGNORECASE | re.DOTALL,
     )
     if scope_match and "authorization_scope" not in specific_fields:
-        bullets = [line.strip(" -\u2022\t") for line in scope_match.group(1).splitlines() if line.strip()]
+        bullets = _extract_bullets(scope_match.group(1))
         if bullets:
             value = "; ".join(bullets[:5])
             specific_fields["authorization_scope"] = ExtractedField(
                 value=value,
                 confidence=min(_field_confidence(raw_text, value), 0.9),
+            )
+
+
+def _enrich_board_resolution_fields(
+    document_type: str,
+    raw_text: str,
+    common_fields: dict[str, ExtractedField],
+    specific_fields: dict[str, ExtractedField],
+) -> None:
+    if document_type != "board resolution":
+        return
+
+    org_match = re.search(
+        r"BOARD RESOLUTION\s+(.+?)\s+Date:",
+        raw_text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if org_match:
+        value = _clean_multiline_value(org_match.group(1))
+        specific_fields["organization_name"] = ExtractedField(
+            value=value,
+            confidence=0.9,
+        )
+        common_fields["issuing_organization"] = specific_fields["organization_name"]
+
+    authorized_people = _extract_named_list(
+        raw_text,
+        (
+            r"RESOLVED,?\s+that\s+(.+?)\s+is hereby authorized",
+            r"authorized individual may be\s+(.+?)(?:\.|\n)",
+        ),
+    )
+    if authorized_people:
+        specific_fields["authorized_person_names"] = ExtractedField(
+            value=authorized_people,
+            confidence=0.89,
+        )
+        if len(authorized_people) == 1:
+            specific_fields["authorized_person_name"] = ExtractedField(
+                value=authorized_people[0],
+                confidence=0.89,
+            )
+
+    board_members = _extract_named_block_list(raw_text, "Board Members:", "Signatures:")
+    if board_members:
+        specific_fields["board_member_names"] = ExtractedField(
+            value=board_members,
+            confidence=0.9,
+        )
+
+    signer_names = _extract_named_block_list(raw_text, "Signatures:", None)
+    if signer_names:
+        specific_fields["signer_names"] = ExtractedField(
+            value=signer_names,
+            confidence=0.92,
+        )
+
+    scope_match = re.search(
+        r"(?:authorized individual may|authorized individual may:)\s*(.+?)(?:This resolution remains in effect|Board Members:|Signatures:|$)",
+        raw_text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if scope_match:
+        bullets = _extract_bullets(scope_match.group(1))
+        if bullets:
+            specific_fields["resolution_scope"] = ExtractedField(
+                value="; ".join(bullets[:5]),
+                confidence=0.88,
             )
 
 
@@ -852,6 +977,62 @@ def _clean_multiline_value(value: str) -> str:
     cleaned = re.sub(r"\s+", " ", value).strip().strip(" _")
     cleaned = re.sub(r"^the\s+", "", cleaned, flags=re.IGNORECASE)
     return cleaned.strip(".,;:")
+
+
+def _extract_named_list(raw_text: str, patterns: tuple[str, ...]) -> list[str]:
+    for pattern in patterns:
+        match = re.search(pattern, raw_text, flags=re.IGNORECASE | re.DOTALL)
+        if not match:
+            continue
+        return _split_person_names(match.group(1))
+    return []
+
+
+def _extract_named_block_list(raw_text: str, start_label: str, end_label: str | None) -> list[str]:
+    if end_label:
+        pattern = rf"{re.escape(start_label)}\s*(.+?){re.escape(end_label)}"
+    else:
+        pattern = rf"{re.escape(start_label)}\s*(.+)$"
+    match = re.search(pattern, raw_text, flags=re.IGNORECASE | re.DOTALL)
+    if not match:
+        return []
+
+    lines = [line.strip() for line in match.group(1).splitlines() if line.strip()]
+    names: list[str] = []
+    for line in lines:
+        candidate = re.split(r"\s+[–-]\s+", line, maxsplit=1)[0].strip()
+        candidate = _normalize_person_name(candidate)
+        if candidate and candidate not in names and len(candidate.split()) >= 2:
+            names.append(candidate)
+    return names
+
+
+def _split_person_names(text: str) -> list[str]:
+    normalized = re.sub(r"\s+", " ", text).strip().strip(".,;:")
+    normalized = re.sub(r"\band\b", ",", normalized, flags=re.IGNORECASE)
+    parts = [part.strip() for part in normalized.split(",") if part.strip()]
+    names: list[str] = []
+    for part in parts:
+        candidate = _normalize_person_name(part)
+        if candidate and candidate not in names and len(candidate.split()) >= 2:
+            names.append(candidate)
+    return names
+
+
+def _normalize_person_name(text: str) -> str:
+    cleaned = text.strip()
+    cleaned = re.sub(r"^(mr|mrs|ms|dr)\.?\s+", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    return cleaned.strip(".,;:() ")
+
+
+def _extract_bullets(text: str) -> list[str]:
+    items: list[str] = []
+    for line in text.splitlines():
+        cleaned = line.strip(" :-\u2022\t")
+        if cleaned:
+            items.append(cleaned)
+    return items
 
 
 def _field_value(fields: dict[str, ExtractedField], field_name: str) -> Any | None:

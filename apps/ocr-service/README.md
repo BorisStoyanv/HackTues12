@@ -109,6 +109,81 @@ curl "http://127.0.0.1:8090/v1/jobs/job_456"
 }
 ```
 
+## Response notes
+
+`POST /v1/documents` returns one of these shapes:
+
+- Single sync upload: one `UnifiedDocumentResponse`
+- Single async upload: one queued object with `document_id`, `job_id`, and `status`
+- Multi-file sync upload: `{ "items": [UnifiedDocumentResponse, ...] }`
+- Multi-file async upload: `{ "items": [UploadAcceptedResponse, ...] }`
+
+Important fields in `UnifiedDocumentResponse`:
+
+- `document_type`: normalized type such as `diploma`, `certificate`, `letter of authorization`, `power of attorney`, or `board resolution`
+- `subtype`: narrower classification when available
+- `summary.is_valid`: false when hard failures or critical warnings are detected
+- `summary.is_suspicious`: true when fraud, prompt-injection, or consistency heuristics are triggered
+- `common_fields`: shared fields such as `issue_date` and `issuing_organization`
+- `document_specific_fields`: type-specific extracted data
+- `validation_results`: rule-by-rule validation output
+- `artifacts.raw_text`: extracted text used for classification and extraction
+- `artifacts.analysis.llm_review`: optional OpenRouter review payload when enabled
+
+Common list-style fields now supported:
+
+- `authorized_person_names`: multiple beneficiaries / authorized people
+- `signer_names`: multiple signers
+- `board_member_names`: multiple board members
+
+Example authorization response fragment:
+
+```json
+{
+  "document_type": "letter of authorization",
+  "document_specific_fields": {
+    "authorized_person_names": {
+      "value": ["Ivan Lambev", "Borislav Borisov", "Boris Stoyanov"],
+      "confidence": 0.88
+    },
+    "authorizing_person_name": {
+      "value": "Elena Markova",
+      "confidence": 0.87
+    },
+    "valid_from": {
+      "value": "2026-03-20",
+      "confidence": 0.87
+    },
+    "valid_until": {
+      "value": "2027-03-20",
+      "confidence": 0.87
+    }
+  }
+}
+```
+
+Example board resolution response fragment:
+
+```json
+{
+  "document_type": "board resolution",
+  "document_specific_fields": {
+    "authorized_person_name": {
+      "value": "Ivan Lambev",
+      "confidence": 0.89
+    },
+    "board_member_names": {
+      "value": ["Elena Markova", "Georgi Petrov", "Anna Dimitrova"],
+      "confidence": 0.9
+    },
+    "signer_names": {
+      "value": ["Elena Markova", "Georgi Petrov", "Anna Dimitrova"],
+      "confidence": 0.92
+    }
+  }
+}
+```
+
 ## Run locally
 
 1. Create a virtual environment.
