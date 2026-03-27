@@ -9,6 +9,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAuthStore } from "@/lib/auth-store";
+import { getRequiredAuthenticatedRoute } from "@/lib/kyc-routing";
+import { readPendingVeriffSession } from "@/lib/veriff-browser";
 import { useInternetIdentity } from "ic-use-internet-identity";
 import { AlertCircle, Landmark } from "lucide-react";
 import Link from "next/link";
@@ -21,13 +23,19 @@ export default function LoginPage() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isInitializing = useAuthStore((state) => state.isInitializing);
   const hasProfile = useAuthStore((state) => state.hasProfile);
+  const user = useAuthStore((state) => state.user);
 
-  // Redirect when login is successful
   useEffect(() => {
     if (isAuthenticated && !isInitializing) {
-      router.replace(hasProfile ? "/dashboard" : "/onboarding/role");
+      router.replace(
+        getRequiredAuthenticatedRoute({
+          hasProfile,
+          user,
+          hasPendingVeriffSession: Boolean(readPendingVeriffSession()),
+        }),
+      );
     }
-  }, [hasProfile, isAuthenticated, isInitializing, router]);
+  }, [hasProfile, isAuthenticated, isInitializing, router, user]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">

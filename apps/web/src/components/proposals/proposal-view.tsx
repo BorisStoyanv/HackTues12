@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -46,7 +48,13 @@ export function ProposalView({
   initialData,
   votes = [],
 }: ProposalViewProps) {
-  if (!initialData) {
+  const [proposal, setProposal] = useState(initialData);
+
+  useEffect(() => {
+    setProposal(initialData);
+  }, [initialData]);
+
+  if (!proposal) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-4 text-center space-y-4">
         <div className="h-12 w-12 rounded-full bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center animate-pulse">
@@ -69,7 +77,6 @@ export function ProposalView({
     );
   }
 
-  const proposal = initialData;
   const statusFormatted = proposal.status.replace(/([A-Z])/g, " $1").trim();
   const creatorId = proposal.submitter;
   const locationLabel =
@@ -234,7 +241,14 @@ export function ProposalView({
                   value="debate"
                   className="space-y-8 animate-in fade-in duration-500 m-0 focus-visible:outline-none"
                 >
-                  <AIDebateLive proposal={proposal} />
+                  <AIDebateLive
+                    proposal={proposal}
+                    onProposalUpdated={(changes) =>
+                      setProposal((current) =>
+                        current ? { ...current, ...changes } : current,
+                      )
+                    }
+                  />
                 </TabsContent>
 
                 <TabsContent

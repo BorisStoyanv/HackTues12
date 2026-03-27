@@ -3,7 +3,6 @@ import { Principal } from '@dfinity/principal';
 import { fetchAllProposals, fetchProposalById } from '../actions/proposals';
 import { submitProposalClient } from './client-mutations';
 import { ProposalCategory } from '../types/api';
-import { normalizeProposalAIDebateResult } from '../ai/debate';
 
 // Mock the icp.ts file which creates the actor
 vi.mock('./icp', () => ({
@@ -44,7 +43,6 @@ describe('API Service Layer', () => {
     yes_weight: 0,
     no_weight: 0,
     voter_count: 0,
-    resolved_total_vp: [] as [number] | [],
     backed_by: [] as [Principal] | [],
     backed_at: [] as [bigint] | [],
   };
@@ -73,8 +71,6 @@ describe('API Service Layer', () => {
     it('fetchProposalById should return a serialized proposal', async () => {
       const mockActor = {
         get_proposal: vi.fn().mockResolvedValue([mockProposal]),
-        get_proposal_ai_debate: vi.fn().mockResolvedValue([]),
-        get_region_total_vp: vi.fn().mockResolvedValue(3.5),
       };
       (createBackendActor as any).mockResolvedValue(mockActor);
 
@@ -83,57 +79,6 @@ describe('API Service Layer', () => {
       expect(result.success).toBe(true);
       expect(result.proposal?.id).toBe('1');
       expect(result.proposal?.budget_amount).toBe(1000);
-    });
-  });
-
-  describe('AI Debate Normalization', () => {
-    it('normalizes the nested debate_completed result shape used by the AI worker', () => {
-      const normalized = normalizeProposalAIDebateResult({
-        result: {
-          models: {
-            advocate: 'model-a',
-            skeptic: 'model-b',
-            judge: 'model-c',
-          },
-          internetEvidence: {
-            searchText: 'Test proposal Sofia',
-            geoHint: {
-              displayName: 'Sofia, Bulgaria',
-            },
-          },
-          rounds: [
-            {
-              round: 1,
-              advocateStatement: 'Argument for the proposal.',
-              skepticStatement: 'Argument against the proposal.',
-              winner: 'skeptic',
-              score: 0.43,
-              rationale: 'Skeptic was more concrete.',
-            },
-          ],
-          final: {
-            aggregateScore: 0.61,
-            judgeReportedAggregateScore: 0.58,
-            fundingPriorityScore: 0.72,
-            fundingRecommendation: 'fund',
-            rationale: 'Final recommendation.',
-            criteriaRatings: {
-              popularity: 0.2,
-              tourism_attendance: 0.3,
-              neglect_and_age: 0.8,
-              potential_tourism_benefit: 0.7,
-            },
-          },
-        },
-      });
-
-      expect(normalized.aggregate_score).toBe(0.61);
-      expect(normalized.funding_priority_score).toBe(0.72);
-      expect(normalized.rounds[0]?.advocate_statement).toBe(
-        'Argument for the proposal.',
-      );
-      expect(normalized.rationale).toBe('Final recommendation.');
-      expect(normalized.geo_hint_display_name).toEqual(['Sofia, Bulgaria']);
     });
   });
 
@@ -157,7 +102,6 @@ describe('API Service Layer', () => {
         execution_plan: 'Detailed execution plan text...',
         timeline: '12 months',
         expected_impact: 'Community impact text...',
-        approved_company: [],
         location: [{
           city: 'New Region',
           country: 'Bulgaria',

@@ -2,6 +2,7 @@ const DEFAULT_BACKEND_CANISTER_ID = "sk6yb-aqaaa-aaaad-qljxa-cai";
 const DEFAULT_FRONTEND_CANISTER_ID = "htkot-kiaaa-aaaaa-qgtsa-cai";
 const DEFAULT_II_URL = "https://identity.ic0.app";
 const DEFAULT_AI_WORKER_URL = "https://ai.open-ft.app";
+const DEFAULT_VERIFF_BACKEND_URL = "http://127.0.0.1:8787";
 
 export const DFX_NETWORK =
   process.env.NEXT_PUBLIC_DFX_NETWORK ??
@@ -30,6 +31,20 @@ export const MAPBOX_API_KEY =
 
 export const STRIPE_PUBLISHABLE_KEY =
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "";
+
+export const APP_URL =
+  process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "";
+
+export const VERIFF_BACKEND_URL =
+  process.env.NEXT_PUBLIC_VERIFF_BACKEND_URL?.replace(/\/$/, "") ??
+  DEFAULT_VERIFF_BACKEND_URL;
+
+export const VERIFF_PUBLIC_API_KEY =
+  process.env.NEXT_PUBLIC_VERIFF_API_KEY ?? "";
+
+export const VERIFF_CALLBACK_URL =
+  process.env.NEXT_PUBLIC_VERIFF_CALLBACK_URL ??
+  (APP_URL ? `${APP_URL}/dashboard/verification` : "");
 
 const RAW_AI_WORKER_URL =
   process.env.AI_WORKER_URL ??

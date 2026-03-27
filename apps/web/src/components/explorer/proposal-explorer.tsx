@@ -3,7 +3,6 @@
 import { InteractiveMap } from "@/components/map/interactive-map";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Globe, ShieldCheck, Users } from "lucide-react";
 import Link from "next/link";
@@ -67,10 +66,10 @@ export function ProposalExplorer({
   );
 
   return (
-    <div className="relative flex flex-1 overflow-hidden h-full bg-background">
-      {/* Map Sidebar */}
-      <aside className="z-10 flex w-full flex-col border-r border-neutral-200 dark:border-neutral-800 bg-background md:w-100 shrink-0 shadow-2xl">
-        <div className="p-6 border-b bg-neutral-50/50 dark:bg-neutral-950/50">
+    <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-background md:flex-row">
+      {/* Proposal List Pane */}
+      <aside className="z-10 flex h-[40svh] min-h-0 w-full flex-col overflow-hidden border-b border-neutral-200 bg-background shadow-2xl dark:border-neutral-800 md:h-full md:w-[26rem] md:shrink-0 md:border-b-0 md:border-r">
+        <div className="shrink-0 border-b bg-neutral-50/50 p-6 dark:bg-neutral-950/50">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <h2 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">
@@ -89,7 +88,7 @@ export function ProposalExplorer({
           </div>
         </div>
 
-        <ScrollArea className="flex-1">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <div className="divide-y divide-neutral-100 dark:divide-neutral-900">
             {visibleProposals.length > 0 ? (
               visibleProposals.map((proposal) =>
@@ -195,11 +194,11 @@ export function ProposalExplorer({
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
 
         {/* Quick Selected Detail Overlay */}
         {selectedProposal && (
-          <div className="border-t border-neutral-200 dark:border-neutral-800 p-6 bg-neutral-50/80 dark:bg-neutral-950/80 backdrop-blur-xl animate-in slide-in-from-bottom-full duration-500">
+          <div className="shrink-0 border-t border-neutral-200 bg-neutral-50/80 p-6 backdrop-blur-xl animate-in slide-in-from-bottom-full duration-500 dark:border-neutral-800 dark:bg-neutral-950/80">
             <div className="flex items-center justify-between mb-4">
               <span className="text-[10px] font-black uppercase text-primary tracking-[0.2em]">
                 Selected Node
@@ -241,7 +240,7 @@ export function ProposalExplorer({
       </aside>
 
       {/* Map Canvas */}
-      <div className="flex-1 relative">
+      <div className="relative min-h-0 flex-1 overflow-hidden">
         <InteractiveMap
           proposals={proposals}
           selectedProposalId={selectedProposalId}

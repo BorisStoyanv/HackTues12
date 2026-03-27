@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuthStore } from "@/lib/auth-store";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -24,7 +25,12 @@ import {
   fetchAuditLogs,
   SerializedProposal,
 } from "@/lib/actions/proposals";
+import {
+  buildKycRetryUrl,
+  getKycRetryRoute,
+} from "@/lib/kyc-routing";
 import { createBackendActor } from "@/lib/api/icp";
+import { useVeriffSessionStatus } from "@/hooks/use-veriff-session-status";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
@@ -88,6 +94,15 @@ export default function DashboardPage() {
   const [proposals, setProposals] = useState<SerializedProposal[]>([]);
   const [recentVotes, setRecentVotes] = useState<RecentVoteActivity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const {
+    pendingSession,
+    hasPendingSession,
+    veriffSession,
+    isChecking,
+    isFinalizing,
+    rejection,
+    acknowledgeRejection,
+  } = useVeriffSessionStatus();
 
   useEffect(() => {
     async function loadBackendData() {
@@ -203,6 +218,21 @@ export default function DashboardPage() {
     }
   }, [identity, isAuthenticated, user?.home_region, user?.id]);
 
+  useEffect(() => {
+    if (!rejection) {
+      return;
+    }
+
+    const role = acknowledgeRejection();
+    router.replace(buildKycRetryUrl(role, rejection.status, rejection.reason));
+  }, [acknowledgeRejection, rejection, router]);
+
+  useEffect(() => {
+    if (hasPendingSession && user?.kyc_status !== "verified") {
+      router.replace("/dashboard/verification");
+    }
+  }, [hasPendingSession, router, user?.kyc_status]);
+
   if (!user) {
     return (
       <div className="h-full flex flex-col items-center justify-center space-y-4 bg-background">
@@ -214,6 +244,13 @@ export default function DashboardPage() {
       </div>
     );
   }
+
+  const effectiveKycStatus =
+    profile?.isVerified || user.kyc_status === "verified"
+      ? "verified"
+      : hasPendingSession || user.kyc_status === "pending"
+        ? "pending"
+        : "unverified";
 
   const statCards = [
     {
@@ -264,16 +301,62 @@ export default function DashboardPage() {
       description: "Access level on the governance network",
       icon: ShieldCheck,
       trend:
-        profile?.isVerified || user.kyc_status === "verified"
-          ? "Verified"
-          : "Standard",
-      trendPositive: Boolean(profile?.isVerified || user.kyc_status === "verified"),
+        effectiveKycStatus === "verified"
+          ? "KYC Completed"
+          : effectiveKycStatus === "pending"
+            ? "KYC Pending"
+            : "KYC Required",
+      trendPositive: effectiveKycStatus === "verified",
     },
   ];
 
   return (
     <div className="flex-1 overflow-y-auto bg-background p-6 md:p-10">
       <div className="max-w-6xl mx-auto space-y-10">
+        {(hasPendingSession || veriffSession) && effectiveKycStatus !== "verified" && (
+          <Card className="border-neutral-200 dark:border-neutral-800 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg font-semibold">Veriff KYC</CardTitle>
+              <CardDescription>
+                {veriffSession?.status
+                  ? `Latest Veriff status: ${veriffSession.status}`
+                  : "A Veriff session is active for this account."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm text-muted-foreground">
+              <p>
+                {isFinalizing
+                  ? "Veriff approved the session. Waiting for the canister profile to reflect the final verified state."
+                  : isChecking
+                    ? "Checking Veriff for the latest KYC decision..."
+                    : "Verification was started. We are waiting for the Veriff decision webhook."}
+              </p>
+              {veriffSession?.reason ? (
+                <p className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 dark:border-neutral-800 dark:bg-neutral-900">
+                  Reason: {veriffSession.reason}
+                </p>
+              ) : null}
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    router.push(
+                      getKycRetryRoute(
+                        pendingSession?.role === "funder" ? "funder" : user.role,
+                      ),
+                    )
+                  }
+                >
+                  Review KYC Flow
+                </Button>
+                <Button onClick={() => router.push("/dashboard/verification")}>
+                  Open Verification Status
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-neutral-200 dark:border-neutral-800">
           <div className="space-y-2">
             <h1 className="text-3xl font-bold tracking-tight text-foreground">

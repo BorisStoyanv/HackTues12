@@ -8,13 +8,27 @@ import {
   BrainCircuit,
   CheckCircle2,
   Globe,
+  LoaderCircle,
   MessageSquare,
+  PlayCircle,
   Search,
   ShieldCheck,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import { SerializedProposal } from "@/lib/actions/proposals";
+import { Button } from "@/components/ui/button";
+import {
+  SerializedProposal,
+  SerializedProposalAIDebate,
+} from "@/lib/actions/proposals";
+import { useAuthStore } from "@/lib/auth-store";
+import { runProposalDebateEvaluation } from "@/lib/ai/debate";
+import {
+  getProposalAIDebateClient,
+  getProposalClient,
+  saveProposalAIDebateClient,
+} from "@/lib/api/client-mutations";
+import { ProposalAIDebate } from "@/lib/types/api";
 import { cn } from "@/lib/utils";
 
 interface TypewriterProps {
@@ -144,8 +158,66 @@ function getRecommendationPresentation(recommendation: string) {
   }
 }
 
-export function AIDebateLive({ proposal }: { proposal: SerializedProposal }) {
+function serializeProposalAIDebate(
+  debate: ProposalAIDebate,
+): SerializedProposalAIDebate {
+  return {
+    models: {
+      advocate: debate.models.advocate,
+      skeptic: debate.models.skeptic,
+      judge: debate.models.judge,
+    },
+    search_text: debate.search_text,
+    geo_hint_display_name:
+      debate.geo_hint_display_name.length > 0
+        ? debate.geo_hint_display_name[0]!
+        : null,
+    rounds: debate.rounds.map((round) => ({
+      round: Number(round.round),
+      advocate_statement: round.advocate_statement,
+      skeptic_statement: round.skeptic_statement,
+      winner: round.winner,
+      score: Number(round.score),
+      rationale: round.rationale,
+    })),
+    aggregate_score: Number(debate.aggregate_score),
+    judge_reported_aggregate_score: Number(
+      debate.judge_reported_aggregate_score,
+    ),
+    funding_priority_score: Number(debate.funding_priority_score),
+    funding_recommendation: debate.funding_recommendation,
+    rationale: debate.rationale,
+    criteria_ratings: {
+      popularity: Number(debate.criteria_ratings.popularity),
+      tourism_attendance: Number(debate.criteria_ratings.tourism_attendance),
+      neglect_and_age: Number(debate.criteria_ratings.neglect_and_age),
+      potential_tourism_benefit: Number(
+        debate.criteria_ratings.potential_tourism_benefit,
+      ),
+    },
+    saved_at: Number(debate.saved_at),
+  };
+}
+
+interface AIDebateLiveProps {
+  proposal: SerializedProposal;
+  onProposalUpdated?: (
+    changes: Partial<
+      Pick<SerializedProposal, "ai_debate" | "fairness_score" | "risk_flags">
+    >,
+  ) => void;
+}
+
+export function AIDebateLive({
+  proposal,
+  onProposalUpdated,
+}: AIDebateLiveProps) {
   const savedDebate = proposal.ai_debate;
+  const identity = useAuthStore((state) => state.identity);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const [isStartingDebate, setIsStartingDebate] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+  const [startStatus, setStartStatus] = useState<string | null>(null);
 
   const timeline = useMemo<DebateTimelineItem[]>(() => {
     if (!savedDebate) {
@@ -225,6 +297,15 @@ export function AIDebateLive({ proposal }: { proposal: SerializedProposal }) {
     };
   }, [timeline]);
 
+  useEffect(() => {
+    if (!savedDebate) {
+      return;
+    }
+
+    setStartError(null);
+    setStartStatus(null);
+  }, [savedDebate]);
+
   const currentItem =
     visibleCount > 0 ? timeline[Math.min(visibleCount - 1, timeline.length - 1)] : null;
 
@@ -264,18 +345,135 @@ export function AIDebateLive({ proposal }: { proposal: SerializedProposal }) {
     }, 450);
   };
 
+  const hydrateSavedDebate = async () => {
+    const [debate, updatedProposal] = await Promise.all([
+      getProposalAIDebateClient(proposal.id, identity),
+      getProposalClient(proposal.id, identity),
+    ]);
+
+    if (!debate) {
+      throw new Error(
+        "The debate finished, but it could not be read back from the canister yet. Refresh and try again in a moment.",
+      );
+    }
+
+    const updatedFairnessScore =
+      updatedProposal && updatedProposal.fairness_score.length > 0
+        ? updatedProposal.fairness_score[0]!
+        : proposal.fairness_score;
+
+    onProposalUpdated?.({
+      ai_debate: serializeProposalAIDebate(debate),
+      fairness_score: updatedFairnessScore,
+      risk_flags: updatedProposal?.risk_flags ?? proposal.risk_flags,
+    });
+  };
+
+  const startFirstDebate = async () => {
+    if (!identity) {
+      setStartError("Sign in with Internet Identity to start the first debate.");
+      return;
+    }
+
+    setIsStartingDebate(true);
+    setStartError(null);
+    setStartStatus("Running the first AI debate...");
+
+    try {
+      const generatedDebate = await runProposalDebateEvaluation(proposal);
+      setStartStatus("Saving the first debate on-chain...");
+      await saveProposalAIDebateClient(identity, proposal.id, generatedDebate);
+      await hydrateSavedDebate();
+      setStartStatus(null);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Could not start the first AI debate.";
+
+      if (message.toLowerCase().includes("already")) {
+        try {
+          await hydrateSavedDebate();
+          setStartError(null);
+          setStartStatus("The first debate was already saved for this proposal.");
+          return;
+        } catch (readBackError) {
+          const readBackMessage =
+            readBackError instanceof Error
+              ? readBackError.message
+              : "The saved debate could not be loaded yet.";
+          setStartError(readBackMessage);
+          setStartStatus(null);
+          return;
+        }
+      }
+
+      setStartError(message);
+      setStartStatus(null);
+    } finally {
+      setIsStartingDebate(false);
+    }
+  };
+
   if (!savedDebate) {
     return (
-      <div className="rounded-3xl border border-dashed border-neutral-200 bg-neutral-50/70 p-8 text-center dark:border-neutral-800 dark:bg-neutral-900/40">
-        <BadgeAlert className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-        <h3 className="text-lg font-semibold tracking-tight">
-          No saved AI debate yet
-        </h3>
-        <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-          This proposal does not have a persisted debate transcript yet. New
-          proposals will save the full AI debate during creation and replay it
-          here for every viewer.
-        </p>
+      <div className="rounded-3xl border border-dashed border-neutral-200 bg-neutral-50/70 p-8 dark:border-neutral-800 dark:bg-neutral-900/40">
+        <div className="mx-auto max-w-2xl text-center">
+          <BadgeAlert className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+          <h3 className="text-lg font-semibold tracking-tight">
+            No saved AI debate yet
+          </h3>
+          <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+            This proposal does not have a persisted debate transcript yet. The
+            first completed debate will be saved on-chain and then replayed here
+            for every viewer.
+          </p>
+
+          <div className="mt-6 flex flex-col items-center gap-3">
+            <Button
+              onClick={startFirstDebate}
+              disabled={!isAuthenticated || isStartingDebate}
+              size="lg"
+              className="min-w-60"
+            >
+              {isStartingDebate ? (
+                <>
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                  {startStatus ?? "Starting debate"}
+                </>
+              ) : (
+                <>
+                  <PlayCircle className="h-4 w-4" />
+                  Start the first debate
+                </>
+              )}
+            </Button>
+
+            <p className="max-w-lg text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+              Only one debate is stored per proposal. After the first save, this
+              tab becomes a replay for everyone.
+            </p>
+
+            {!isAuthenticated ? (
+              <p className="max-w-md text-sm text-muted-foreground">
+                Sign in with Internet Identity to launch and save the first
+                debate for this proposal.
+              </p>
+            ) : null}
+
+            {startStatus && !isStartingDebate ? (
+              <p className="text-sm font-medium text-emerald-600">
+                {startStatus}
+              </p>
+            ) : null}
+
+            {startError ? (
+              <p className="max-w-lg text-sm font-medium text-rose-600">
+                {startError}
+              </p>
+            ) : null}
+          </div>
+        </div>
       </div>
     );
   }

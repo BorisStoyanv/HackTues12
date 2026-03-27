@@ -1,16 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
-  Building2,
-  Upload,
-  CheckCircle2,
-  AlertCircle,
-  Loader2,
   ArrowLeft,
   ArrowRight,
-  FileText,
+  ExternalLink,
+  Loader2,
+  RefreshCw,
   ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,27 +24,25 @@ import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/lib/auth-store";
 import {
   createMyProfileClient,
-  requestVerificationClient,
   updateMyProfileClient,
 } from "@/lib/api/client-mutations";
 import { getDefaultDisplayName } from "@/lib/profile-utils";
 import { waitForProfileSync } from "@/lib/profile-sync";
-import { cn } from "@/lib/utils";
-
-import { loadStripe } from "@stripe/stripe-js";
-
-// Initialize Stripe outside of component to avoid recreating it
-const stripePromise = loadStripe(
-  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!,
-);
-
+import {
+  clearPendingVeriffSession,
+  readPendingVeriffSession,
+  writePendingVeriffSession,
+} from "@/lib/veriff-browser";
+import {
+  createVeriffSession,
+  getVeriffCallbackUrl,
+} from "@/lib/veriff-api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -63,36 +58,66 @@ const kycSchema = z.object({
 });
 
 type KYCFormValues = z.infer<typeof kycSchema>;
+type Step = "details" | "verify" | "waiting";
 
-type Step = "details" | "upload" | "processing" | "complete";
-
-export default function KYCPage() {
+function KYCPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const setKycStatus = useAuthStore((state) => state.setKycStatus);
   const user = useAuthStore((state) => state.user);
   const identity = useAuthStore((state) => state.identity);
   const hasProfile = useAuthStore((state) => state.hasProfile);
   const initialize = useAuthStore((state) => state.initialize);
+
   const [step, setStep] = useState<Step>("details");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
+  const [detailsSnapshot, setDetailsSnapshot] = useState<KYCFormValues | null>(
+    null,
+  );
+  const [representativeFirstName, setRepresentativeFirstName] = useState("");
+  const [representativeLastName, setRepresentativeLastName] = useState("");
+  const [isLaunchingVeriff, setIsLaunchingVeriff] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const form = useForm<KYCFormValues>({
     resolver: zodResolver(kycSchema),
     defaultValues: {
-      orgName: "",
+      orgName: user?.display_name ?? "",
       regNum: "",
       country: "",
     },
   });
 
-  // Guard: if no role or wrong role, redirect back
+  const veriffErrorMessage = useMemo(() => {
+    const status = searchParams.get("veriff_status");
+    const reason = searchParams.get("veriff_reason");
+
+    if (!status) {
+      return null;
+    }
+
+    return reason
+      ? `Veriff returned ${status}. ${reason}`
+      : `Veriff returned ${status}. Please review your KYC details and try again.`;
+  }, [searchParams]);
+
   useEffect(() => {
     if (!user || user.role !== "funder") {
       router.push("/onboarding/role");
     }
-  }, [user, router]);
+  }, [router, user]);
+
+  useEffect(() => {
+    if (user?.kyc_status === "verified") {
+      router.replace("/dashboard");
+      return;
+    }
+
+    const pendingSession = readPendingVeriffSession();
+    if (pendingSession?.role === "funder") {
+      setStep("waiting");
+    }
+  }, [router, user?.kyc_status]);
 
   const handleDetailsSubmit = async (values: KYCFormValues) => {
     if (!identity || !user) {
@@ -119,122 +144,83 @@ export default function KYCPage() {
       );
 
       await Promise.race([syncPromise, mutationPromise.then(() => syncPromise)]);
-
       await initialize();
-      setStep("upload");
+
+      setDetailsSnapshot(values);
+      setSubmitError(null);
+      setStep("verify");
     } catch (error) {
       console.error("Failed to save investor profile:", error);
       setSubmitError(
         error instanceof Error ? error.message : "Failed to save your profile.",
       );
-      return;
     } finally {
       setIsSavingProfile(false);
     }
   };
 
-  const handleUpload = async () => {
-    setIsUploading(true);
+  const handleStartVeriff = async () => {
+    const firstName = representativeFirstName.trim();
+    const lastName = representativeLastName.trim();
+
+    if (!firstName || !lastName) {
+      setSubmitError(
+        "Enter the legal representative's first and last name before starting Veriff.",
+      );
+      return;
+    }
+
+    if (!user?.id) {
+      setSubmitError("You need to be signed in before starting verification.");
+      return;
+    }
+
+    if (!getVeriffCallbackUrl()) {
+      setSubmitError(
+        "NEXT_PUBLIC_VERIFF_CALLBACK_URL is missing. Point it to the canister callback route before starting Veriff.",
+      );
+      return;
+    }
+
+    setIsLaunchingVeriff(true);
+    setSubmitError(null);
+
     try {
-      // Create Stripe Verification Session
-      const res = await fetch("/api/stripe/identity", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: "funder" }),
+      const payload = await createVeriffSession({
+        firstName,
+        lastName,
+        vendorData: user.id,
       });
 
-      const { client_secret, error: serverError } = await res.json();
+      writePendingVeriffSession({
+        sessionId: payload.sessionId,
+        role: "funder",
+        startedAt: new Date().toISOString(),
+      });
 
-      if (serverError || !client_secret) {
-        console.error("Failed to create verification session:", serverError);
-        setIsUploading(false);
-        return;
-      }
-
-      const stripe = await stripePromise;
-      if (!stripe) throw new Error("Stripe failed to initialize");
-
-      // Launch Stripe Identity modal
-      const { error } = await stripe.verifyIdentity(client_secret);
-
-      if (error) {
-        console.error("Verification failed or was canceled:", error);
-        setIsUploading(false);
-      } else {
-        // Verification submitted successfully!
-        setIsUploading(false);
-        setStep("processing");
-      }
-    } catch (err) {
-      console.error(err);
-      setIsUploading(false);
+      setKycStatus("pending");
+      window.location.assign(payload.url);
+    } catch (error) {
+      console.error("Failed to start Veriff session:", error);
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : "Failed to start Veriff session.",
+      );
+    } finally {
+      setIsLaunchingVeriff(false);
     }
   };
 
-  const [processingStatus, setProcessingStatus] = useState(
-    "Analyzing documents...",
-  );
+  const handleRestart = () => {
+    clearPendingVeriffSession();
+    setKycStatus("unverified");
+    setStep("verify");
+  };
 
-  useEffect(() => {
-    if (step === "processing") {
-      const statuses = [
-        "Analyzing organizational documents...",
-        "Cross-referencing global regulatory databases...",
-        "Verifying tax-exempt status...",
-        "Finalizing entity reputation score...",
-      ];
-
-      let currentIdx = 0;
-      const interval = setInterval(() => {
-        currentIdx++;
-        if (currentIdx < statuses.length) {
-          setProcessingStatus(statuses[currentIdx]);
-        }
-      }, 1500);
-
-      const timer = setTimeout(() => {
-        void (async () => {
-          try {
-            if (!identity) {
-              throw new Error("Identity not found.");
-            }
-
-            const verificationPromise = requestVerificationClient(identity);
-            const syncPromise = waitForProfileSync(
-              identity,
-              (profile) =>
-                profile.is_verified.length > 0 && Boolean(profile.is_verified[0]),
-            );
-
-            await Promise.race([
-              syncPromise,
-              verificationPromise.then(() => syncPromise),
-            ]);
-            await initialize();
-            setKycStatus("verified");
-            router.replace("/dashboard");
-          } catch (error) {
-            console.error("Failed to finalize investor verification:", error);
-            setSubmitError(
-              error instanceof Error
-                ? error.message
-                : "Failed to finalize verification.",
-            );
-            setStep("upload");
-          } finally {
-            clearInterval(interval);
-          }
-        })();
-      }, 6500);
-
-      return () => {
-        clearTimeout(timer);
-        clearInterval(interval);
-      };
-    }
-  }, [step, setKycStatus]);
-
-  if (!user) return null;
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="w-full max-w-xl space-y-8">
@@ -243,16 +229,15 @@ export default function KYCPage() {
           <CardHeader>
             <CardTitle className="text-2xl font-bold">Entity Details</CardTitle>
             <CardDescription>
-              Provide information about your organization to begin the KYC
-              process.
+              Save your organization profile before we hand KYC off to Veriff.
             </CardDescription>
           </CardHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleDetailsSubmit)}>
               <CardContent className="space-y-4">
-                {submitError && (
+                {(submitError || veriffErrorMessage) && (
                   <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                    {submitError}
+                    {submitError ?? veriffErrorMessage}
                   </div>
                 )}
                 <FormField
@@ -291,7 +276,7 @@ export default function KYCPage() {
                     <FormItem>
                       <FormLabel>Country of Operation</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. United States" {...field} />
+                        <Input placeholder="e.g. Bulgaria" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -327,15 +312,13 @@ export default function KYCPage() {
         </Card>
       )}
 
-      {step === "upload" && (
+      {step === "verify" && (
         <Card className="border-neutral-200 dark:border-neutral-800">
           <CardHeader>
-            <CardTitle className="text-2xl font-bold">
-              Document Upload
-            </CardTitle>
+            <CardTitle className="text-2xl font-bold">Launch Veriff</CardTitle>
             <CardDescription>
-              Upload your tax-exempt status (e.g. 501(c)(3)) or organizational
-              charter.
+              We only unlock verified funder access after Veriff approves the
+              session and the canister profile reflects that decision.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -344,50 +327,65 @@ export default function KYCPage() {
                 {submitError}
               </div>
             )}
-            <div className="border-2 border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl p-12 flex flex-col items-center justify-center text-center space-y-4 hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors cursor-pointer group">
-              <div className="h-16 w-16 rounded-full bg-primary/5 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Upload className="h-8 w-8 text-primary" />
+
+            {detailsSnapshot && (
+              <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900">
+                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                  Profile saved
+                </p>
+                <p className="mt-2 text-sm font-semibold">
+                  {detailsSnapshot.orgName}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {detailsSnapshot.regNum} • {detailsSnapshot.country}
+                </p>
               </div>
-              <div className="space-y-1">
-                <p className="font-semibold text-lg">
-                  Click to upload or drag and drop
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  PDF, PNG, JPG (max. 10MB)
-                </p>
+            )}
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Representative First Name</Label>
+                <Input
+                  value={representativeFirstName}
+                  onChange={(event) =>
+                    setRepresentativeFirstName(event.target.value)
+                  }
+                  placeholder="First name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Representative Last Name</Label>
+                <Input
+                  value={representativeLastName}
+                  onChange={(event) =>
+                    setRepresentativeLastName(event.target.value)
+                  }
+                  placeholder="Last name"
+                />
               </div>
             </div>
 
-            <div className="bg-neutral-100 dark:bg-neutral-900 rounded-lg p-4 flex items-center gap-4">
-              <FileText className="h-8 w-8 text-muted-foreground" />
-              <div className="flex-1">
-                <p className="text-sm font-medium">charter_v2_final.pdf</p>
-                <p className="text-xs text-muted-foreground">
-                  Uploaded 2 mins ago
-                </p>
-              </div>
-              <CheckCircle2 className="h-5 w-5 text-green-500" />
+            <div className="rounded-xl border border-primary/20 bg-primary/[0.04] p-4 text-sm text-muted-foreground">
+              Veriff will open in a new hosted flow. When it finishes, you will
+              return to the dashboard while the app waits for the final canister
+              verification state.
             </div>
           </CardContent>
           <CardFooter className="flex justify-between border-t pt-6">
-            <Button
-              variant="ghost"
-              onClick={() => setStep("details")}
-              disabled={isUploading}
-            >
+            <Button variant="ghost" onClick={() => setStep("details")}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back
             </Button>
-            <Button onClick={handleUpload} disabled={isUploading}>
-              {isUploading ? (
+            <Button onClick={handleStartVeriff} disabled={isLaunchingVeriff}>
+              {isLaunchingVeriff ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Uploading...
+                  Starting Veriff...
                 </>
               ) : (
                 <>
-                  Submit for Verification
-                  <ArrowRight className="ml-2 h-4 w-4" />
+                  Start Veriff
+                  <ExternalLink className="ml-2 h-4 w-4" />
                 </>
               )}
             </Button>
@@ -395,68 +393,52 @@ export default function KYCPage() {
         </Card>
       )}
 
-      {step === "processing" && (
-        <Card className="border-neutral-200 dark:border-neutral-800 py-16">
-          <CardContent className="flex flex-col items-center text-center space-y-8">
-            <div className="relative h-32 w-32">
-              <div className="absolute inset-0 rounded-full border-4 border-primary/10" />
-              <div className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <ShieldCheck className="h-16 w-16 text-primary" />
-              </div>
-            </div>
-            <div className="space-y-4">
-              <CardTitle className="text-3xl font-bold tracking-tight italic animate-pulse">
-                {processingStatus}
-              </CardTitle>
-              <CardDescription className="max-w-sm text-lg leading-relaxed">
-                Our 3-agent AI consensus protocol is currently vetting your
-                organization's credentials against international compliance
-                standards.
-              </CardDescription>
-            </div>
-
-            <div className="w-full max-w-xs space-y-2">
-              <div className="flex justify-between text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <span>System Integrity</span>
-                <span>Vetting in progress</span>
-              </div>
-              <div className="h-1.5 w-full bg-neutral-100 dark:bg-neutral-900 rounded-full overflow-hidden">
-                <div className="h-full bg-primary animate-pulse" />
+      {step === "waiting" && (
+        <Card className="border-neutral-200 dark:border-neutral-800">
+          <CardHeader>
+            <CardTitle className="text-2xl font-bold">
+              Verification in Progress
+            </CardTitle>
+            <CardDescription>
+              A Veriff session is already open or waiting on a decision.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-5 dark:border-neutral-800 dark:bg-neutral-900">
+              <div className="flex items-start gap-3">
+                <ShieldCheck className="mt-0.5 h-5 w-5 text-primary" />
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  <p className="font-semibold text-foreground">
+                    Waiting for the Veriff decision webhook
+                  </p>
+                  <p>
+                    Open the dashboard to check the latest status. Access
+                    unlocks only after the canister profile is marked verified.
+                  </p>
+                </div>
               </div>
             </div>
           </CardContent>
-        </Card>
-      )}
-
-      {step === "complete" && (
-        <Card className="border-neutral-200 dark:border-neutral-800 overflow-hidden">
-          <div className="h-2 bg-green-500" />
-          <CardHeader className="text-center pt-12">
-            <div className="mx-auto h-20 w-20 rounded-full bg-green-50 dark:bg-green-950/30 flex items-center justify-center mb-6">
-              <CheckCircle2 className="h-10 w-10 text-green-500" />
-            </div>
-            <CardTitle className="text-3xl font-bold">
-              Verification Successful
-            </CardTitle>
-            <CardDescription className="text-lg">
-              Your entity has been verified. You can now start deploying
-              capital.
-            </CardDescription>
-          </CardHeader>
-          <CardFooter className="flex flex-col gap-4 pb-12">
-            <Button
-              className="w-full h-12 text-lg font-bold"
-              onClick={() => router.push("/dashboard")}
-            >
-              Go to Investor Dashboard
+          <CardFooter className="flex flex-wrap justify-between gap-3 border-t pt-6">
+            <Button variant="ghost" onClick={handleRestart}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Restart KYC
             </Button>
-            <p className="text-xs text-muted-foreground text-center">
-              A copy of your verification report has been sent to your email.
-            </p>
+            <Button onClick={() => router.push("/dashboard")}>
+              Open Dashboard Status
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
           </CardFooter>
         </Card>
       )}
     </div>
+  );
+}
+
+export default function KYCPage() {
+  return (
+    <Suspense fallback={<div className="w-full max-w-xl space-y-8" />}>
+      <KYCPageContent />
+    </Suspense>
   );
 }

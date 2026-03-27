@@ -17,7 +17,6 @@ import {
   fetchConfig,
   SerializedProposal,
 } from "@/lib/actions/proposals";
-import type { Config } from "@/lib/types/api";
 import {
   formatConfigPercent,
   formatPercent,
@@ -34,8 +33,12 @@ import {
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-type GovernanceConfig = Omit<Config, "voting_period_ns"> & {
+type GovernanceConfig = {
   voting_period_ns: number;
+  quorum_percent: number;
+  quorum_min_region_size: number;
+  majority_threshold: number;
+  absolute_majority: number;
 };
 
 export default function GovernancePage() {

@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { SerializedProposal } from "@/lib/actions/proposals";
+import { buildProposalDebateRequest } from "@/lib/ai/debate";
 import { AI_WORKER_URL } from "@/lib/env";
 
 export interface DebateEvent {
@@ -61,19 +62,7 @@ export function useAIDebate() {
           "Content-Type": "application/json",
           "Accept": "text/event-stream",
         },
-        body: JSON.stringify({
-          proposal: {
-            name: proposal.title,
-            location:
-              proposal.location.formatted_address ||
-              proposal.location.city ||
-              proposal.region_tag,
-            category: proposal.category,
-            info: proposal.description,
-            neededFunds: proposal.budget_amount,
-            currency: proposal.budget_currency,
-          },
-        }),
+        body: JSON.stringify(buildProposalDebateRequest(proposal)),
         signal: abortController.signal,
       });
 

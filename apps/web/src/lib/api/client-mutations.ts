@@ -9,6 +9,7 @@ import {
   UserType,
   ProposalCategory,
   ProposalCompany,
+  ProposalAIDebate,
   SaveProposalAIDebateInput,
 } from "../types/api";
 
@@ -93,6 +94,24 @@ export async function saveProposalAIDebateClient(
   const actor = await createBackendActor(identity);
   const result = await actor.save_proposal_ai_debate(BigInt(proposalId), input);
   return handleResult(result);
+}
+
+export async function getProposalClient(
+  proposalId: string,
+  identity?: Identity | null,
+): Promise<Proposal | null> {
+  const actor = await createBackendActor(identity ?? undefined);
+  const result = await actor.get_proposal(BigInt(proposalId));
+  return result.length > 0 ? result[0]! : null;
+}
+
+export async function getProposalAIDebateClient(
+  proposalId: string,
+  identity?: Identity | null,
+): Promise<ProposalAIDebate | null> {
+  const actor = await createBackendActor(identity ?? undefined);
+  const result = await actor.get_proposal_ai_debate(BigInt(proposalId));
+  return result.length > 0 ? result[0]! : null;
 }
 
 export async function castVoteClient(

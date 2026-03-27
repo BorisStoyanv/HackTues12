@@ -180,12 +180,7 @@ export function ProposalWizard() {
       try {
         setSubmitPhase("Running AI debate");
         const savedDebate = await runProposalDebateEvaluation({
-          title: data.title,
-          description: data.description,
-          category: data.category,
-          budget_amount: data.budget_amount,
-          budget_currency: data.budget_currency,
-          region_tag: data.region_tag,
+          ...data,
           location: {
             formatted_address:
               data.location?.formatted_address || data.region_tag,

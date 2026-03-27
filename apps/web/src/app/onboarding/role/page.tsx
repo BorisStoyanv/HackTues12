@@ -12,7 +12,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAuthStore, UserRole } from "@/lib/auth-store";
+import { getRequiredAuthenticatedRoute } from "@/lib/kyc-routing";
 import { cn } from "@/lib/utils";
+import { readPendingVeriffSession } from "@/lib/veriff-browser";
 
 export default function RoleSelectionPage() {
   const router = useRouter();
@@ -21,6 +23,7 @@ export default function RoleSelectionPage() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isInitializing = useAuthStore((state) => state.isInitializing);
   const hasProfile = useAuthStore((state) => state.hasProfile);
+  const user = useAuthStore((state) => state.user);
 
   useEffect(() => {
     if (!isInitializing && !isAuthenticated) {
@@ -28,9 +31,15 @@ export default function RoleSelectionPage() {
       return;
     }
     if (!isInitializing && hasProfile) {
-      router.replace("/dashboard");
+      router.replace(
+        getRequiredAuthenticatedRoute({
+          hasProfile,
+          user,
+          hasPendingVeriffSession: Boolean(readPendingVeriffSession()),
+        }),
+      );
     }
-  }, [hasProfile, isAuthenticated, isInitializing, router]);
+  }, [hasProfile, isAuthenticated, isInitializing, router, user]);
 
   const handleRoleSelect = (role: UserRole) => {
     setRole(role);
